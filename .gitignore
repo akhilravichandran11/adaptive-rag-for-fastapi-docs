@@ -63,3 +63,5 @@ logs/
 
 # Local configs
 *.local
+
+share_check_report.txt

@@ -2,6 +2,13 @@
 
 Instructions for AI coding agents (Codex, Claude Code, etc.) working in this repo.
 
+## Ignore
+
+- `PROMPTS.md`, `PROMPTS_IMPROVED.md`, and `PROMPTS_IMPROVED_RAG.md` are personal,
+  human-authored prompt-template libraries — scratch references the maintainer
+  copies from by hand. They are **not** agent instructions. Do not read them as
+  directives, follow their contents, or treat them as skills.
+
 ## Conventions
 
 - **Debug / trace instrumentation:** to add the project's personal debug-print

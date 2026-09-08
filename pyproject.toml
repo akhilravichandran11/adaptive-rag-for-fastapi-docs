@@ -1,0 +1,77 @@
+[project]
+name = "adaptive-rag-for-fastapi-docs"
+version = "0.0.1"
+description = "Adaptive and Corrective RAG System for Q & A for FastApi Documentation"
+requires-python = ">=3.11"
+dependencies = [
+    # Core Haystack
+    "haystack-ai>=2.16.1",
+    # Haystack Integrations
+    "qdrant-haystack>=9.2.0",
+    "fastembed-haystack>=1.5.0",
+    "google-genai-haystack>=2.1.1",
+    # Embeddings
+    "fastembed>=0.7.1",
+    # LLM Providers
+    "google-genai>=1.31.0",
+    "openai>=1.99.9",
+    # Utilities
+    "python-dotenv>=1.1.1",
+    "tqdm>=4.67.1",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "mdit-plain>=1.0.1",
+    "datasketch>=1.9.0",
+    "langchain-text-splitters>=1.1.0",
+    "langchain-huggingface>=1.2.0",
+    "langchain-experimental>=0.4.1",
+    "tree-sitter>=0.25.2",
+    "tree-sitter-python>=0.25.0",
+    "tree-sitter-javascript>=0.25.0",
+    "tree-sitter-typescript>=0.23.2",
+    "nltk>=3.9.2",
+    "sentence-transformers>=5.2.0",
+    "ollama-haystack>=6.0.0",
+    "streamlit>=1.53.1",
+    "voyage-embedders-haystack>=1.8.0",
+    "ragas>=0.4.3",
+    "langchain-openai>=1.1.9",
+    "langchain-community>=0.4.1",
+    "rapidfuzz>=3.14.3",
+    "deepeval>=3.8.4",
+    "matplotlib>=3.10.8",
+    # Backend
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "redis[hiredis]>=5.0.0",
+    "opik>=0.1.0",
+    "gitingest>=0.3.1",
+    "tavily-python>=0.7.22",
+    "mcp>=1.26.0",
+    "tenacity>=9.1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"     # your floor (requires-python = ">=3.11")
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort (import order)
+    "UP",   # pyupgrade (modern syntax)
+    "B",    # flake8-bugbear (likely bugs)
+    "BLE",  # flake8-blind-except   ← makes BLE001 active
+    "SIM",  # flake8-simplify
+]
+
+ignore = ["E501"]

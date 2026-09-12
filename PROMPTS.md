@@ -2,6 +2,9 @@
 
 Personal Prompt Instructions for AI coding agents (Codex, Claude Code, etc.) working in this repo.
 
+> This file is a human prompt-template reference, not agent instructions. See the
+> `Ignore` note in `AGENTS.md`.
+
 ## Maintain Conventions
 
 - Use the same style as the rest of the codebase.
@@ -32,4 +35,4 @@ Personal Prompt Instructions for AI coding agents (Codex, Claude Code, etc.) wor
 - please read .py as it has been updated.
 - Please read .py and analyze it again
 - I have .py and addressed some comments please review it again and update your comments from your earlier review.
-- lets work on these three review comments and see if these need to be implemented or what needs to be implemented. 
+- lets work on these three review comments and see if these need to be implemented or what needs to be implemented.

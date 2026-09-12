@@ -1,0 +1,43 @@
+name: Custom PR code review
+
+# Runs scripts/ci/review_pr.py against every pull request, using the OpenAI
+# API directly (no Warp/Oz dependency). The script reuses the review
+# criteria in .agents/skills/code-review/SKILL.md so the automated CI
+# review follows the same severity-ranked output contract as an
+# interactive review.
+#
+# Required repo secret:
+#   OPENAI_API_KEY - stored under Settings > Secrets and variables > Actions
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --quiet openai
+
+      - name: Run code review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python scripts/ci/review_pr.py

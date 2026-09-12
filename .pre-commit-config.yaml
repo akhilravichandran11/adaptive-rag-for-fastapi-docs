@@ -1,0 +1,84 @@
+# Pre-commit hooks for adaptive-rag-for-fastapi-docs
+#
+# Install (one time):
+#   uvx pre-commit install --install-hooks
+#
+# Run manually against everything:
+#   uvx pre-commit run --all-files
+#
+# Bypass in an emergency (avoid for the secret-scanning hooks):
+#   git commit --no-verify
+
+default_install_hook_types: [pre-commit, pre-push]
+exclude: |
+  (?x)^(
+    uv\.lock|
+    \.claude/worktrees/.*|
+    \.venv/.*
+  )$
+
+repos:
+  # ---------------------------------------------------------------- hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: trailing-whitespace
+
+  # ------------------------------------------------------------------- lint
+  # Uses the [tool.ruff] config already defined in pyproject.toml.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # --------------------------------------------------------------- secrets
+  # This project holds keys for OpenAI, Google, Voyage, Tavily, Opik and
+  # HuggingFace in a local .env. gitleaks is the backstop if one ever ends
+  # up inline in a source file or notebook.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # ------------------------------------------------------------ repo-local
+  - repo: local
+    hooks:
+      - id: block-private-files
+        name: block private / portfolio-excluded files
+        description: >-
+          Refuse commits containing .env, scratch, sandbox or personally named
+          files, even when they were force-added past .gitignore.
+        entry: scripts/hooks/block-private-files.sh
+        language: script
+        pass_filenames: true
+
+      - id: no-debug-instrumentation
+        name: no AKR-DEBUG instrumentation
+        description: >-
+          Refuse commits that still contain temporary trace blocks added by the
+          debug-instrumentation skill.
+        entry: scripts/hooks/no-debug-instrumentation.sh
+        language: script
+        types: [python]
+        pass_filenames: true
+
+      - id: uv-lock-check
+        name: uv.lock is in sync with pyproject.toml
+        entry: uv lock --check
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+        stages: [pre-push]

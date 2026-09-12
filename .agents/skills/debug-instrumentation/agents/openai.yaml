@@ -1,0 +1,3 @@
+interface:
+  display_name: "Debug Instrumentation"
+  short_description: "Add removable, secret-safe Python traces"

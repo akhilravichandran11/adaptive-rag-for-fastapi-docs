@@ -1,0 +1,3 @@
+interface:
+  display_name: "Pre-Edit Review"
+  short_description: "Show proposed changes and wait for approval before editing"

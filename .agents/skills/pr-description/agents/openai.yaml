@@ -1,0 +1,3 @@
+interface:
+  display_name: "PR Description"
+  short_description: "Draft a PR title and Summary/Changes/Testing body from the branch diff"

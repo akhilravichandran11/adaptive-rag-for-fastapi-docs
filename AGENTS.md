@@ -11,6 +11,17 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
 
 ## Conventions
 
+- **Match the existing codebase:** when writing or editing code, use the same
+  style, language, framework, testing framework, and linter as the
+  surrounding code. Match the naming, structure, and comment density of
+  nearby files. Don't add dependencies or reformat unrelated code without
+  saying why.
+- **Code review before finishing:** once a change or diff looks complete and
+  before treating a coding task as done, spawn the `active-code-reviewer`
+  custom agent (defined in
+  [`.codex/agents/active-code-reviewer.toml`](.codex/agents/active-code-reviewer.toml))
+  to review it for real bugs. Skip this for style-only formatting/lint
+  requests.
 - **Local findings, plans, and tickets:** before recording or triaging findings,
   refining plans, or executing ticket work, read
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).

@@ -1,0 +1,44 @@
+name: Auto-fill PR description
+
+# Runs scripts/ci/generate_pr_description.py when a PR is opened without a
+# body, using the OpenAI API directly (no Warp/Oz dependency). Never
+# overwrites a description someone already wrote. Reuses the criteria in
+# .agents/skills/pr-description/SKILL.md so the generated title/body follow
+# the same Conventional Commits + Summary/Changes/Testing structure as an
+# interactive draft from an agent.
+#
+# Required repo secret:
+#   OPENAI_API_KEY - stored under Settings > Secrets and variables > Actions
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  fill-description:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --quiet openai
+
+      - name: Generate PR description if missing
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python scripts/ci/generate_pr_description.py

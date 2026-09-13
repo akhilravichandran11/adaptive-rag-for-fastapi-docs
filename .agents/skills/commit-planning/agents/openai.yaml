@@ -1,0 +1,3 @@
+interface:
+  display_name: "Commit Planning"
+  short_description: "Plan an ordered sequence of commits from a pile of changes"

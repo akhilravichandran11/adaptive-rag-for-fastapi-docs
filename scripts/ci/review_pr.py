@@ -24,7 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "code-review" / "SKILL.md"
@@ -88,6 +88,10 @@ def post_comment(pr_number: str, body: str) -> None:
 
 
 def main() -> int:
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("OPENAI_API_KEY not set; skipping (e.g. a fork PR without repo secrets).")
+        return 0
+
     base_ref = os.environ["GITHUB_BASE_REF"]
     pr_number = os.environ["PR_NUMBER"]
 
@@ -99,15 +103,21 @@ def main() -> int:
     system_prompt, user_prompt = build_prompt(diff)
 
     client = OpenAI()
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.1,
-        max_tokens=3000,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            max_tokens=3000,
+        )
+    except OpenAIError as error:
+        detail = getattr(error, "code", None) or type(error).__name__
+        print(f"OpenAI request failed ({detail}); skipping code review.", file=sys.stderr)
+        return 0
+
     review = response.choices[0].message.content
     if not review or not review.strip():
         print("Model returned an empty review.", file=sys.stderr)

@@ -27,7 +27,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "pr-description" / "SKILL.md"
@@ -124,6 +124,10 @@ def main() -> int:
         print("PR already has a body; leaving it untouched.")
         return 0
 
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("OPENAI_API_KEY not set; skipping (e.g. a fork PR without repo secrets).")
+        return 0
+
     base_ref = os.environ["GITHUB_BASE_REF"]
     pr_number = os.environ["PR_NUMBER"]
 
@@ -131,15 +135,21 @@ def main() -> int:
     system_prompt, user_prompt = build_prompt(branch_summary)
 
     client = OpenAI()
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.2,
-        max_tokens=1200,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2,
+            max_tokens=1200,
+        )
+    except OpenAIError as error:
+        detail = getattr(error, "code", None) or type(error).__name__
+        print(f"OpenAI request failed ({detail}); skipping PR description.", file=sys.stderr)
+        return 0
+
     raw = response.choices[0].message.content
     if not raw or not raw.strip():
         print("Model returned an empty response.", file=sys.stderr)

@@ -4,9 +4,8 @@ Mints a run id once, creates ``outputs/<run_id>/``, then runs each stage in sequ
 Each stage reads the previous stage's fixed-name artifact from the run dir and writes
 its own into it. Fails fast: the first stage error aborts with a nonzero exit.
 
-NOTE: only stage 1 conforms to the run-dir contract today. Stages 2/3/5 still need
-their rename + ``main(run_dir=...)`` refactor before the full chain runs; until then
-run just the first stage with ``--only 1``.
+NOTE: Stages 1, 2, and 3 conform to the run-directory contract. Stage 4 remains
+unavailable to the full chain.
 """
 
 import argparse
@@ -19,7 +18,7 @@ from dotenv import load_dotenv
 from openai_llm_utils import configure_logging
 from pipeline import (
     CONTENT_ANALYSIS_FILE,
-    KNOWLEDGE_DOMAINS_FILE,
+    IMPLEMENTATION_ROADMAP_FILE,
     LEARNING_TAXONOMY_FILE,
     SYNTHETIC_DATASET_FILE,
     resolve_run_dir,
@@ -36,14 +35,30 @@ logger = logging.getLogger(__name__)
 # The pipeline chain, in order. Each module is imported lazily when its stage runs,
 # so stages not yet refactored only matter if actually reached (use --only otherwise).
 STAGES = [
-    {"n": 1, "module": "stage1_analyze_content_quality", "output": CONTENT_ANALYSIS_FILE,
-     "kwargs": lambda a: {"limit": a.limit}},
-    {"n": 2, "module": "stage2_knowledge_domains", "output": KNOWLEDGE_DOMAINS_FILE,
-     "kwargs": lambda a: {}},
-    {"n": 3, "module": "stage3_learning_taxonomy", "output": LEARNING_TAXONOMY_FILE,
-     "kwargs": lambda a: {}},
-    {"n": 4, "module": "stage4_synthetic_dataset", "output": SYNTHETIC_DATASET_FILE,
-     "kwargs": lambda a: {}},
+    {
+        "n": 1,
+        "module": "stage1_analyze_content_quality",
+        "output": CONTENT_ANALYSIS_FILE,
+        "kwargs": lambda a: {"limit": a.limit},
+    },
+    {
+        "n": 2,
+        "module": "stage2_knowledge_domains",
+        "output": LEARNING_TAXONOMY_FILE,
+        "kwargs": lambda a: {},
+    },
+    {
+        "n": 3,
+        "module": "stage3_learning_taxonomy_final",
+        "output": IMPLEMENTATION_ROADMAP_FILE,
+        "kwargs": lambda a: {},
+    },
+    {
+        "n": 4,
+        "module": "stage4_synthetic_dataset",
+        "output": SYNTHETIC_DATASET_FILE,
+        "kwargs": lambda a: {},
+    },
 ]
 
 
@@ -74,8 +89,9 @@ async def run_pipeline(args) -> None:
         except SystemExit as e:
             # A stage signals failure via SystemExit(nonzero); let the orchestrator own the exit.
             if e.code not in (0, None):
-                logger.error("Stage %d exited with code %s; aborting run %s",
-                            stage["n"], e.code, run_id)
+                logger.error(
+                    "Stage %d exited with code %s; aborting run %s", stage["n"], e.code, run_id
+                )
                 raise SystemExit(1) from None
         except Exception:
             logger.exception("Stage %d failed; aborting run %s", stage["n"], run_id)
@@ -87,23 +103,34 @@ async def run_pipeline(args) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the data-curation pipeline.")
     parser.add_argument(
-        "--run-id", default=None, metavar="ID",
+        "--run-id",
+        default=None,
+        metavar="ID",
         help="Reuse/target a run id. Default: RUN_ID env var, else a fresh timestamp.",
     )
     parser.add_argument(
-        "--label", default=None, metavar="LABEL",
+        "--label",
+        default=None,
+        metavar="LABEL",
         help="Label appended to a generated run id (ignored if --run-id is given).",
     )
     parser.add_argument(
-        "--limit", type=int, default=None, metavar="N",
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
         help="Pass a file limit to stage 1 (smoke test before a full run).",
     )
     parser.add_argument(
-        "--only", type=lambda s: {int(x) for x in s.split(",")}, default=None, metavar="NUMS",
+        "--only",
+        type=lambda s: {int(x) for x in s.split(",")},
+        default=None,
+        metavar="NUMS",
         help="Run only these stage numbers, comma-separated (e.g. 1 or 2,3).",
     )
     parser.add_argument(
-        "--resume", action="store_true",
+        "--resume",
+        action="store_true",
         help="Skip stages whose output already exists in the run dir.",
     )
     args = parser.parse_args()

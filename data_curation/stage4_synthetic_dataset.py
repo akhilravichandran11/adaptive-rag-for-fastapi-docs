@@ -6,11 +6,16 @@ Generate high-quality curated FastAPI documentation files based on analysis and 
 import asyncio
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 from openai_llm_utils import chat
+from pipeline import (
+    CONTENT_ANALYSIS_FILE,
+    DATASET_GENERATION_LOG_FILE,
+    SYNTHESIS_PLAN_FILE,
+    resolve_run_dir,
+)
 from tqdm import tqdm
 
 # Configure logging
@@ -19,51 +24,91 @@ logger = logging.getLogger(__name__)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-OUTPUTS_DIR = SCRIPT_DIR / "outputs"
-
-CONTENT_ANALYSIS_FILENAME = "content_analysis.json"
-SYNTHESIS_PLAN_FILENAME = "synthesis_plan.json"
 
 # Load environment variables
 load_dotenv(PROJECT_ROOT / ".env")
 
 
 class FastAPIDatasetGenerator:
-    def __init__(
-        self,
-        content_analysis_filename: str = CONTENT_ANALYSIS_FILENAME,
-        synthesis_plan_filename: str = SYNTHESIS_PLAN_FILENAME,
-    ):
+    def __init__(self, run_dir: Path):
         self.manifest_path = PROJECT_ROOT / "data/fastapi/normalized/github-docs/v1/manifest.json"
         self.docs_dir = self.manifest_path.parent / "docs"
-        self.output_dir = OUTPUTS_DIR
-        self.output_dir.mkdir(exist_ok=True)
-        self.curated_dir = PROJECT_ROOT / "data/fastapi/curated/synthetic/v1"
+        self.output_dir = run_dir
+        self.curated_dir = run_dir / "synthetic_dataset"
 
-        with self.manifest_path.open("r", encoding="utf-8") as manifest_file:
-            manifest = json.load(manifest_file)
+        content_analysis_path = self.output_dir / CONTENT_ANALYSIS_FILE
+        self.analysis_data = self._load_json(
+            content_analysis_path,
+            "Content analysis",
+            list,
+        )
+
+        synthesis_plan_path = self.output_dir / SYNTHESIS_PLAN_FILE
+        self.synthesis_plan = self._load_json(
+            synthesis_plan_path,
+            "Synthesis plan",
+            dict,
+        )
+        dataset_structure = self.synthesis_plan.get("dataset_structure")
+        if not isinstance(dataset_structure, dict) or not dataset_structure:
+            raise ValueError(
+                "Synthesis plan artifact must contain a non-empty "
+                f"'dataset_structure' JSON object: {synthesis_plan_path}"
+            )
+
+        manifest = self._load_json(
+            self.manifest_path,
+            "Normalized-doc manifest",
+            dict,
+        )
+        manifest_files = manifest.get("files")
+        if not isinstance(manifest_files, list):
+            raise ValueError(
+                f"Normalized-doc manifest must contain a 'files' JSON array: {self.manifest_path}"
+            )
+
+        for file_entry in manifest_files:
+            if (
+                not isinstance(file_entry, dict)
+                or not isinstance(file_entry.get("source_path"), str)
+                or not isinstance(file_entry.get("output_filename"), str)
+            ):
+                raise ValueError(
+                    "Normalized-doc manifest entries must contain string "
+                    f"'source_path' and 'output_filename' values: {self.manifest_path}"
+                )
 
         self.files_by_source_path = {
-            file_entry["source_path"]: file_entry for file_entry in manifest["files"]
+            file_entry["source_path"]: file_entry for file_entry in manifest_files
         }
 
-        # Load analysis results
-        self.analysis_data = self._load_json(content_analysis_filename, "content analysis")
-        self.synthesis_plan = self._load_json(synthesis_plan_filename, "synthesis plan")
-
-        # Create output directory
+        # Create output directory only after local inputs and configuration are valid.
         self.curated_dir.mkdir(parents=True, exist_ok=True)
 
-    def _load_json(self, filename: str, label: str) -> dict:
-        """Load a JSON artifact from the outputs dir; return {} on any error."""
+    def _load_json(
+        self,
+        path: Path,
+        label: str,
+        expected_type: type,
+    ) -> list | dict:
+        """Load and validate one required local JSON input."""
+        if not path.is_file():
+            raise ValueError(f"{label} artifact not found: {path}")
+
+        logger.info(f"Loading {label.lower()} from {path}")
         try:
-            path = self.output_dir / filename
-            logger.info(f"Loading {label} from {path}")
-            with open(path) as f:
-                return json.load(f)
-        except Exception as e:  # noqa: BLE001  (one bad synthesis call shouldn't kill the stage)
-            logger.error(f"Error loading {label}: {e}")
-            return {}
+            with path.open("r", encoding="utf-8") as input_file:
+                payload = json.load(input_file)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"{label} artifact is not valid JSON: {path}: {error}") from error
+        except (OSError, UnicodeError) as error:
+            raise ValueError(f"Could not read {label.lower()} artifact: {path}: {error}") from error
+
+        if not isinstance(payload, expected_type):
+            expected_shape = "array" if expected_type is list else "object"
+            raise ValueError(f"{label} artifact must contain a JSON {expected_shape}: {path}")
+
+        return payload
 
     def _get_source_content(self, source_path: str) -> str:
         """Get normalized content for a manifest source path."""
@@ -210,17 +255,16 @@ INSTRUCTIONS:
 
 Generate the complete markdown file content:"""
 
-        try:
-            response_text = await chat(
-                synthesis_prompt,
-                temperature=0.3,  # Slightly creative but focused
-                max_tokens=4000,  # Enough for comprehensive content
-            )
-            return self._strip_code_fence(response_text.strip())
-
-        except Exception as e:  # noqa: BLE001  (one bad synthesis call shouldn't kill the stage)
-            logger.error(f"Error generating {filename}: {str(e)}")
-            return f"# {filename.replace('_', ' ').title()}\n\nError generating content: {str(e)}"
+        response_text = await chat(
+            synthesis_prompt,
+            temperature=0.3,  # Slightly creative but focused
+            max_tokens=4000,  # Enough for comprehensive content
+        )
+        stripped_response = response_text.strip()
+        content = self._strip_code_fence(stripped_response)
+        if not content.strip():
+            raise RuntimeError(f"Empty response generating {filename}")
+        return content
 
     async def _generate_one_file(self, file_spec: dict, category: str, category_dir: Path) -> dict:
         """Generate, save, and log a single curated file.
@@ -262,12 +306,6 @@ Generate the complete markdown file content:"""
     async def generate_all_files(self):
         """Generate all curated files according to synthesis plan"""
 
-        if not self.synthesis_plan.get("dataset_structure"):
-            logger.error("No synthesis plan found!")
-            return
-
-        timestamp = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-
         # Generate every file across every category, collecting one result per attempt.
         results = []
         for category, category_spec in self.synthesis_plan["dataset_structure"].items():
@@ -289,11 +327,16 @@ Generate the complete markdown file content:"""
             "total_files": len(generated_files),
         }
 
-        # Save generation log
-        with open(self.output_dir / f"dataset_generation_log-v1-{timestamp}.json", "w") as f:
-            json.dump(generation_log, f, indent=2)
-
         self._print_summary(generation_log)
+
+        if errors:
+            raise RuntimeError(
+                f"Stage 4 failed: {len(errors)} of {len(results)} planned files failed"
+            )
+
+        generation_log_path = self.output_dir / DATASET_GENERATION_LOG_FILE
+        with generation_log_path.open("w", encoding="utf-8") as output_file:
+            json.dump(generation_log, output_file, indent=2, ensure_ascii=False)
 
         return generation_log
 
@@ -370,16 +413,10 @@ Generated using LLM-assisted analysis and synthesis from FastAPI documentation.
         logger.info(f"README created at {readme_path}")
 
 
-async def main(
-    content_analysis_filename: str = CONTENT_ANALYSIS_FILENAME,
-    synthesis_plan_filename: str = SYNTHESIS_PLAN_FILENAME,
-):
+async def main(run_dir: Path):
     """Run the dataset generation"""
 
-    generator = FastAPIDatasetGenerator(
-        content_analysis_filename=content_analysis_filename,
-        synthesis_plan_filename=synthesis_plan_filename,
-    )
+    generator = FastAPIDatasetGenerator(run_dir)
 
     logger.info("Starting curated FastAPI dataset generation...")
 
@@ -398,25 +435,18 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Generate curated FastAPI documentation from analysis + synthesis-plan artifacts."
+        description="Generate curated FastAPI documentation for an existing pipeline run."
     )
     parser.add_argument(
-        "--content-analysis",
-        default=CONTENT_ANALYSIS_FILENAME,
-        metavar="FILENAME",
-        help="Content-analysis JSON filename in the outputs dir. Default: %(default)s",
-    )
-    parser.add_argument(
-        "--synthesis-plan",
-        default=SYNTHESIS_PLAN_FILENAME,
-        metavar="FILENAME",
-        help="Synthesis-plan JSON filename in the outputs dir. Default: %(default)s",
+        "--run-id",
+        required=True,
+        metavar="ID",
+        help="Existing pipeline run id under data_curation/outputs.",
     )
     args = parser.parse_args()
 
-    asyncio.run(
-        main(
-            content_analysis_filename=args.content_analysis,
-            synthesis_plan_filename=args.synthesis_plan,
-        )
-    )
+    try:
+        asyncio.run(main(resolve_run_dir(args.run_id)))
+    except Exception as error:  # noqa: BLE001  (CLI converts stage failures to exit status)
+        logger.error("%s", error)
+        raise SystemExit(1) from error

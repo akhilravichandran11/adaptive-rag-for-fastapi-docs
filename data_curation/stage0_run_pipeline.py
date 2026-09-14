@@ -4,8 +4,7 @@ Mints a run id once, creates ``outputs/<run_id>/``, then runs each stage in sequ
 Each stage reads the previous stage's fixed-name artifact from the run dir and writes
 its own into it. Fails fast: the first stage error aborts with a nonzero exit.
 
-NOTE: Stages 1, 2, and 3 conform to the run-directory contract. Stage 4 remains
-unavailable to the full chain.
+NOTE: Stages 1 through 4 conform to the run-directory contract.
 """
 
 import argparse
@@ -18,9 +17,9 @@ from dotenv import load_dotenv
 from openai_llm_utils import configure_logging
 from pipeline import (
     CONTENT_ANALYSIS_FILE,
+    DATASET_GENERATION_LOG_FILE,
     IMPLEMENTATION_ROADMAP_FILE,
     LEARNING_TAXONOMY_FILE,
-    SYNTHETIC_DATASET_FILE,
     resolve_run_dir,
     resolve_run_id,
 )
@@ -56,7 +55,7 @@ STAGES = [
     {
         "n": 4,
         "module": "stage4_synthetic_dataset",
-        "output": SYNTHETIC_DATASET_FILE,
+        "output": DATASET_GENERATION_LOG_FILE,
         "kwargs": lambda a: {},
     },
 ]

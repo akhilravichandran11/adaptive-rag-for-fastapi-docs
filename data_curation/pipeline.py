@@ -24,7 +24,7 @@ LEARNING_TAXONOMY_FILE = "learning_taxonomy.json"
 FINAL_LEARNING_TAXONOMY_FILE = "learning_taxonomy_final.json"
 SYNTHESIS_PLAN_FILE = "synthesis_plan.json"
 IMPLEMENTATION_ROADMAP_FILE = "implementation_roadmap.json"
-SYNTHETIC_DATASET_FILE = "synthetic_dataset.json"
+DATASET_GENERATION_LOG_FILE = "dataset_generation_log.json"
 RUN_META_FILE = "run_meta.json"
 
 

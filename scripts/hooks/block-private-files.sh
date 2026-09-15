@@ -18,11 +18,11 @@ ALLOWED_BASENAMES=(
 # Each entry is an extended regex matched against the repository-relative path.
 PATTERNS=(
   '(^|/)\.env(\..+)?$'
-  '(^|/)\.scratch/'
-  '(^|/)sandbox/'
-  '(^|/)archive/'
-  '(^|/)data/'
-  '(^|/)outputs/'
+  '(^|/)\.scratch(/|$)'
+  '(^|/)sandbox(/|$)'
+  '(^|/)archive(/|$)'
+  '(^|/)data(/|$)'
+  '(^|/)outputs(/|$)'
   '[Aa][Kk][Rr]'
   '(^|/)share_check_report.*\.txt$'
   '(^|/)PROMPTS_IMPROVED.*\.md$'

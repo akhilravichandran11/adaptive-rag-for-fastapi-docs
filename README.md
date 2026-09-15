@@ -3,10 +3,10 @@
 A corrective/adaptive RAG (CRAG) system for answering questions about the
 **FastAPI documentation**. It collects the docs from a pinned upstream commit,
 normalizes them into self-contained documents, and runs an LLM-assisted curation
-pipeline to prepare a high-quality corpus for retrieval.
+pipeline to prepare for a candidate content for review and eventual retrieval.
 
 > 🚧 **Early development.** Source collection, normalization, and curation
-> (stage 1) are working. Chunking, indexing, retrieval, and evaluation are
+> are working. Chunking, indexing, retrieval, and evaluation are
 > planned — see [ROADMAP.md](ROADMAP.md) for the full status.
 
 ## Pipeline
@@ -35,7 +35,7 @@ See [ROADMAP.md](ROADMAP.md) for the per-stage breakdown.
 - **Orchestration:** [Haystack](https://haystack.deepset.ai/) 2.x
 - **Vector store:** [Qdrant](https://qdrant.tech/)
 - **LLMs / embeddings:** OpenAI and Google Gemini
-- **Validation:** Pydantic (structured LLM outputs, schema-validated)
+- **Validation:** Pydantic for selected structured LLM outputs
 - **Tooling:** [uv](https://docs.astral.sh/uv/) (packaging), Ruff (lint), Python 3.11+
 
 ## Project structure
@@ -64,12 +64,18 @@ uv sync
 # 2. Configure secrets
 cp .env.example .env   # then fill in your OPENAI_API_KEY
 ```
+## Running the pipeline
 
-Full run instructions will be added here as the pipeline stages are wired
-together. Today, the curation pipeline runs stage 1 via its orchestrator:
+### Data Collection
+
+## To Do
+
+- [ ] Add `data_normalization` stage steps
+
+### Data Curation
 
 ```bash
-uv run python -m data_curation.stage0_run_pipeline --limit 5
+uv run python data_curation/stage0_run_pipeline.py --limit 5 --only 1
 ```
 
 ## Documentation
@@ -77,3 +83,11 @@ uv run python -m data_curation.stage0_run_pipeline --limit 5
 - [ROADMAP.md](ROADMAP.md) — capability status and what's next.
 - [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) — the local,
   agent-assisted planning and ticket workflow.
+
+## AI assistance and authorship
+
+This project was developed with assistance from OpenAI Codex for
+brainstorming, code review, debugging, documentation, and analysis of generated
+artifacts.
+
+I defined the project scope and architecture, approved implementation changes, ran the pipeline, verified its structural contracts, reviewed its generated outputs and limitations, and remain responsible for the final engineering decisions and published content.

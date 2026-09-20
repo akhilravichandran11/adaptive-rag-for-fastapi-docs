@@ -6,6 +6,7 @@ Generate high-quality curated FastAPI documentation files based on analysis and 
 import asyncio
 import json
 import logging
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -35,6 +36,32 @@ class FastAPIDatasetGenerator:
         self.docs_dir = self.manifest_path.parent / "docs"
         self.output_dir = run_dir
         self.curated_dir = run_dir / "synthetic_dataset"
+        self.category_keywords = {
+            "01_foundations": [
+                "first-steps",
+                "index",
+                "features",
+                "python-types",
+                "body",
+                "response",
+            ],
+            "02_implementation": [
+                "dependencies",
+                "background",
+                "testing",
+                "responses",
+                "status",
+                "advanced",
+            ],
+            "03_security_production": [
+                "security",
+                "databases",
+                "deployment",
+                "advanced",
+                "middleware",
+                "openapi",
+            ],
+        }
 
         content_analysis_path = self.output_dir / CONTENT_ANALYSIS_FILE
         self.analysis_data = self._load_json(
@@ -54,6 +81,16 @@ class FastAPIDatasetGenerator:
             raise ValueError(
                 "Synthesis plan artifact must contain a non-empty "
                 f"'dataset_structure' JSON object: {synthesis_plan_path}"
+            )
+
+        expected_categories = set(self.category_keywords)
+        actual_categories = set(dataset_structure)
+        if actual_categories != expected_categories:
+            missing = sorted(expected_categories - actual_categories)
+            unexpected = sorted(actual_categories - expected_categories)
+            raise ValueError(
+                "Synthesis plan categories do not match the Stage 3 contract: "
+                f"missing={missing}, unexpected={unexpected}: {synthesis_plan_path}"
             )
 
         manifest = self._load_json(
@@ -126,56 +163,19 @@ class FastAPIDatasetGenerator:
         return ""
 
     def _select_sources(self, category: str) -> list[dict]:
-        """Select up to 15 high-quality (score >= 7.5) sources relevant to a category.
-
-        If the category maps to keywords, keep only high-quality sources whose path
-        matches one; otherwise fall back to the first 10 high-quality sources.
-        """
-        if not self.analysis_data:
-            return []
-
-        # Canonical keyword tiers; aliases that share a keyword list are grouped.
-        keyword_groups = [
-            (
-                ("01_foundations",),
-                ["first-steps", "index", "features", "python-types", "body", "response"],
-            ),
-            (("foundations",), ["first-steps", "features", "python-types", "body", "response"]),
-            (
-                ("02_practical_implementations", "02_practical_examples"),
-                ["dependencies", "background", "testing", "responses", "status", "advanced"],
-            ),
-            (
-                ("practical_implementations",),
-                ["dependencies", "background", "testing", "responses", "status"],
-            ),
-            (
-                (
-                    "03_integration_and_advanced_topics",
-                    "03_integration_guides",
-                    "integration_and_advanced_topics",
-                ),
-                ["security", "databases", "deployment", "advanced", "middleware", "openapi"],
-            ),
+        """Select up to 15 high-quality sources for one canonical Stage 3 category."""
+        keywords = self.category_keywords[category]
+        relevant = [
+            item
+            for item in self.analysis_data
+            if item.get("analysis", {}).get("overall_quality", 0) >= 7.5
+            and any(keyword in item.get("source_path", "").lower() for keyword in keywords)
         ]
-        category_keywords = {
-            alias: keywords for aliases, keywords in keyword_groups for alias in aliases
-        }
 
-        keywords = category_keywords.get(category, [])
-        if keywords:
-            relevant = [
-                item
-                for item in self.analysis_data
-                if item.get("analysis", {}).get("overall_quality", 0) >= 7.5
-                and any(keyword in item.get("source_path", "").lower() for keyword in keywords)
-            ]
-        else:
-            relevant = [
-                item
-                for item in self.analysis_data
-                if item.get("analysis", {}).get("overall_quality", 0) >= 7.5
-            ][:10]
+        if not relevant:
+            raise ValueError(
+                f"No high-quality sources matched category {category!r} using keywords {keywords}"
+            )
 
         return relevant[:15]
 
@@ -201,6 +201,23 @@ class FastAPIDatasetGenerator:
     def _strip_code_fence(self, text: str) -> str:
         """Remove a wrapping ```markdown ... ``` fence if the model added one."""
         return text.removeprefix("```markdown").removesuffix("```")
+
+    def _parse_estimated_length(self, estimated_length: str) -> tuple[int, int]:
+        """Parse a '<minimum>-<maximum> words' target range."""
+        match = re.fullmatch(
+            r"\s*(\d+)\s*-\s*(\d+)\s+words\s*",
+            estimated_length,
+        )
+        if not match:
+            raise ValueError(
+                f"Estimated length must use '<minimum>-<maximum> words': {estimated_length!r}"
+            )
+
+        minimum, maximum = (int(value) for value in match.groups())
+        if minimum > maximum:
+            raise ValueError(f"Estimated length minimum exceeds maximum: {estimated_length!r}")
+
+        return minimum, maximum
 
     async def generate_curated_file(self, file_spec: dict, category: str) -> str:
         """Generate a single curated file using LLM synthesis"""
@@ -274,12 +291,27 @@ Generate the complete markdown file content:"""
         """
         try:
             filename = file_spec["filename"]
+            estimated_length = file_spec.get("estimated_length", "2000-3000 words")
+            target_min_words, target_max_words = self._parse_estimated_length(estimated_length)
             file_path = category_dir / filename
 
             logger.info(f"Generating: {filename}")
 
             # Generate content
             content = await self.generate_curated_file(file_spec, category)
+            word_count = len(content.split())
+            if word_count < target_min_words:
+                length_status = "below_target"
+            elif word_count > target_max_words:
+                length_status = "above_target"
+            else:
+                length_status = "within_target"
+
+            if length_status != "within_target":
+                logger.warning(
+                    f"Generated {filename} with {word_count} words; "
+                    f"target range is {target_min_words}-{target_max_words} words"
+                )
 
             # Save file
             with open(file_path, "w", encoding="utf-8") as f:
@@ -296,6 +328,11 @@ Generate the complete markdown file content:"""
                     "path": str(file_path),
                     "size": len(content),
                     "target_audience": file_spec.get("target_audience", "unknown"),
+                    "estimated_length": estimated_length,
+                    "target_min_words": target_min_words,
+                    "target_max_words": target_max_words,
+                    "word_count": word_count,
+                    "length_status": length_status,
                 },
             }
         except Exception as e:  # noqa: BLE001  (one bad file shouldn't kill the batch)
@@ -342,9 +379,14 @@ Generate the complete markdown file content:"""
 
     def _print_summary(self, log: dict) -> None:
         """Print the end-of-run generation summary."""
+        length_target_misses = sum(
+            record["length_status"] != "within_target" for record in log["generated_files"]
+        )
+
         print("\n🎯 DATASET GENERATION COMPLETE")
         print(f"✅ Generated: {len(log['generated_files'])} files")
         print(f"❌ Errors: {len(log['errors'])} files")
+        print(f"⚠️  Length target misses: {length_target_misses} files")
         print(f"📁 Output location: {self.curated_dir}")
 
         if log["errors"]:
@@ -373,13 +415,13 @@ Core FastAPI concepts and decision frameworks
 - Glossary and terminology
 - Request and response flow basics
 
-### 02_practical_implementations/
+### 02_implementation/
 Hands-on tutorials and implementation guides
 - First app and endpoint tutorials
 - Dependency and routing examples
 - Request validation and response model patterns
 
-### 03_integration_and_advanced_topics/
+### 03_security_production/
 Advanced FastAPI guides and integration patterns
 - Security and authentication guides
 - Database integration patterns

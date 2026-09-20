@@ -180,6 +180,11 @@ class DatasetFile(BaseModel):
     filename: str
     description: str
     content_focus: list[str]
+    source_paths: list[str] = Field(
+        min_length=1,
+        max_length=8,
+        description="ordered current-run manifest source paths used to ground this file",
+    )
     target_audience: Literal["beginner", "intermediate", "advanced"]
     estimated_length: str = Field(description="e.g. '2000-3000 words'")
     key_sections: list[str]

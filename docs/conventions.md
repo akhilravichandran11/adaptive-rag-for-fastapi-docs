@@ -1,0 +1,143 @@
+# Code conventions
+
+Patterns this codebase commits to. A finding records something *discovered* — a
+corpus defect, a library quirk. A convention records something *introduced*: a
+shape later code is expected to copy.
+
+Whoever introduces a pattern the repo does not already use records it here as
+`proposed`, keeps working under it, and names it in their final report. The
+maintainer rules. A ticket may not reach `done` while a convention it introduced
+is still `proposed`.
+
+Matching existing style needs no entry. This is only for style the repo has not
+set yet.
+
+## Status
+
+- `proposed`: in the code, awaiting a ruling.
+- `accepted`: the shape later code should follow.
+- `rejected`: to be undone; the entry records what has to change.
+
+## Register
+
+| ID | Convention | Introduced | Status |
+|---|---|---|---|
+| [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | proposed |
+| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | proposed |
+| [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | proposed |
+| [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | proposed |
+
+---
+
+## C001: A `backend` field discriminates registry entries, not the key string
+
+**Status:** proposed · **Introduced:** 2026-09-20, IDX-04 · **Where:** `data_ingestion/embedders.py`
+
+**What.** `EmbedderSpec` carries `backend: str` (`"fastembed"` or `"voyage"`).
+Every dispatch keys off `spec.backend` and ends in `raise _unsupported_backend(spec)`
+— `build_document_embedder`, `build_text_embedder`, `cached_tokenizer_path`,
+`count_tokens`.
+
+**Why.** The first version dispatched on the registry key: `if name == "bge": …
+else: <Voyage>`. A third entry added later would have fallen through to the Voyage
+branch and fired a **billed API call against a model Voyage does not recognize**.
+Keying off an explicit field turns that silent misroute into a `ValueError`.
+
+**What it replaces.** Dispatch on the registry key string.
+
+**Blast radius.** `embedders.py` (one dataclass field, four dispatch sites) and
+`tests/test_embedders.py`. Nothing consumes the registry yet, so reversing is cheap
+**today** and gets steadily more expensive as IDX-06 onward wire embedders in.
+
+**Alternatives.** Subclass per backend, or a dict of handler callables. Both are
+heavier than one field for two backends; either becomes the better shape at four or
+five.
+
+**Note.** This was added beyond the ticket's literal scope and flagged as such.
+
+---
+
+## C002: `Protocol`-based structural typing with a name → factory registry
+
+**Status:** proposed · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
+
+**What.** `base.py` defines `Splitter` and `Chunker` as `typing.Protocol`s; the five
+strategies satisfy them without inheriting. `__init__.py` maps `STRATEGIES`:
+name → zero-arg factory (`build_naive_small`, …), each importing its module **inside**
+the function body.
+
+**Why.** Protocols let Haystack `@component` classes be typed without a shared base
+class fighting Haystack's own machinery. Lazy imports mean naming a strategy does not
+pull `onnxruntime` and the NLTK stack into the process.
+
+**What it replaces.** No prior repo precedent — no other `data_ingestion` module uses
+`Protocol`, and this is the first factory registry.
+
+**Blast radius.** `chunkers/base.py`, `chunkers/__init__.py`, four strategy modules,
+`tests/test_chunkers.py`. **IDX-06 and IDX-07 will both copy this shape**, so a ruling
+before either starts is much cheaper than after.
+
+**Worth your attention.** The repo now has **two registry shapes**: `EMBEDDERS` maps
+name → frozen dataclass spec, `STRATEGIES` maps name → factory callable. Both are
+defensible in isolation — specs are data, chunkers need construction — but if you want
+one shape, this is the moment to say so.
+
+**Alternatives.** ABC with inheritance (conflicts with Haystack's component
+decorator); plain duck typing with no protocol (loses type checking); eager imports
+in `__init__.py` (was tried, produced a `RuntimeWarning`).
+
+---
+
+## C003: Structure-checking test parsers are stateless by design
+
+**Status:** proposed · **Introduced:** 2026-09-20, IDX-02 · **Where:** `tests/test_loading.py`
+
+**What.** `read_structure()` applies three independent regexes per line —
+`HEADING_RE`, `FENCE_RE`, `INDENT_RE` — and never tracks whether a line sits inside a
+code fence.
+
+**Why.** The first version tracked fence open/close. On `advanced__templates.md` (the
+one corpus file with doubled fences, now finding F007) it went out of phase and
+**silently under-reported 6 headings instead of 8** — a regression-detection test that
+quietly stops detecting. Statelessness trades precision for a guarantee it can never
+desync.
+
+**What it replaces.** A stateful fence-tracking parser.
+
+**Cost, stated plainly.** The parser counts a `#` comment inside a code fence as a
+heading. Tests assert on that deliberately (`test_loading.py:174`, `:248`). Anyone
+reading those assertions cold will think they are wrong.
+
+**Blast radius.** `tests/test_loading.py` only. Generalizes to any future
+structure-preservation test.
+
+**Alternatives.** Parse with `markdown_it` (a real parser, but pins test outcomes to a
+third-party renderer's version); fix the corpus upstream (that is F007's open
+decision, still yours to make).
+
+---
+
+## C004: A documented limitation instead of a global side effect
+
+**Status:** proposed · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/__init__.py:26`
+
+**What.** Haystack 3.0 will not deserialize a class from a module outside its trusted
+allowlist, so `Pipeline.loads()` / YAML round-trips of any pipeline holding these
+chunkers will fail. Rather than call `allow_deserialization_module()` at import time,
+the package docstring records the limitation.
+
+**Why.** Import-time registration is a process-wide side effect imposed on every
+consumer, including ones that only wanted a strategy name. Pipelines are built in code
+here, not loaded from YAML, so nothing currently needs it.
+
+**What it replaces.** Nothing — a choice not to add something.
+
+**The convention, stated.** When a fix would take effect globally at import time,
+document the limitation and let whoever needs it opt in.
+
+**Blast radius.** None today. It becomes a real blocker the moment pipeline
+serialization is wanted — likely whenever stage 2 indexing is built.
+
+**Alternatives.** Register at import (rejected above); expose an explicit
+`enable_deserialization()` for callers to invoke — arguably the better shape, not
+built because nothing needed it yet.

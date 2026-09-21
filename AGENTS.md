@@ -16,6 +16,14 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   surrounding code. Match the naming, structure, and comment density of
   nearby files. Don't add dependencies or reformat unrelated code without
   saying why.
+- **New conventions need a ruling:** if your change introduces a pattern this
+  codebase does not already use — a new abstraction (protocol, registry, base
+  class), a new dispatch or error-handling style, a new test structure, or a rule
+  you intend later code to follow — do not settle it silently. Record it in
+  [`docs/conventions.md`](docs/conventions.md) as `proposed`, keep working under
+  it, and name it in your final report. A ticket may not reach `done` while a
+  convention it introduced is still `proposed`. Matching existing style needs no
+  entry; this is only for style the repo has not set yet.
 - **Code review before finishing:** once a change or diff looks complete and
   before treating a coding task as done, spawn the `active-code-reviewer`
   custom agent (defined in

@@ -38,10 +38,10 @@ names. A capability with a single target still nests it under one
 `targets/<slug>/`. A finding or ticket may touch multiple files; its target
 describes the unit of work, not a single file.
 
-The current capabilities are listed in the master index. `course-similarity-reduction`
-follows this layout. `data-curation-pipeline` predates it (root-level `findings/`
-and `plans/`, no `targets/`) and is pending migration — until then, treat its
-root `findings/` and `plans/` as a single implicit target.
+The current capabilities are listed in the master index, which records the layout
+each one follows. `data-curation-pipeline` predates this standard (root-level
+`findings/` and `plans/`, no `targets/`) and is pending migration — until then,
+treat its root `findings/` and `plans/` as a single implicit target.
 
 ## One session, one target
 
@@ -140,6 +140,37 @@ needed, execution considerations, and links to related plans or tickets. A
 possible direction is a proposal, not authorization to implement it. The finding
 file is authoritative if its status differs from the register.
 
+## Convention status
+
+- `proposed`: in the code, awaiting a ruling.
+- `accepted`: the shape later code should follow.
+- `rejected`: to be undone; the entry records what has to change.
+
+## Conventions register (`docs/conventions.md`)
+
+A finding records something *discovered* — a corpus defect, a library quirk. A
+convention records something *introduced*: a shape later code is expected to copy.
+
+Conventions describe the shipped code, so unlike findings they live **outside
+`.scratch/`**, in the tracked `docs/conventions.md`, and are repo-wide rather than
+target-scoped. Do not create a per-target conventions folder.
+
+Keep one row per convention in the register:
+
+```text
+# Code conventions
+
+| ID | Convention | Introduced | Status |
+|---|---|---|---|
+| C001 | <short description> | <ticket id> | proposed |
+```
+
+Each entry records what the pattern is, why it was chosen, what it replaces, its
+blast radius (the files that change if it is rejected), and the alternatives
+considered. Recording one is a proposal, not authorization for later code to copy
+it while it is still `proposed`. The rule that obliges an agent to record one is in
+[`../../AGENTS.md`](../../AGENTS.md).
+
 ## Capability hub (`<capability>/_index.md`)
 
 The hub is the entry point for a capability. It holds the shared context every
@@ -152,7 +183,9 @@ board. Keep target-specific detail in the target, not the hub.
 - `ready-for-agent`: approved, and every listed blocker is complete.
 - `in-progress`: one agent or session owns the ticket.
 - `blocked`: work cannot continue until the recorded condition changes.
-- `done`: every acceptance criterion is checked and its verification completed.
+- `done`: every acceptance criterion is checked, its verification completed,
+  and no convention it introduced is still `proposed` in
+  [`../conventions.md`](../conventions.md).
 
 ## Board index (`issues/_index.md`)
 
@@ -206,7 +239,8 @@ it. Mark the ticket `done` only after all acceptance criteria are satisfied.
 6. Use `to-tickets` to create tracer-bullet issues from an approved finding or
    plan; add each to the shared board with a `<PREFIX>-NN` id.
 7. Start a fresh implementation session with one ready ticket.
-8. Verify its acceptance criteria, update its status, then select the next
+8. Verify its acceptance criteria, record any convention the work introduced
+   in `docs/conventions.md`, update its status, then select the next
    unblocked ticket.
 
 Use this session-start instruction for finding triage:
@@ -214,6 +248,14 @@ Use this session-start instruction for finding triage:
 ```text
 Read docs/agents/issue-tracker.md and <finding-path>. Review the evidence and
 help me decide its next step. Do not implement it without a ready ticket.
+```
+
+Use this session-start instruction to rule on proposed conventions:
+
+```text
+Read docs/agents/issue-tracker.md and docs/conventions.md. For each `proposed`
+convention, show me what it replaces, its blast radius, and the alternatives, then
+record my ruling. Do not change code outside undoing a convention I reject.
 ```
 
 Use this session-start instruction to work a target in a fresh chat:

@@ -26,17 +26,22 @@ set yet.
 
 | ID | Convention | Introduced | Status |
 |---|---|---|---|
-| [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | proposed |
-| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | proposed |
+| [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | accepted |
+| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | accepted |
 | [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
-| [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | proposed |
+| [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
 | [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | proposed |
 
 ---
 
 ## C001: A `backend` field discriminates registry entries, not the key string
 
-**Status:** proposed · **Introduced:** 2026-09-20, IDX-04 · **Where:** `data_ingestion/embedders.py`
+**Status:** accepted · **Introduced:** 2026-09-20, IDX-04 · **Where:** `data_ingestion/embedders.py`
+
+**The convention, stated.** A registry entry carries the field its consumers
+dispatch on. Reading behaviour out of the key string is what makes a new entry
+fall through into another entry's branch, and a billed call is the worst way to
+find that out.
 
 **What.** `EmbedderSpec` carries `backend: str` (`"fastembed"` or `"voyage"`).
 Every dispatch keys off `spec.backend` and ends in `raise _unsupported_backend(spec)`
@@ -64,7 +69,12 @@ five.
 
 ## C002: `Protocol`-based structural typing with a name → factory registry
 
-**Status:** proposed · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
+**Status:** accepted · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
+
+**Ruled before IDX-06 and IDX-07.** Both add a strategy to this package, so both
+copy this shape: a `@component` class satisfying `Chunker` structurally, a
+zero-arg `build_<name>()` beside the others that imports its module inside the
+function body, and one `STRATEGIES` entry.
 
 **What.** `base.py` defines `Splitter` and `Chunker` as `typing.Protocol`s; the five
 strategies satisfy them without inheriting. `__init__.py` maps `STRATEGIES`:
@@ -82,10 +92,13 @@ pull `onnxruntime` and the NLTK stack into the process.
 `tests/test_chunkers.py`. **IDX-06 and IDX-07 will both copy this shape**, so a ruling
 before either starts is much cheaper than after.
 
-**Worth your attention.** The repo now has **two registry shapes**: `EMBEDDERS` maps
-name → frozen dataclass spec, `STRATEGIES` maps name → factory callable. Both are
-defensible in isolation — specs are data, chunkers need construction — but if you want
-one shape, this is the moment to say so.
+**Two registry shapes, kept deliberately.** `EMBEDDERS` maps name → frozen dataclass
+spec; `STRATEGIES` maps name → factory callable. They stay different because they hold
+different things: an embedder spec is data a caller reads (model, dimension, input
+limit, and the `backend` of [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string)),
+while a chunker is only ever constructed. Wrapping the factories in a `ChunkerSpec` to
+make the two match would add a layer nothing reads. A future registry picks whichever
+of the two fits what its entries are for.
 
 **Alternatives.** ABC with inheritance (conflicts with Haystack's component
 decorator); plain duck typing with no protocol (loses type checking); eager imports
@@ -126,7 +139,13 @@ decision, still yours to make).
 
 ## C004: A documented limitation instead of a global side effect
 
-**Status:** proposed · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/__init__.py:26`
+**Status:** accepted · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/__init__.py:26`
+
+**Scope of the ruling.** Repo-wide, not just this package: no module registers
+anything process-wide at import time to buy a convenience its importers did not
+ask for. The opt-in escape hatch named below gets written when something needs
+it — for this case, whenever stage 2 wants pipelines loaded from YAML rather
+than built in code.
 
 **What.** Haystack 3.0 will not deserialize a class from a module outside its trusted
 allowlist, so `Pipeline.loads()` / YAML round-trips of any pipeline holding these

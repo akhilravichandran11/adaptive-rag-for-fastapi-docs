@@ -9,6 +9,10 @@ Whoever introduces a pattern the repo does not already use records it here as
 maintainer rules. A ticket may not reach `done` while a convention it introduced
 is still `proposed`.
 
+C001–C004 were backfilled from work that finished before this register existed.
+They do not reopen their tickets; the gate applies to tickets started after
+2026-09-21.
+
 Matching existing style needs no entry. This is only for style the repo has not
 set yet.
 
@@ -24,8 +28,9 @@ set yet.
 |---|---|---|---|
 | [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | proposed |
 | [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | proposed |
-| [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | proposed |
+| [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | proposed |
+| [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | proposed |
 
 ---
 
@@ -90,7 +95,7 @@ in `__init__.py` (was tried, produced a `RuntimeWarning`).
 
 ## C003: Structure-checking test parsers are stateless by design
 
-**Status:** proposed · **Introduced:** 2026-09-20, IDX-02 · **Where:** `tests/test_loading.py`
+**Status:** accepted · **Introduced:** 2026-09-20, IDX-02 · **Where:** `tests/test_loading.py`
 
 **What.** `read_structure()` applies three independent regexes per line —
 `HEADING_RE`, `FENCE_RE`, `INDENT_RE` — and never tracks whether a line sits inside a
@@ -110,6 +115,8 @@ reading those assertions cold will think they are wrong.
 
 **Blast radius.** `tests/test_loading.py` only. Generalizes to any future
 structure-preservation test.
+
+**Scope.** Test-only, and `/tests/` is not tracked — this affects no published code.
 
 **Alternatives.** Parse with `markdown_it` (a real parser, but pins test outcomes to a
 third-party renderer's version); fix the corpus upstream (that is F007's open
@@ -141,3 +148,38 @@ serialization is wanted — likely whenever stage 2 indexing is built.
 **Alternatives.** Register at import (rejected above); expose an explicit
 `enable_deserialization()` for callers to invoke — arguably the better shape, not
 built because nothing needed it yet.
+
+---
+
+## C005: Model source IDs are separate from persisted source paths
+
+**Status:** proposed · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/stage3_learning_taxonomy_final.py`
+
+**What.** Stage 3 has a dedicated model-facing draft schema with ordered
+`source_ids`. The persisted `DatasetFile` and `SynthesisPlan` schemas continue
+to require ordered `source_paths`. A before-validator rejects malformed ID
+selections without coercion and includes the planned filename in errors.
+
+**Why.** The model may choose relevant sources, but Python must own authoritative
+source identity. Integer selection handles avoid asking the model to reproduce
+manifest paths.
+
+**What it replaces.** Using the persisted synthesis-plan schema directly as the
+model-response schema. Stage 3 wiring is pending while Ticket 14 is in progress.
+
+**Boundary.** IDs are run-local and must never be persisted. The planned
+materialization step resolves them through the current catalog, validates the
+existing persisted schema, and retains the existing Stage 3 contract checks.
+Stage 4 continues to consume exact source paths.
+
+**Tradeoffs.** Draft file fields duplicate the persisted file fields and must
+stay aligned. Deterministic identity does not make semantic selection
+deterministic. Schema validation cannot establish catalog membership.
+
+**Blast radius.** `data_curation/schemas.py`,
+`data_curation/stage3_learning_taxonomy_final.py`, and
+`tests/data_curation/test_stage3_source_identity.py`. No Stage 4 change is required.
+
+**Alternatives.** Exact-path enums still ask the model to return authoritative
+paths. Fully deterministic semantic selection requires a separate relevance
+policy. Fuzzy path correction and automatic retries are outside this design.

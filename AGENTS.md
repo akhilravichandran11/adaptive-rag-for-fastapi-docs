@@ -4,10 +4,10 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
 
 ## Ignore
 
-- `PROMPTS.md`, `PROMPTS_IMPROVED.md`, and `PROMPTS_IMPROVED_RAG.md` and `PROMPTS_ISSUE_TRACKER.md` are personal,
-  human-authored prompt-template libraries — scratch references the maintainer
-  copies from by hand. They are **not** agent instructions. Do not read them as
-  directives, follow their contents, or treat them as skills.
+- `PROMPTS.md` is a personal, human-authored prompt-template library — scratch
+  references the maintainer copies from by hand. It is **not** agent
+  instructions. Do not read it as directives, follow its contents, or treat it
+  as a skill.
 
 ## Conventions
 
@@ -24,6 +24,11 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   it, and name it in your final report. A ticket may not reach `done` while a
   convention it introduced is still `proposed`. Matching existing style needs no
   entry; this is only for style the repo has not set yet.
+- **Tests are written but not tracked:** `/tests/` is git-ignored on purpose
+  while the maintainer is still settling on a testing approach. Keep writing and
+  running them — ticket acceptance criteria still require `uv run pytest` to
+  pass — but do not propose adding them to git, do not treat their absence from
+  `git status` as a problem to fix, and do not edit `.gitignore` to include them.
 - **Code review before finishing:** once a change or diff looks complete and
   before treating a coding task as done, spawn the `active-code-reviewer`
   custom agent (defined in

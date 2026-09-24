@@ -30,7 +30,7 @@ set yet.
 | [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | accepted |
 | [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
-| [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | proposed |
+| [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | accepted |
 
 ---
 
@@ -172,7 +172,7 @@ built because nothing needed it yet.
 
 ## C005: Model source IDs are separate from persisted source paths
 
-**Status:** proposed · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/stage3_learning_taxonomy_final.py`
+**Status:** accepted · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/stage3_learning_taxonomy_final.py`
 
 **What.** Stage 3 has a dedicated model-facing draft schema with ordered
 `source_ids`. The persisted `DatasetFile` and `SynthesisPlan` schemas continue
@@ -184,9 +184,10 @@ source identity. Integer selection handles avoid asking the model to reproduce
 manifest paths.
 
 **What it replaces.** Using the persisted synthesis-plan schema directly as the
-model-response schema. Stage 3 wiring is pending while Ticket 14 is in progress.
+model-response schema. Stage 3 uses the draft schema for the model response and
+materializes it into the persisted schema before downstream validation.
 
-**Boundary.** IDs are run-local and must never be persisted. The planned
+**Boundary.** IDs are run-local and must never be persisted. The
 materialization step resolves them through the current catalog, validates the
 existing persisted schema, and retains the existing Stage 3 contract checks.
 Stage 4 continues to consume exact source paths.

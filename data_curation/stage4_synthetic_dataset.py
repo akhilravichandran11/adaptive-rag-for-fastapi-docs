@@ -36,32 +36,6 @@ class FastAPIDatasetGenerator:
         self.docs_dir = self.manifest_path.parent / "docs"
         self.output_dir = run_dir
         self.curated_dir = run_dir / "synthetic_dataset"
-        self.category_keywords = {
-            "01_foundations": [
-                "first-steps",
-                "index",
-                "features",
-                "python-types",
-                "body",
-                "response",
-            ],
-            "02_implementation": [
-                "dependencies",
-                "background",
-                "testing",
-                "responses",
-                "status",
-                "advanced",
-            ],
-            "03_security_production": [
-                "security",
-                "databases",
-                "deployment",
-                "advanced",
-                "middleware",
-                "openapi",
-            ],
-        }
 
         content_analysis_path = self.output_dir / CONTENT_ANALYSIS_FILE
         self.analysis_data = self._load_json(
@@ -69,6 +43,11 @@ class FastAPIDatasetGenerator:
             "Content analysis",
             list,
         )
+        self.analysis_by_source_path = {
+            item["source_path"]: item
+            for item in self.analysis_data
+            if isinstance(item, dict) and isinstance(item.get("source_path"), str)
+        }
 
         synthesis_plan_path = self.output_dir / SYNTHESIS_PLAN_FILE
         self.synthesis_plan = self._load_json(
@@ -83,7 +62,11 @@ class FastAPIDatasetGenerator:
                 f"'dataset_structure' JSON object: {synthesis_plan_path}"
             )
 
-        expected_categories = set(self.category_keywords)
+        expected_categories = {
+            "01_foundations",
+            "02_implementation",
+            "03_security_production",
+        }
         actual_categories = set(dataset_structure)
         if actual_categories != expected_categories:
             missing = sorted(expected_categories - actual_categories)
@@ -148,51 +131,80 @@ class FastAPIDatasetGenerator:
         return payload
 
     def _get_source_content(self, source_path: str) -> str:
-        """Get normalized content for a manifest source path."""
+        """Read normalized content through the manifest's exact output filename."""
         file_entry = self.files_by_source_path.get(source_path)
-        if not file_entry:
-            logger.warning(f"Source path not found in manifest: {source_path}")
-            return ""
+        if file_entry is None:
+            raise ValueError(f"Declared source path not found in manifest: {source_path}")
 
         source_file = self.docs_dir / file_entry["output_filename"]
-        if source_file.exists():
-            with source_file.open("r", encoding="utf-8") as file:
-                return file.read()
+        if not source_file.is_file():
+            raise ValueError(f"Normalized source file not found for {source_path!r}: {source_file}")
 
-        logger.warning(f"Normalized source file not found: {source_file}")
-        return ""
-
-    def _select_sources(self, category: str) -> list[dict]:
-        """Select up to 15 high-quality sources for one canonical Stage 3 category."""
-        keywords = self.category_keywords[category]
-        relevant = [
-            item
-            for item in self.analysis_data
-            if item.get("analysis", {}).get("overall_quality", 0) >= 7.5
-            and any(keyword in item.get("source_path", "").lower() for keyword in keywords)
-        ]
-
-        if not relevant:
+        try:
+            return source_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
             raise ValueError(
-                f"No high-quality sources matched category {category!r} using keywords {keywords}"
+                f"Could not read normalized source for {source_path!r}: {source_file}: {error}"
+            ) from error
+
+    def _resolve_sources(self, file_spec: dict) -> list[dict]:
+        """Resolve one file's ordered declared source paths without substitution."""
+        filename = file_spec.get("filename", "unknown")
+        source_paths = file_spec.get("source_paths")
+
+        if not isinstance(source_paths, list):
+            raise ValueError(f"File specification {filename!r} must contain a 'source_paths' list")
+        if not 1 <= len(source_paths) <= 8:
+            raise ValueError(
+                f"File specification {filename!r} must declare 1 through 8 "
+                f"source paths; got {len(source_paths)}"
+            )
+        if not all(isinstance(source_path, str) and source_path for source_path in source_paths):
+            raise ValueError(
+                f"File specification {filename!r} source_paths must contain non-empty strings"
             )
 
-        return relevant[:15]
+        duplicate_paths = sorted(
+            {source_path for source_path in source_paths if source_paths.count(source_path) > 1}
+        )
+        if duplicate_paths:
+            raise ValueError(
+                f"File specification {filename!r} contains duplicate source paths: "
+                f"{duplicate_paths}"
+            )
+
+        sources = []
+        for source_path in source_paths:
+            if source_path not in self.files_by_source_path:
+                raise ValueError(
+                    f"File specification {filename!r} references a source absent "
+                    f"from the manifest: {source_path!r}"
+                )
+
+            source = self.analysis_by_source_path.get(source_path)
+            if source is None:
+                raise ValueError(
+                    f"File specification {filename!r} references a source absent "
+                    f"from content analysis: {source_path!r}"
+                )
+            sources.append(source)
+
+        return sources
 
     def _build_excerpts(self, sources: list[dict]) -> str:
-        """Collect up to 8 source excerpts and format them for the synthesis prompt."""
+        """Format every declared source in order as file-level provenance excerpts."""
         excerpts = []
-        for source in sources[:8]:  # Limit to prevent token overflow
+        for source in sources:
             source_path = source["source_path"]
             content = self._get_source_content(source_path)
-            if content:
-                excerpts.append(
-                    {
-                        "source_path": source_path,
-                        "quality_score": source.get("analysis", {}).get("overall_quality", 0),
-                        "excerpt": content[:1500],  # First 1500 chars
-                    }
-                )
+            excerpts.append(
+                {
+                    "source_path": source_path,
+                    "quality_score": source.get("analysis", {}).get("overall_quality", 0),
+                    "excerpt": content[:1500],  # First 1500 chars
+                }
+            )
+
         return "\n\n".join(
             f"--- SOURCE: {s['source_path']} (Quality: {s['quality_score']}/10) ---\n{s['excerpt']}"
             for s in excerpts
@@ -219,8 +231,12 @@ class FastAPIDatasetGenerator:
 
         return minimum, maximum
 
-    async def generate_curated_file(self, file_spec: dict, category: str) -> str:
-        """Generate a single curated file using LLM synthesis"""
+    async def generate_curated_file(
+        self,
+        file_spec: dict,
+        category: str,
+    ) -> tuple[str, list[str]]:
+        """Generate one curated file and return its file-level source provenance."""
 
         filename = file_spec["filename"]
         description = file_spec["description"]
@@ -229,8 +245,8 @@ class FastAPIDatasetGenerator:
         key_sections = file_spec.get("key_sections", [])
         estimated_length = file_spec.get("estimated_length", "2000-3000 words")
 
-        # Get relevant source materials and format them for the prompt
-        source_files = self._select_sources(category)
+        source_files = self._resolve_sources(file_spec)
+        source_paths = [source["source_path"] for source in source_files]
         sources_text = self._build_excerpts(source_files)
 
         synthesis_prompt = f"""You are an expert technical writer creating high-quality FastAPI documentation.
@@ -281,7 +297,7 @@ Generate the complete markdown file content:"""
         content = self._strip_code_fence(stripped_response)
         if not content.strip():
             raise RuntimeError(f"Empty response generating {filename}")
-        return content
+        return content, source_paths
 
     async def _generate_one_file(self, file_spec: dict, category: str, category_dir: Path) -> dict:
         """Generate, save, and log a single curated file.
@@ -298,7 +314,7 @@ Generate the complete markdown file content:"""
             logger.info(f"Generating: {filename}")
 
             # Generate content
-            content = await self.generate_curated_file(file_spec, category)
+            content, source_paths = await self.generate_curated_file(file_spec, category)
             word_count = len(content.split())
             if word_count < target_min_words:
                 length_status = "below_target"
@@ -325,6 +341,7 @@ Generate the complete markdown file content:"""
                 "record": {
                     "category": category,
                     "filename": filename,
+                    "source_paths": source_paths,
                     "path": str(file_path),
                     "size": len(content),
                     "target_audience": file_spec.get("target_audience", "unknown"),

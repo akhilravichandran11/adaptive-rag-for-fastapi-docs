@@ -19,7 +19,7 @@ from pipeline import (
     SYNTHESIS_PLAN_FILE,
     resolve_run_dir,
 )
-from schemas import LearningTaxonomy, SynthesisPlan
+from schemas import DraftSynthesisPlan, LearningTaxonomy, SynthesisPlan
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -77,6 +77,7 @@ class FastAPILearningTaxonomyGenerator:
         )
         self.files_by_source_path = self._index_manifest(manifest)
         self.source_candidates = self._build_source_candidates()
+        self.source_catalog = self._build_source_catalog()
         self.eligible_source_paths = {
             candidate["source_path"] for candidate in self.source_candidates
         }
@@ -268,6 +269,32 @@ class FastAPILearningTaxonomyGenerator:
 
         return candidates
 
+    def _build_source_catalog(self) -> dict[int, dict]:
+        """Assign run-local IDs in exact source-path order."""
+        ordered_candidates = sorted(
+            self.source_candidates,
+            key=lambda candidate: candidate["source_path"],
+        )
+        return dict(enumerate(ordered_candidates, start=1))
+
+    def _materialize_synthesis_plan(self, draft: dict) -> dict:
+        """Replace validated source IDs with exact catalog paths."""
+        synthesis_plan = DraftSynthesisPlan.model_validate(draft).model_dump(by_alias=True)
+        for section in synthesis_plan["dataset_structure"].values():
+            for file_spec in section["files"]:
+                source_paths = []
+                for source_id in file_spec.pop("source_ids"):
+                    source = self.source_catalog.get(source_id)
+                    if source is None:
+                        raise ConfigurationError(
+                            f"Synthesis draft file {file_spec['filename']!r} "
+                            f"references unknown source ID: {source_id!r}"
+                        )
+                    source_paths.append(source["source_path"])
+                file_spec["source_paths"] = source_paths
+
+        return SynthesisPlan.model_validate(synthesis_plan).model_dump(by_alias=True)
+
     def _validate_normalized_source(self, source_path: str) -> None:
         """Require the manifest's exact output filename to resolve to a readable file."""
         manifest_entry = self.files_by_source_path[source_path]
@@ -395,12 +422,23 @@ Focus on practical, hands-on learning that addresses implementation, debugging, 
             logger.error(f"Error creating learning taxonomy: {str(e)}")
             return {"error": str(e)}
 
-    async def create_synthesis_plan(self) -> dict:
-        """Create concrete plan for synthetic dataset creation"""
+    def _build_synthesis_prompt(self) -> str:
+        """Build the synthesis prompt from semantic source metadata only."""
 
         approved_inventory = {
             category: list(filenames) for category, filenames in APPROVED_DATASET_FILES.items()
         }
+        source_metadata = [
+            {
+                "source_id": source_id,
+                "quality_score": source["quality_score"],
+                "content_type": source["content_type"],
+                "target_audience": source["target_audience"],
+                "key_concepts": source["key_concepts"],
+                "one_sentence_summary": source["one_sentence_summary"],
+            }
+            for source_id, source in self.source_catalog.items()
+        ]
         synthesis_prompt = f"""
 You are a technical curriculum architect creating a concrete implementation plan for a FastAPI developer education dataset.
 
@@ -415,7 +453,7 @@ SYNTHESIS OPPORTUNITIES:
 {json.dumps(self.knowledge_domains.get("synthesis_opportunities", {}), indent=2)}
 
 ELIGIBLE CURRENT-RUN SOURCE METADATA:
-{json.dumps(self.source_candidates, indent=2)}
+{json.dumps(source_metadata, indent=2)}
 
 APPROVED DATASET CONTRACT:
 {json.dumps(approved_inventory, indent=2)}
@@ -424,9 +462,10 @@ APPROVED DATASET CONTRACT:
 - Each category must contain exactly the listed filenames in the listed order.
 - The distribution must be exactly 2 foundations, 3 implementation, and 2 security/production files.
 - Do not add, remove, rename, or duplicate a planned filename.
-- Every planned file must declare source_paths with 1 through 8 paths selected only from ELIGIBLE CURRENT-RUN SOURCE METADATA.
-- Preserve source_paths order and do not repeat a path within one planned file.
-- A source path may be reused by a different planned file when it supports both.
+- Every planned file must declare source_ids with 1 through 8 integer IDs copied exactly from ELIGIBLE CURRENT-RUN SOURCE METADATA.
+- Preserve source_ids order and do not repeat an ID within one planned file.
+- A source ID may be reused by a different planned file when it supports both.
+- Do not return source paths, source filenames, URLs, or physical filesystem locations. Output filenames must still follow APPROVED DATASET CONTRACT.
 - Use only the compact metadata above. Do not request or assume normalized document bodies.
 
 REAL-WORLD FASTAPI DEVELOPER NEEDS:
@@ -447,7 +486,7 @@ For every dataset_structure file object, provide:
 - filename
 - description
 - content_focus
-- source_paths
+- source_ids
 - target_audience
 - estimated_length
 - key_sections
@@ -474,13 +513,19 @@ Also provide synthesis_strategies, quality_criteria, and success_metrics using o
 Focus on creating a dataset that transforms current scattered FastAPI knowledge into a coherent, practical education system.
 """
 
+        return synthesis_prompt
+
+    async def create_synthesis_plan(self) -> dict:
+        """Create a synthesis plan with exact materialized source paths."""
+        synthesis_prompt = self._build_synthesis_prompt()
+
         try:
-            synthesis_plan = await chat_structured(
+            draft = await chat_structured(
                 synthesis_prompt,
-                SynthesisPlan,
+                DraftSynthesisPlan,
                 max_tokens=4000,
             )
-            return synthesis_plan.model_dump(by_alias=True)
+            return self._materialize_synthesis_plan(draft.model_dump(by_alias=True))
         except Exception as e:  # noqa: BLE001  (one bad synthesis call shouldn't kill the stage)
             logger.error(f"Error creating synthesis plan: {str(e)}")
             return {"error": str(e)}

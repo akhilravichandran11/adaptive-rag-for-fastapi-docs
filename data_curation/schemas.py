@@ -6,7 +6,7 @@ The five 1–10 scores are guided by the anchored rubric in the analysis prompt 
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt, model_validator
 
 
 # The schema is used to validate the structured output from the LLM.
@@ -252,6 +252,80 @@ class SynthesisPlan(BaseModel):
     """Full structured synthesis plan (what the LLM returns)."""
 
     dataset_structure: DatasetStructure
+    content_prioritization: ContentPrioritization
+    synthesis_strategies: SynthesisStrategies
+    quality_criteria: QualityCriteria
+    success_metrics: SuccessMetrics
+
+
+class DraftDatasetFile(BaseModel):
+    """One model-facing planned file, before source IDs become exact paths."""
+
+    filename: str
+    description: str
+    content_focus: list[str]
+    source_ids: list[StrictInt] = Field(
+        min_length=1,
+        max_length=8,
+        description="ordered unique integer IDs copied from the current-run source catalog",
+    )
+    target_audience: Literal["beginner", "intermediate", "advanced"]
+    estimated_length: str = Field(description="e.g. '2000-3000 words'")
+    key_sections: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_source_ids(cls, data: object) -> object:
+        """Reject invalid selections before coercion, naming the planned file."""
+        if not isinstance(data, dict):
+            return data
+
+        filename = data.get("filename", "unknown")
+        source_ids = data.get("source_ids")
+        if not isinstance(source_ids, list):
+            raise ValueError(
+                f"Synthesis draft file {filename!r} must contain a 'source_ids' "
+                f"JSON array; got {source_ids!r}"
+            )
+        if not 1 <= len(source_ids) <= 8:
+            raise ValueError(
+                f"Synthesis draft file {filename!r} must declare 1 through 8 "
+                f"source IDs; got {len(source_ids)}"
+            )
+
+        seen_ids: set[int] = set()
+        for source_id in source_ids:
+            if isinstance(source_id, bool) or not isinstance(source_id, int):
+                raise ValueError(
+                    f"Synthesis draft file {filename!r} contains a non-integer "
+                    f"source ID: {source_id!r}"
+                )
+            if source_id in seen_ids:
+                raise ValueError(
+                    f"Synthesis draft file {filename!r} contains duplicate source ID: {source_id!r}"
+                )
+            seen_ids.add(source_id)
+
+        return data
+
+
+class DraftDatasetSection(BaseModel):
+    """One phase-section of the model-facing synthesis draft."""
+
+    description: str
+    files: list[DraftDatasetFile]
+
+
+class DraftDatasetStructure(BaseModel):
+    foundations: DraftDatasetSection = Field(alias="01_foundations")
+    implementation: DraftDatasetSection = Field(alias="02_implementation")
+    security_production: DraftDatasetSection = Field(alias="03_security_production")
+
+
+class DraftSynthesisPlan(BaseModel):
+    """Model response whose source IDs must be materialized before persistence."""
+
+    dataset_structure: DraftDatasetStructure
     content_prioritization: ContentPrioritization
     synthesis_strategies: SynthesisStrategies
     quality_criteria: QualityCriteria

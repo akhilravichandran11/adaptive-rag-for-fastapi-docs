@@ -9,10 +9,11 @@ which is git-ignored and filled once by ``scripts/download_models.py``:
     └── nltk/        # NLTK data (the punkt_tab sentence tokenizer)
 
 Each subfolder can be moved with the variable its library already reads:
-``FASTEMBED_CACHE_PATH`` for fastembed and ``NLTK_DATA`` for NLTK. The variables
-are read from ``os.environ`` at call time; callers that keep them in ``.env`` load
-it first. Code that needs a model imports the paths from here instead of
-hardcoding them, and loads with ``local_files_only=True`` so it never downloads.
+``FASTEMBED_CACHE_PATH`` for fastembed and ``NLTK_DATA`` for NLTK. A relative value
+is taken from the project root, so the same ``.env`` works from any directory. The
+variables are read from ``os.environ`` at call time; callers that keep them in
+``.env`` load it first. Code that needs a model imports the paths from here instead
+of hardcoding them, and loads with ``local_files_only=True`` so it never downloads.
 """
 
 from __future__ import annotations
@@ -31,13 +32,20 @@ def _from_env(env_var: str, default: Path) -> Path:
     """Return the path named by ``env_var`` if it is set and non-empty, else ``default``.
 
     ``NLTK_DATA`` may hold several directories separated by ``os.pathsep``; the
-    first one is the cache this project reads from and downloads into.
+    first one is the cache this project reads from and downloads into. A relative
+    value is joined to ``PROJECT_ROOT`` rather than the current directory, so
+    ``models/fastembed`` names the same folder wherever a command runs.
     """
     value = os.getenv(env_var, "").strip()
     if not value:
         return default
-    first = value.split(os.pathsep)[0]
-    return Path(first).expanduser().resolve()
+    entries = [entry for entry in value.split(os.pathsep) if entry.strip()]
+    if not entries:
+        return default
+    first = Path(entries[0].strip()).expanduser()
+    if not first.is_absolute():
+        first = PROJECT_ROOT / first
+    return first.resolve()
 
 
 def fastembed_cache_dir() -> Path:

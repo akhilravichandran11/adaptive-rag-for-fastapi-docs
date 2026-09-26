@@ -56,7 +56,7 @@ Keying off an explicit field turns that silent misroute into a `ValueError`.
 **What it replaces.** Dispatch on the registry key string.
 
 **Blast radius.** `embedders.py` (one dataclass field, four dispatch sites) and
-`tests/test_embedders.py`. Nothing consumes the registry yet, so reversing is cheap
+`tests/data_ingestion/test_embedders.py`. Nothing consumes the registry yet, so reversing is cheap
 **today** and gets steadily more expensive as IDX-06 onward wire embedders in.
 
 **Alternatives.** Subclass per backend, or a dict of handler callables. Both are
@@ -89,7 +89,7 @@ pull `onnxruntime` and the NLTK stack into the process.
 `Protocol`, and this is the first factory registry.
 
 **Blast radius.** `chunkers/base.py`, `chunkers/__init__.py`, four strategy modules,
-`tests/test_chunkers.py`. **IDX-06 and IDX-07 will both copy this shape**, so a ruling
+`tests/data_ingestion/test_chunkers.py`. **IDX-06 and IDX-07 will both copy this shape**, so a ruling
 before either starts is much cheaper than after.
 
 **Two registry shapes, kept deliberately.** `EMBEDDERS` maps name → frozen dataclass
@@ -108,7 +108,7 @@ in `__init__.py` (was tried, produced a `RuntimeWarning`).
 
 ## C003: Structure-checking test parsers are stateless by design
 
-**Status:** accepted · **Introduced:** 2026-09-20, IDX-02 · **Where:** `tests/test_loading.py`
+**Status:** accepted · **Introduced:** 2026-09-20, IDX-02 · **Where:** `tests/data_ingestion/test_loading.py`
 
 **What.** `read_structure()` applies three independent regexes per line —
 `HEADING_RE`, `FENCE_RE`, `INDENT_RE` — and never tracks whether a line sits inside a
@@ -126,7 +126,7 @@ desync.
 heading. Tests assert on that deliberately (`test_loading.py:174`, `:248`). Anyone
 reading those assertions cold will think they are wrong.
 
-**Blast radius.** `tests/test_loading.py` only. Generalizes to any future
+**Blast radius.** `tests/data_ingestion/test_loading.py` only. Generalizes to any future
 structure-preservation test.
 
 **Scope.** Test-only, and `/tests/` is not tracked — this affects no published code.

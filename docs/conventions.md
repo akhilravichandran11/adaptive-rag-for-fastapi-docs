@@ -31,6 +31,7 @@ set yet.
 | [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
 | [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | accepted |
+| [C006](#c006-tests-never-make-a-paid-api-call) | Tests never make a paid API call | IDX-04 | accepted |
 
 ---
 
@@ -47,6 +48,11 @@ find that out.
 Every dispatch keys off `spec.backend` and ends in `raise _unsupported_backend(spec)`
 — `build_document_embedder`, `build_text_embedder`, `cached_tokenizer_path`,
 `count_tokens`.
+
+**Clarified 2026-09-29 (IDX-10).** "Ends in" describes the rule, not the position:
+each of the four functions raises `_unsupported_backend(spec)` for any backend it
+does not handle. `cached_tokenizer_path` does it in a guard at the top, because a
+fastembed-only body follows; the other three raise as their last line.
 
 **Why.** The first version dispatched on the registry key: `if name == "bge": …
 else: <Voyage>`. A third entry added later would have fallen through to the Voyage
@@ -203,3 +209,51 @@ deterministic. Schema validation cannot establish catalog membership.
 **Alternatives.** Exact-path enums still ask the model to return authoritative
 paths. Fully deterministic semantic selection requires a separate relevance
 policy. Fuzzy path correction and automatic retries are outside this design.
+
+---
+
+## C006: Tests never make a paid API call
+
+**Status:** accepted (user, 2026-09-29) · **Introduced:** 2026-09-20, IDX-04 · **Where:** `tests/data_ingestion/test_embedders.py:50-59`; copied (non-autouse, plus client patches) in `tests/data_curation/test_stage3_source_identity.py:144-146`
+
+**The convention, stated.** No test may reach a paid API: Voyage
+(`api.voyageai.com`), Gemini (`generativelanguage.googleapis.com`) or OpenAI
+(`api.openai.com`). A test module whose code under test could call one installs a
+guard that makes the call fail the test instead of costing money.
+
+**Scope: paid calls only.** Qdrant, Redis and Opik are not billed per call. A test
+may connect to them, locally or in the cloud; this convention does not block them.
+
+**Two forms.**
+
+- *No network at all*, for a test that needs nothing outside the process: patch
+  `socket.socket.connect`, `socket.socket.connect_ex` and `socket.create_connection`
+  to raise, as `test_embedders.py` does. This also blocks infrastructure and catches
+  unintended model downloads (F002's `punkt_tab`), so prefer it whenever the test
+  needs no network.
+- *Paid hosts only*, for a test that needs Qdrant, Redis or Opik: patch
+  `socket.getaddrinfo` to raise for the three hosts above and pass every other name
+  through. Block at name resolution: by the time `connect()` runs, urllib3 passes an
+  IP address, so a host check there cannot see the name. (Checked 2026-09-29: this
+  stops both `httpx` and `requests` before any connection, and `localhost` still
+  resolves.)
+
+**Why.** "Offline" had been asserted only by construction (`local_files_only=True`,
+lazy Voyage clients). A guard turns that claim into something a test run proves.
+
+**What it replaces.** Nothing; there was no network guard before IDX-04.
+
+**Cost.** Neither form covers code that runs at collection time, before fixtures
+exist; `needs_bge` in `test_embedders.py` uses a filesystem probe for that reason.
+The paid-host list lives here, so a new paid provider has to be added to it.
+
+**Blast radius.** Test-only, and `/tests/` is not tracked. Modules whose code cannot
+reach a paid API (`test_loading.py`, `test_chunkers.py`, `test_model_cache.py`) need
+no guard.
+
+**Deferred.** A shared guard in `tests/data_ingestion/conftest.py` (user,
+2026-09-29: not now). Each module installs its own until then.
+
+**Alternatives.** `pytest-socket` (a new dev dependency); library switches such as
+`HF_HUB_OFFLINE=1` (cover one library, not the paid APIs); patching each SDK's client
+class, as the stage 3 test also does (precise, but must track every client).

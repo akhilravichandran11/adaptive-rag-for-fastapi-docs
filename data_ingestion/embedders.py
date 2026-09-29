@@ -10,7 +10,8 @@ input limit, and builds its Haystack components:
 These values live here rather than in the environment on purpose. The study's
 results are only comparable if every run indexes with the same models at the same
 dimensions, so a stray ``.env`` edit must not change them silently; the indexing
-stage copies the model and dimension into ``run_meta.json`` for each run.
+stage (build step 3) will copy the model and dimension into ``run_meta.json`` for
+each run.
 
 BGE reads at most 512 tokens and drops the rest of a chunk without saying so, which
 is a result of the study rather than a problem to design away: the larger chunking
@@ -32,6 +33,7 @@ settings until they are run, and the BGE ones read the cache filled by
 
 from __future__ import annotations
 
+import copy
 import logging
 import math
 from collections.abc import Iterable
@@ -149,7 +151,7 @@ def build_document_embedder(name: str):
 
 
 def build_text_embedder(name: str):
-    """Build the component that embeds a single string (a query, or a chunker's probe).
+    """Build the component that embeds a single string (a query at search time).
 
     Must be the same model as ``build_document_embedder(name)``, or queries land in
     a different space from the documents they search.
@@ -177,15 +179,18 @@ def cached_tokenizer_path(name: str) -> Path | None:
 
     A filesystem lookup only — it never downloads and never loads the model, so it
     is also the cheap way to ask whether the offline tokenizer is available (for a
-    diagnostic, or to skip a test). ``None`` means "not cached", and for an
-    API-backed embedder it means "there is no local tokenizer to have".
+    diagnostic, or to skip a test). ``None`` means "not cached", and for Voyage,
+    which runs only as an API, "there is no local tokenizer to have".
 
     Raises ``LookupError`` when the installed fastembed does not know the registry's
-    model at all, which is a dependency mismatch rather than a missing download.
+    model at all, which is a dependency mismatch rather than a missing download, and
+    ``ValueError`` for a backend this module does not handle.
     """
     spec = get_spec(name)
-    if spec.backend != "fastembed":
+    if spec.backend == "voyage":
         return None
+    if spec.backend != "fastembed":
+        raise _unsupported_backend(spec)
 
     from fastembed import TextEmbedding
     from huggingface_hub import try_to_load_from_cache
@@ -244,8 +249,12 @@ def bge_tokenizer():
     not been cached yet. The load is memoized per cache folder, so moving
     ``FASTEMBED_CACHE_PATH`` mid-process reloads rather than returning the tokenizer
     from the folder that is no longer in use.
+
+    Each call returns a private copy. A caller may turn on truncation or padding for
+    its own use without changing the counts ``count_tokens`` reports, which read the
+    shared, unmodified tokenizer.
     """
-    return _local_tokenizer(EMBEDDERS["bge"])
+    return copy.deepcopy(_local_tokenizer(EMBEDDERS["bge"]))
 
 
 def count_tokens(name: str, texts: Iterable[str]) -> list[int]:
@@ -257,9 +266,9 @@ def count_tokens(name: str, texts: Iterable[str]) -> list[int]:
     """
     spec = get_spec(name)
     texts = list(texts)
-    if not texts:
-        return []
     if spec.backend == "fastembed":
+        if not texts:
+            return []
         encodings = _local_tokenizer(spec).encode_batch(texts)
         return [len(encoding.ids) for encoding in encodings]
     if spec.backend == "voyage":

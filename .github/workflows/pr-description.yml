@@ -1,15 +1,16 @@
-name: Auto-fill PR description
+name: Auto-fill or suggest PR description
 
-# Runs scripts/ci/generate_pr_description.py when a PR is opened without a
-# body, using the OpenAI API directly (no Warp/Oz dependency). Never
-# overwrites a description someone already wrote. Reuses the criteria in
+# Runs scripts/ci/generate_pr_description.py using the OpenAI API directly.
+# Fills the title/body when the description is empty; otherwise publishes
+# suggestions in one PR comment and the Actions summary without replacing
+# the existing title/body. Reuses the criteria in
 # .agents/skills/pr-description/SKILL.md so the generated title/body follow
 # the same Conventional Commits + Summary/Changes/Testing structure as an
 # interactive draft from an agent.
 #
 # Also runs on "edited"/"reopened" (e.g. GitHub auto-populated the body from
 # a commit message at open-time, then someone cleared it) and can be run
-# manually via workflow_dispatch to (re)generate a specific PR's description.
+# manually via workflow_dispatch to fill or suggest text for a specific PR.
 #
 # Required repo secret:
 #   OPENAI_API_KEY - stored under Settings > Secrets and variables > Actions
@@ -20,8 +21,12 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "PR number to (re)generate a description for"
+        description: "PR number to fill or suggest a title and description for"
         required: true
+
+concurrency:
+  group: pr-description-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -74,7 +79,7 @@ jobs:
       - name: Install dependencies
         run: pip install --quiet openai
 
-      - name: Generate PR description if missing
+      - name: Generate PR title and description
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

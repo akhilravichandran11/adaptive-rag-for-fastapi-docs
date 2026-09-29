@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-"""Fill in a pull request's title and body when it was opened without one.
+"""Fill an empty PR description or publish suggested title/body text.
 
-Runs in CI (see .github/workflows/pr-description.yml). Only acts when the PR
-body is empty/whitespace, so it never overwrites a description someone
-actually wrote. Reuses the criteria in .agents/skills/pr-description/SKILL.md
-so the auto-generated description follows the same Conventional Commits
-title style and Summary/Changes/Testing body structure as an interactive
-draft from an agent.
+Runs in CI (see .github/workflows/pr-description.yml). Applies generated
+title/body text when the description is empty/whitespace. Otherwise, leaves
+the PR unchanged and publishes suggestions in one workflow comment and the
+Actions summary. Reuses .agents/skills/pr-description/SKILL.md for the
+Conventional Commits title and Summary/Changes/Testing body structure.
 
 Required environment variables:
   OPENAI_API_KEY   - OpenAI API key (GitHub Actions secret)
   GH_TOKEN         - token for the `gh` CLI to update the PR
   PR_NUMBER        - the pull request number to update
   PR_BODY          - the PR's current body (may be empty)
+  GITHUB_REPOSITORY - target repository in owner/name format
   GITHUB_BASE_REF  - the PR's base branch (set automatically by GitHub Actions
                      for pull_request-triggered workflows)
 
 Optional:
   PR_DESCRIPTION_MODEL - OpenAI model to use (default: gpt-4o-mini)
+  GITHUB_STEP_SUMMARY - Actions-provided file for the run summary
 """
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -118,11 +120,54 @@ def update_pr(pr_number: str, title: str, body: str) -> None:
     )
 
 
+def publish_suggestions(pr_number: str, title: str, body: str) -> None:
+    """Write the same suggestion to the run summary and one workflow comment."""
+    marker = "<!-- pr-description-suggestion -->"
+    suggestion = (
+        f"{marker}\n"
+        "## Suggested PR title and description\n\n"
+        "The existing PR title and description were left unchanged.\n\n"
+        f"### Suggested title\n\n{title}\n\n"
+        f"### Suggested description\n\n{body}\n\n"
+        f"_Generated from the branch diff using `{MODEL}`. Review before applying._\n"
+    )
+
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with Path(summary_path).open("a", encoding="utf-8") as summary:
+            summary.write(suggestion + "\n")
+
+    repo = os.environ["GITHUB_REPOSITORY"]
+    comments_endpoint = f"repos/{repo}/issues/{pr_number}/comments"
+    result = subprocess.run(
+        ["gh", "api", comments_endpoint, "--paginate", "--slurp"],
+        check=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    endpoint = comments_endpoint
+    method = "POST"
+    for page in json.loads(result.stdout):
+        for comment in page:
+            if comment["user"]["login"] == "github-actions[bot]" and (
+                comment.get("body") or ""
+            ).startswith(marker):
+                endpoint = f"repos/{repo}/issues/comments/{comment['id']}"
+                method = "PATCH"
+
+    subprocess.run(
+        ["gh", "api", endpoint, "--method", method, "--raw-field", f"body={suggestion}"],
+        check=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
 def main() -> int:
     pr_body = os.environ.get("PR_BODY", "")
-    if pr_body.strip():
-        print("PR already has a body; leaving it untouched.")
-        return 0
 
     if not os.environ.get("OPENAI_API_KEY"):
         print("OPENAI_API_KEY not set; skipping (e.g. a fork PR without repo secrets).")
@@ -161,8 +206,32 @@ def main() -> int:
         print(f"Could not parse model response: {error}", file=sys.stderr)
         return 1
 
-    update_pr(pr_number, title, body)
-    print(f"Updated PR #{pr_number} with generated title and body.")
+    if not pr_body.strip():
+        pr_body = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--repo",
+                os.environ["GITHUB_REPOSITORY"],
+                "--json",
+                "body",
+                "--jq",
+                ".body",
+            ],
+            check=True,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    if pr_body.strip():
+        publish_suggestions(pr_number, title, body)
+        print(f"Published suggestions for PR #{pr_number}; title and body unchanged.")
+    else:
+        update_pr(pr_number, title, body)
+        print(f"Updated PR #{pr_number} with generated title and body.")
     return 0
 
 

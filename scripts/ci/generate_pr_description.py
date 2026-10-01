@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "pr-description" / "SKILL.md"
 MAX_DIFF_CHARS = 15_000
 MODEL = os.getenv("PR_DESCRIPTION_MODEL", "gpt-4o-mini")
+TESTING_NOTE = "Test execution was not verified by this workflow."
 
 RESPONSE_FORMAT_INSTRUCTIONS = """
 Respond in exactly this format, with no other text before or after:
@@ -89,7 +91,15 @@ def get_branch_summary(base_ref: str) -> str:
 
 
 def build_prompt(branch_summary: str) -> tuple[str, str]:
-    instructions = load_skill_instructions()
+    instructions = (
+        load_skill_instructions() + "\n\nCI-specific requirements:\n"
+        "Use exactly these level-two sections in order: Summary, Changes, Testing. "
+        "Each section must contain text.\n"
+        "The supplied commits and diff are not test execution evidence. "
+        "Do not claim tests were run or passed based on test files, commands, "
+        "or commit messages. You may describe added tests under Changes.\n"
+        f"The Testing section must contain only this bullet:\n- {TESTING_NOTE}\n"
+    )
     user_message = (
         "Draft a title and body for this pull request based on the following "
         f"branch summary.\n\n{branch_summary}\n{RESPONSE_FORMAT_INSTRUCTIONS}"
@@ -102,10 +112,28 @@ def parse_response(text: str) -> tuple[str, str]:
         raise ValueError(f"Response did not start with 'TITLE:': {text[:200]!r}")
     first_line, _, rest = text.partition("\n")
     title = first_line[len("TITLE:") :].strip()
-    if "---" not in rest:
-        raise ValueError("Response did not contain a '---' body delimiter")
-    _, _, body = rest.partition("---")
-    return title, body.strip()
+    if not title:
+        raise ValueError("Response contained an empty title")
+
+    delimiter, separator, body = rest.partition("\n")
+    if delimiter.strip() != "---" or not separator:
+        raise ValueError("Response must have a '---' line immediately after the title")
+    body = body.strip()
+    if not body:
+        raise ValueError("Response contained an empty body")
+
+    sections = re.split(r"(?m)^##[ \t]+(Summary|Changes|Testing)[ \t]*\r?$", body)
+    if (
+        len(sections) != 7
+        or sections[0].strip()
+        or sections[1::2] != ["Summary", "Changes", "Testing"]
+    ):
+        raise ValueError("Body must contain Summary, Changes, and Testing in order")
+    if any(not section.strip() for section in sections[2::2]):
+        raise ValueError("Body sections must not be empty")
+    if sections[-1].strip() != f"- {TESTING_NOTE}":
+        raise ValueError("Testing must state that execution was not verified")
+    return title, body
 
 
 def update_pr(pr_number: str, title: str, body: str) -> None:
@@ -195,7 +223,20 @@ def main() -> int:
         print(f"OpenAI request failed ({detail}); skipping PR description.", file=sys.stderr)
         return 0
 
-    raw = response.choices[0].message.content
+    if not response.choices:
+        print("Model returned no choices.", file=sys.stderr)
+        return 1
+
+    choice = response.choices[0]
+    if choice.finish_reason != "stop":
+        print(
+            f"Model response did not finish normally ({choice.finish_reason}); "
+            "nothing will be published.",
+            file=sys.stderr,
+        )
+        return 1
+
+    raw = choice.message.content
     if not raw or not raw.strip():
         print("Model returned an empty response.", file=sys.stderr)
         return 1

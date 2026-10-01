@@ -38,6 +38,10 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
 - **Local findings, plans, and tickets:** before recording or triaging findings,
   refining plans, or executing ticket work, read
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+- **What's left to do:** when asked for action items or what is next, and at the end
+  of any chat that changed `.scratch/` work, follow "Action views" in
+  [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) and answer from
+  `.scratch/NOW.md`.
 - **Debug / trace instrumentation:** to add the project's personal debug-print
   style to a Python file (the `debug_print` / `debug_object` helpers, scope
   banners, STARTED/ENDED markers, variable dumps), follow

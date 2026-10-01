@@ -29,6 +29,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,7 +58,7 @@ class MetadataError(Exception):
 
 
 class MissingInputError(MetadataError):
-    """A manifest or curation file is absent, unreadable, or missing a needed field."""
+    """A manifest or curation file is absent, unreadable, malformed, or missing a needed field."""
 
 
 class UnmatchedDocumentError(MetadataError):
@@ -136,6 +137,22 @@ def _require(container: Mapping[str, Any], key: str, where: str) -> Any:
     return container[key]
 
 
+def _require_filename(record: Any, where: str, seen: Mapping[str, Any], source: str) -> str:
+    """Return a record's ``output_filename``, refusing a non-string or repeated one."""
+    filename = _require(record, FILENAME_KEY, where)
+    if not isinstance(filename, str):
+        raise MissingInputError(f"'{FILENAME_KEY}' must be a string in {where}")
+    if filename in seen:
+        raise MissingInputError(f"duplicate '{FILENAME_KEY}' '{filename}' in {source}")
+    return filename
+
+
+def _check_run_id(run_id: str) -> None:
+    """Refuse a run id that is not a single folder name, before it is joined as a path."""
+    if not isinstance(run_id, str) or run_id in ("", ".", "..") or "/" in run_id or "\\" in run_id:
+        raise MissingInputError(f"curation run id must be a single folder name, got {run_id!r}")
+
+
 def load_manifest(manifest_path: Path | None = None) -> Manifest:
     """Read the corpus manifest into a per-filename index.
 
@@ -148,11 +165,13 @@ def load_manifest(manifest_path: Path | None = None) -> Manifest:
     source = _require(payload, "source", f"manifest {path}")
     corpus_commit = _require(source, "ref", f"manifest source in {path}")
     files = _require(payload, "files", f"manifest {path}")
+    if not isinstance(files, list):
+        raise MissingInputError(f"'files' in manifest {path} must be a list of entries")
 
     entries: dict[str, ManifestEntry] = {}
     for position, record in enumerate(files):
         where = f"manifest entry {position} in {path}"
-        filename = _require(record, FILENAME_KEY, where)
+        filename = _require_filename(record, where, entries, f"manifest {path}")
         entries[filename] = ManifestEntry(
             source_path=_require(record, "source_path", f"manifest entry '{filename}' in {path}"),
             bucket=_require(record, "bucket", f"manifest entry '{filename}' in {path}"),
@@ -175,6 +194,7 @@ def load_curation_run(
     Raises ``MissingInputError`` if the run folder or the analysis file is absent,
     or if an entry is missing a field this project needs.
     """
+    _check_run_id(run_id)
     root = (
         Path(curation_outputs_root) if curation_outputs_root is not None else CURATION_OUTPUTS_ROOT
     )
@@ -192,13 +212,33 @@ def load_curation_run(
     entries: dict[str, CurationEntry] = {}
     for position, record in enumerate(payload):
         where = f"curation entry {position} in {path}"
-        filename = _require(record, FILENAME_KEY, where)
+        filename = _require_filename(record, where, entries, f"curation run '{run_id}' ({path})")
         named = f"curation entry '{filename}' in {path}"
         analysis = _require(record, "analysis", named)
+
+        # Stage 3's score and flag type checks, plus a finiteness check (JSON allows NaN
+        # and Infinity; stage 3's gap is data-curation F020) and a domain check it lacks.
+        quality_score = _require(analysis, "overall_quality", f"analysis of {named}")
+        is_number = isinstance(quality_score, (int, float)) and not isinstance(quality_score, bool)
+        try:
+            finite = is_number and math.isfinite(quality_score)
+        except OverflowError:  # a JSON integer too large to convert to float
+            finite = False
+        if not finite:
+            raise MissingInputError(f"'overall_quality' must be a number in analysis of {named}")
+        knowledge_domain = _require(record, "knowledge_domain", named)
+        if not isinstance(knowledge_domain, str) or not knowledge_domain.strip():
+            raise MissingInputError(f"'knowledge_domain' must be a non-empty string in {named}")
+        flagged = _require(record, "suspected_prompt_injection", named)
+        if not isinstance(flagged, bool):
+            raise MissingInputError(
+                f"'suspected_prompt_injection' must be true or false in {named}"
+            )
+
         entries[filename] = CurationEntry(
-            quality_score=_require(analysis, "overall_quality", f"analysis of {named}"),
-            knowledge_domain=_require(record, "knowledge_domain", named),
-            suspected_prompt_injection=bool(_require(record, "suspected_prompt_injection", named)),
+            quality_score=quality_score,
+            knowledge_domain=knowledge_domain,
+            suspected_prompt_injection=flagged,
         )
 
     logger.info("Curation run %s: %d analysed files from %s", run_id, len(entries), path)

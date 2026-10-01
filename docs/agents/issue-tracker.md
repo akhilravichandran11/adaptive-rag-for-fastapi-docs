@@ -1,8 +1,8 @@
 # Local Findings, Planning, and Issue Tracker
 
-This repository keeps findings, working plans, and implementation tickets in an
-ignored `.scratch/` workspace. The rules in this document define the workflow;
-the local artifacts remain outside the published portfolio.
+This repository keeps findings, roadmaps, working plans, and implementation
+tickets in an ignored `.scratch/` workspace. The rules in this document define
+the workflow; the local artifacts remain outside the published portfolio.
 
 ## Master index
 
@@ -22,6 +22,8 @@ Each target owns its findings and plans; the whole capability shares one board.
 ├── _index.md                          # master index: all capabilities
 └── <capability>/
     ├── _index.md                      # capability hub: shared context + targets table + board link
+    ├── roadmaps/                      # optional: capability-wide direction and sequencing
+    │   └── <roadmap-name>.md
     ├── targets/
     │   └── <target-slug>/
     │       ├── findings/
@@ -33,8 +35,8 @@ Each target owns its findings and plans; the whole capability shares one board.
         └── _index.md                  # one shared board for the whole capability
 ```
 
-Use lowercase kebab-case for capability, target, concern, finding, and ticket
-names. A capability with a single target still nests it under one
+Use lowercase kebab-case for capability, target, concern, roadmap, finding, and
+ticket names. A capability with a single target still nests it under one
 `targets/<slug>/`. A finding or ticket may touch multiple files; its target
 describes the unit of work, not a single file.
 
@@ -43,6 +45,21 @@ each one follows. `data-curation-pipeline` predates this standard (root-level
 `findings/` and `plans/`, no `targets/`) and is pending migration — until then,
 treat its root `findings/` and `plans/` as a single implicit target.
 
+## Capability roadmaps
+
+Use optional `<capability>/roadmaps/<roadmap-name>.md` files for direction,
+outcomes, and sequencing across stages or targets within a capability.
+Plans remain the place for a particular concern's design and implementation
+approach.
+
+Link roadmaps from the capability hub. For the legacy data-curation workspace,
+link them from its existing entry in `.scratch/_index.md` until it has a hub.
+Link to canonical findings, plans, and tickets; keep their statuses in those
+records rather than maintaining a second status board in the roadmap.
+
+Roadmaps are non-executable context. Approval of a roadmap's direction does
+not authorize implementation; the issue-status rule below still applies.
+
 ## One session, one target
 
 Parallel sessions (Codex or Claude) stay out of each other's way by working
@@ -50,6 +67,8 @@ different targets:
 
 - A session works **one target** and creates or edits files only under that
   target's `targets/<slug>/` directory.
+- User-requested roadmap maintenance may update capability-level `roadmaps/`
+  and its discovery links; this does not authorize work on other targets.
 - Finding IDs (`F<NNN>`) are scoped to the target; the folder disambiguates them,
   so two targets may each have an `F001`.
 - Ticket IDs on the shared board are prefixed by target (e.g. `TAX-01`, `SDS-01`).
@@ -111,8 +130,8 @@ skill. Each ticket must state its blockers, its `Touches` list (the files, and
 where useful the functions/symbols, it will modify), and acceptance criteria.
 
 Only an issue with `Status: ready-for-agent` or `Status: in-progress`
-authorizes implementation. Material under `findings/` and `plans/` remains
-non-executable context.
+authorizes implementation. Material under `findings/`, `roadmaps/`, and
+`plans/` remains non-executable context.
 
 ## Finding status
 
@@ -273,6 +292,43 @@ Use this session-start instruction with Codex or Claude to implement a ticket:
 Read docs/agents/issue-tracker.md and <ticket-path>. Confirm the ticket is ready,
 then work only within its scope and verify every acceptance criterion.
 ```
+
+## Action views (what is left to do)
+
+`.scratch/now.py` generates three views from the tracker's own files, so nobody keeps
+a second status list by hand:
+
+- `.scratch/NOW.md` — Needs you, Ready for an agent, In progress, Blocked. Open this first.
+- `.scratch/views/needs-you.md` — only what needs the user, by capability.
+- `.scratch/views/everything.md` — every open ticket, finding and inbox line.
+
+They are rebuilt from scratch on every run, carry a do-not-edit header, and are never
+edited. They read:
+
+- each ticket's and finding's `**Status:**` line (an `open` finding counts as needing
+  the user's triage);
+- a `**Needs you:** <what>` line, placed directly under `**Status:**` in any ticket or
+  finding, for as long as something waits on the user;
+- `.scratch/INBOX.md`, which holds only loose items with no ticket or finding, as
+  `- [<capability or general>] <text>`; a bullet with `**Needs you:**` is the user's.
+
+Hooks in the user's global Claude and Codex config run it at session start (printing
+one summary line into the agent's context) and after each reply. Run it by hand with
+`python3 .scratch/now.py` in any other tool.
+
+**At the end of a chat** that touched `.scratch/` work or left something for the user:
+
+1. Set the `Status:` of every ticket and finding the chat changed.
+2. Add a `**Needs you:**` line for each thing now waiting on the user; delete the lines
+   the user has done.
+3. Add or delete `.scratch/INBOX.md` lines for loose items (merges, pushes, decisions
+   with no ticket).
+4. Run `python3 .scratch/now.py`.
+5. End the reply with the Needs-you count and a link to `.scratch/NOW.md` rather than
+   re-listing everything.
+
+**When the user asks what is next** or what their action items are, run `now.py` and
+answer from `.scratch/NOW.md`; do not rebuild the list from boards and memory.
 
 ## Git worktrees
 

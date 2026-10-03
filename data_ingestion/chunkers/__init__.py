@@ -17,9 +17,9 @@ imported: a caller that wants one strategy does not pay for loading the models
 another one needs, and a strategy module stays runnable on its own with
 ``python -m``.
 
-The five strategies here split by size (words, sentences, or characters); the
-structure-aware ``semantic`` and ``markdown_ast`` strategies are added to the
-same table as they land.
+Five strategies split by size (words, sentences, or characters); ``semantic``
+cuts where BGE embeddings say the topic changes. The structure-aware
+``markdown_ast`` strategy is added to the same table when it lands.
 
 Build indexing pipelines in code rather than loading them from a saved
 dictionary or YAML: a pipeline holding one of these components serializes, but
@@ -54,6 +54,7 @@ __all__ = [
     "build_naive_medium",
     "build_naive_small",
     "build_recursive",
+    "build_semantic",
     "build_sentence",
     "check_source_paths",
     "get_chunker",
@@ -97,6 +98,13 @@ def build_recursive() -> Chunker:
     return RecursiveChunker()
 
 
+def build_semantic() -> Chunker:
+    """Cut where the topic changes, found with BGE-large; chunks aim for 1,000 characters or fewer."""
+    from data_ingestion.chunkers.semantic import SemanticChunker
+
+    return SemanticChunker()
+
+
 # Strategy name -> factory. The order is the one the study reports them in.
 STRATEGIES: dict[str, Callable[[], Chunker]] = {
     "naive_small": build_naive_small,
@@ -104,6 +112,7 @@ STRATEGIES: dict[str, Callable[[], Chunker]] = {
     "naive_large": build_naive_large,
     "sentence": build_sentence,
     "recursive": build_recursive,
+    "semantic": build_semantic,
 }
 
 

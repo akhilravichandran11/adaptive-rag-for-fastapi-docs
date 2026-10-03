@@ -63,15 +63,38 @@ logs/
 
 # Local configs
 *.local
+/.scratch
 
-# Pre commit checks
-share_check_report.txt
-
-# Data folder
-data/
+# Harness local state (Claude Code, Kilo Code)
+.claude/
+.kilo/
 
 
 # Todo and learning files
 tasks_and_learning_queue.md
+# Personal files and folders
+*akr*
+sandbox/
+archive/
+
+# Pre commit checks
+share_check_report*.txt
+
+# Data folder
+data/
+
+# Archives
+*.zip
+
+# Generated pipeline outputs
+outputs/
 
 
+# Local embedding / tokenizer model cache (FASTEMBED_CACHE_PATH, NLTK_DATA)
+/models/
+
+# Tests are kept local while the testing approach settles (see AGENTS.md)
+/tests/
+
+# Experiments are kept local for now
+/experiments/

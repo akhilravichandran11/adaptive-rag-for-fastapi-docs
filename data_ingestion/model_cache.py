@@ -5,15 +5,15 @@ Every locally run model has one home inside the project, ``<project>/models/``,
 which is git-ignored and filled once by ``scripts/download_models.py``:
 
     models/
-    ├── fastembed/   # fastembed ONNX models (BGE-large), Hugging Face cache layout
+    ├── fastembed/   # BGE's tokenizer.json, Hugging Face cache layout (name predates IDX-12)
     └── nltk/        # NLTK data (the punkt_tab sentence tokenizer)
 
 Each subfolder can be moved with the variable its library already reads:
-``FASTEMBED_CACHE_PATH`` for fastembed and ``NLTK_DATA`` for NLTK. A relative value
+``FASTEMBED_CACHE_PATH`` for the tokenizer folder and ``NLTK_DATA`` for NLTK. A relative value
 is taken from the project root, so the same ``.env`` works from any directory. The
 variables are read from ``os.environ`` at call time; callers that keep them in
-``.env`` load it first. Code that needs a model imports the paths from here instead
-of hardcoding them, and loads with ``local_files_only=True`` so it never downloads.
+``.env`` load it first. Code that needs a file imports the paths from here instead
+of hardcoding them, and only looks files up in the cache, so it never downloads.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _from_env(env_var: str, default: Path) -> Path:
 
 
 def fastembed_cache_dir() -> Path:
-    """Folder passed to fastembed as ``cache_dir`` (``models/fastembed`` by default)."""
+    """Folder holding BGE's tokenizer (``models/fastembed`` by default; the name predates IDX-12)."""
     return _from_env(FASTEMBED_ENV_VAR, MODELS_ROOT / "fastembed")
 
 

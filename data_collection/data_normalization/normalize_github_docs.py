@@ -22,13 +22,13 @@ from __future__ import annotations
 import json
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 SOURCE_ID = "github-docs"
 SOURCE_VERSION = "v1"
 
-DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "fastapi"
+DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "fastapi"
 RAW_DIR = DATA_ROOT / "raw" / SOURCE_ID / SOURCE_VERSION
 RAW_DOCS = RAW_DIR / "docs"
 RAW_CODE = RAW_DIR / "code"
@@ -78,7 +78,13 @@ def comment_line(lang: str, path: str) -> str:
     return f"# {path}"
 
 
-def render_block(path: str, options: str, code_text: str) -> str:
+def render_block(
+    path: str,
+    options: str,
+    code_text: str,
+    language: str | None = None,
+    fence: str = "```",
+) -> str:
     lang = LANG_BY_EXT.get(Path(path).suffix, Path(path).suffix.lstrip(".") or "text")
     all_lines = code_text.splitlines()
 
@@ -86,13 +92,27 @@ def render_block(path: str, options: str, code_text: str) -> str:
     lines = select_lines(all_lines, ln_match.group(1)) if ln_match else all_lines
 
     body = "\n".join([comment_line(lang, path), *lines])
-    return f"```{lang}\n{body}\n```"
+    for line in lines:
+        closing = re.fullmatch(rf" {{0,3}}({re.escape(fence[0])}{{3,}})[ \t]*", line)
+        if closing and len(closing.group(1)) >= len(fence):
+            fence = fence[0] * (len(closing.group(1)) + 1)
+    label = lang if language is None else language
+    return f"{fence}{label}\n{body}\n{fence}"
 
 
 def normalize_text(text: str, includes: list[dict]) -> str:
-    """Replace every include macro in `text`, recording each into `includes`."""
+    """Expand includes, reusing author fences whose sole content is an include.
 
-    def replace(reference: str, options: str) -> str:
+    Recognize backtick or tilde fences of at least three characters, indented
+    by up to three spaces. This is not a full Markdown container parser.
+    """
+
+    def replace(
+        reference: str,
+        options: str,
+        language: str | None = None,
+        fence: str = "```",
+    ) -> str:
         path = repo_path(reference)
         code_file = RAW_CODE / path
         record = {"repo_path": path, "options": options.strip(), "resolved": False}
@@ -100,20 +120,53 @@ def normalize_text(text: str, includes: list[dict]) -> str:
         if not code_file.is_file():
             return f"<!-- unresolved include: {path} -->"
         record["resolved"] = True
-        return render_block(path, options, code_file.read_text(encoding="utf-8"))
+        return render_block(path, options, code_file.read_text(encoding="utf-8"), language, fence)
 
-    text = MACRO_RE.sub(lambda m: replace(m.group(1), m.group(2)), text)
-    text = LEGACY_RE.sub(lambda m: replace(m.group(1), ""), text)
-    return text
+    def replace_includes(fragment: str) -> str:
+        fragment = MACRO_RE.sub(lambda m: replace(m.group(1), m.group(2)), fragment)
+        return LEGACY_RE.sub(lambda m: replace(m.group(1), ""), fragment)
+
+    opening_re = re.compile(r"^( {0,3})(`{3,}|~{3,})([^\r\n]*)\r?\n", re.MULTILINE)
+    parts: list[str] = []
+    position = 0
+
+    while opening := opening_re.search(text, position):
+        parts.append(replace_includes(text[position : opening.start()]))
+        indent, fence, info = opening.groups()
+        closing_re = re.compile(
+            rf"^ {{0,3}}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*\r?$",
+            re.MULTILINE,
+        )
+        closing = closing_re.search(text, opening.end())
+        if closing is None:
+            parts.append(replace_includes(text[opening.start() :]))
+            position = len(text)
+            break
+
+        body = text[opening.end() : closing.start()].strip()
+        macro = MACRO_RE.fullmatch(body)
+        legacy = LEGACY_RE.fullmatch(body)
+        if macro or legacy:
+            if macro:
+                reference, options = macro.groups()
+            else:
+                reference, options = legacy.group(1), ""
+            language = info.strip().split(maxsplit=1)[0] if info.strip() else ""
+            block = replace(reference, options, language, fence)
+            parts.append("\n".join(indent + line for line in block.split("\n")))
+        else:
+            parts.append(replace_includes(text[opening.start() : closing.end()]))
+        position = closing.end()
+
+    parts.append(replace_includes(text[position:]))
+    return "".join(parts)
 
 
 def write_manifest(source: dict, files: list[dict], breakdown: dict[str, dict[str, int]]) -> None:
     total_files = sum(bucket["files"] for bucket in breakdown.values())
     total_bytes = sum(bucket["bytes"] for bucket in breakdown.values())
     total_includes = sum(len(record["includes"]) for record in files)
-    unresolved = sum(
-        1 for record in files for inc in record["includes"] if not inc["resolved"]
-    )
+    unresolved = sum(1 for record in files for inc in record["includes"] if not inc["resolved"])
 
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
@@ -131,7 +184,7 @@ def write_manifest(source: dict, files: list[dict], breakdown: dict[str, dict[st
             "code_manifest": CODE_MANIFEST.name,
         },
         "normalization": {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "inlined_includes": total_includes - unresolved,
             "unresolved_includes": unresolved,
         },

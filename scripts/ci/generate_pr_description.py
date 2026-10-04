@@ -6,6 +6,8 @@ title/body text when the description is empty/whitespace. Otherwise, leaves
 the PR unchanged and publishes suggestions in one workflow comment and the
 Actions summary. Reuses .agents/skills/pr-description/SKILL.md for the
 Conventional Commits title and Summary/Changes/Testing body structure.
+The checkout contains trusted default-branch automation. PR refs are fetched
+only to read their commits and diff; PR files are never checked out or executed.
 
 Required environment variables:
   OPENAI_API_KEY   - OpenAI API key (GitHub Actions secret)
@@ -13,8 +15,7 @@ Required environment variables:
   PR_NUMBER        - the pull request number to update
   PR_BODY          - the PR's current body (may be empty)
   GITHUB_REPOSITORY - target repository in owner/name format
-  GITHUB_BASE_REF  - the PR's base branch (set automatically by GitHub Actions
-                     for pull_request-triggered workflows)
+  GITHUB_BASE_REF  - the PR's base branch (resolved by the workflow)
 
 Optional:
   PR_DESCRIPTION_MODEL - OpenAI model to use (default: gpt-4o-mini)
@@ -62,12 +63,32 @@ def load_skill_instructions() -> str:
     return text.strip()
 
 
-def get_branch_summary(base_ref: str) -> str:
-    """Collect the commit log and diffstat for the PR branch vs. its base."""
-    subprocess.run(["git", "fetch", "origin", base_ref], check=True, cwd=REPO_ROOT)
+def get_branch_summary(base_ref: str, pr_number: str) -> str:
+    """Read the PR log and diff without changing the trusted checkout."""
+    if not re.fullmatch(r"[1-9][0-9]*", pr_number):
+        raise ValueError("PR number must be a positive integer")
+    subprocess.run(
+        ["git", "check-ref-format", f"refs/heads/{base_ref}"],
+        check=True,
+        cwd=REPO_ROOT,
+    )
+    base = "refs/pr-description/base"
+    head = "refs/pr-description/head"
+    subprocess.run(
+        [
+            "git",
+            "fetch",
+            "--no-tags",
+            "origin",
+            f"+refs/heads/{base_ref}:{base}",
+            f"+refs/pull/{pr_number}/head:{head}",
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+    )
 
     log = subprocess.run(
-        ["git", "log", f"origin/{base_ref}..HEAD", "--oneline"],
+        ["git", "log", f"{base}..{head}", "--oneline"],
         check=True,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -75,7 +96,16 @@ def get_branch_summary(base_ref: str) -> str:
     ).stdout
 
     diff = subprocess.run(
-        ["git", "diff", f"origin/{base_ref}...HEAD", "--", ".", ":!uv.lock"],
+        [
+            "git",
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            f"{base}...{head}",
+            "--",
+            ".",
+            ":!uv.lock",
+        ],
         check=True,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -204,7 +234,7 @@ def main() -> int:
     base_ref = os.environ["GITHUB_BASE_REF"]
     pr_number = os.environ["PR_NUMBER"]
 
-    branch_summary = get_branch_summary(base_ref)
+    branch_summary = get_branch_summary(base_ref, pr_number)
     system_prompt, user_prompt = build_prompt(branch_summary)
 
     client = OpenAI()

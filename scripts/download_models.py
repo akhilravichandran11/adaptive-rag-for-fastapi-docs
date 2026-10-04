@@ -120,8 +120,8 @@ def nltk_status(package: str, data_dir: Path) -> ModelStatus:
     return status
 
 
-def collect_status(fastembed_dir: Path, nltk_dir: Path) -> list[ModelStatus]:
-    statuses = [tokenizer_status(EMBEDDERS[name], fastembed_dir) for name in TOKENIZER_EMBEDDERS]
+def collect_status(tokenizer_dir: Path, nltk_dir: Path) -> list[ModelStatus]:
+    statuses = [tokenizer_status(EMBEDDERS[name], tokenizer_dir) for name in TOKENIZER_EMBEDDERS]
     statuses += [nltk_status(package, nltk_dir) for package in NLTK_RESOURCES]
     return statuses
 
@@ -179,7 +179,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download the local model files into the project cache, or check they are present.",
         epilog=(
-            f"Environment: {FASTEMBED_ENV_VAR} overrides the fastembed folder "
+            f"Environment: {FASTEMBED_ENV_VAR} overrides the tokenizer folder "
             f"(default models/fastembed); {NLTK_ENV_VAR} overrides the NLTK folder "
             "(default models/nltk). Both may be set in the shell or the project .env."
         ),
@@ -207,14 +207,14 @@ def main(argv: list[str] | None = None) -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     load_dotenv(PROJECT_ROOT / ".env")
-    fastembed_dir = fastembed_cache_dir()
+    tokenizer_dir = fastembed_cache_dir()
     # NLTK 3.10+ refuses to write outside the folders on its search path, so the
     # project folder is registered before anything is checked or downloaded.
     nltk_dir = register_nltk_data_dir()
-    logger.info("fastembed cache: %s", fastembed_dir)
+    logger.info("tokenizer cache: %s", tokenizer_dir)
     logger.info("NLTK data:       %s", nltk_dir)
 
-    statuses = collect_status(fastembed_dir, nltk_dir)
+    statuses = collect_status(tokenizer_dir, nltk_dir)
     log_status(statuses)
     missing = [s for s in statuses if not s.present]
 
@@ -238,7 +238,7 @@ def main(argv: list[str] | None = None) -> None:
         try:
             if status.kind == "tokenizer":
                 download_tokenizer(
-                    EMBEDDERS[status.name], fastembed_dir, force=status.location.exists()
+                    EMBEDDERS[status.name], tokenizer_dir, force=status.location.exists()
                 )
             elif status.kind == "nltk":
                 download_nltk(status.name, nltk_dir)
@@ -249,7 +249,7 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(1) from None
 
     # Re-check from disk so the log states exactly what was fetched and where.
-    statuses = collect_status(fastembed_dir, nltk_dir)
+    statuses = collect_status(tokenizer_dir, nltk_dir)
     fetched = {s.label for s in missing}
     for status in statuses:
         if status.label in fetched and status.present:

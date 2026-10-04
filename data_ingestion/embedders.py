@@ -9,7 +9,7 @@ input limit, and builds its Haystack components:
 
 BGE ran locally through fastembed until IDX-12; a full semantic pass took 106
 minutes on a laptop CPU, so it now runs on OpenRouter (``openrouter_embeddings.py``).
-The fastembed branches below are kept, unused, until a later cleanup removes them.
+The local path was removed in IDX-14; only BGE's tokenizer stays on disk.
 
 These values live here rather than in the environment on purpose. The study's
 results are only comparable if every run indexes with the same models at the same
@@ -80,7 +80,7 @@ class EmbedderSpec:
     model: str
     dimension: int
     max_tokens: int
-    backend: str  # "openrouter" or "voyage" (APIs); "fastembed" (local, no longer used)
+    backend: str  # "openrouter" or "voyage" (both APIs)
     exact_tokens: bool
     api_model: str | None = None  # the provider's name for ``model``, where it differs
     tokenizer: TokenizerSource | None = None  # local tokenizer for an API-run model
@@ -128,7 +128,7 @@ def _unsupported_backend(spec: EmbedderSpec) -> ValueError:
     """
     return ValueError(
         f"Embedder {spec.name!r} names backend {spec.backend!r}, which this module "
-        "does not build; supported backends: openrouter, voyage, fastembed"
+        "does not build; supported backends: openrouter, voyage"
     )
 
 
@@ -148,9 +148,7 @@ def build_document_embedder(name: str):
     """Build the component that embeds documents during indexing.
 
     Both the OpenRouter (BGE) and Voyage components hold their settings until they
-    are run, so building one makes no API call and needs no key. The fastembed
-    branch, no longer used by any entry, ran locally from the project model cache
-    and never downloaded (``local_files_only=True``).
+    are run, so building one makes no API call and needs no key.
     """
     spec = get_spec(name)
     if spec.backend == "openrouter":
@@ -158,19 +156,6 @@ def build_document_embedder(name: str):
 
         return OpenRouterDocumentEmbedder(
             model=spec.api_model or spec.model, dimension=spec.dimension
-        )
-
-    if spec.backend == "fastembed":
-        # Imported here, not at module import: fastembed pulls in onnxruntime, and
-        # the registry above is useful (for naming collections) without it.
-        from haystack_integrations.components.embedders.fastembed import (
-            FastembedDocumentEmbedder,
-        )
-
-        return FastembedDocumentEmbedder(
-            model=spec.model,
-            cache_dir=str(fastembed_cache_dir()),
-            local_files_only=True,
         )
 
     if spec.backend == "voyage":
@@ -197,15 +182,6 @@ def build_text_embedder(name: str):
 
         return OpenRouterTextEmbedder(model=spec.api_model or spec.model, dimension=spec.dimension)
 
-    if spec.backend == "fastembed":
-        from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder
-
-        return FastembedTextEmbedder(
-            model=spec.model,
-            cache_dir=str(fastembed_cache_dir()),
-            local_files_only=True,
-        )
-
     if spec.backend == "voyage":
         from haystack_integrations.components.embedders.voyage_embedders import VoyageTextEmbedder
 
@@ -220,52 +196,23 @@ def cached_tokenizer_path(name: str) -> Path | None:
     A filesystem lookup only — it never downloads and never loads the model, so it
     is also the cheap way to ask whether the offline tokenizer is available (for a
     diagnostic, or to skip a test). ``None`` means "not cached", and for Voyage,
-    which runs only as an API, "there is no local tokenizer to have".
+    which has no local tokenizer, "there is none to have".
 
-    For OpenRouter the tokenizer is the file pinned in the registry entry, found
-    without fastembed. For the unused fastembed backend it comes through fastembed's
-    model catalogue, which raises ``LookupError`` when the installed fastembed does
-    not know the registry's model at all (a dependency mismatch rather than a missing
-    download). Raises ``ValueError`` for a backend this module does not handle.
+    BGE's tokenizer is the file pinned in its registry entry (repo, filename,
+    revision). Raises ``ValueError`` for a backend this module does not handle.
     """
     spec = get_spec(name)
     if spec.backend == "voyage":
         return None
-    if spec.backend == "openrouter":
-        return _pinned_tokenizer_path(spec)
-    if spec.backend != "fastembed":
+    if spec.backend != "openrouter":
         raise _unsupported_backend(spec)
-
-    from fastembed import TextEmbedding
-    from huggingface_hub import try_to_load_from_cache
-
-    catalogue = next(
-        (m for m in TextEmbedding.list_supported_models() if m["model"] == spec.model), None
-    )
-    if catalogue is None:
-        # The installed fastembed no longer lists this model under this name; that
-        # is a dependency problem, not a missing download, so say which it is.
-        raise LookupError(
-            f"fastembed does not list {spec.model!r} among its supported models; "
-            "the registry and the installed fastembed version disagree"
-        )
-
-    path = try_to_load_from_cache(
-        repo_id=catalogue["sources"]["hf"],
-        filename="tokenizer.json",
-        cache_dir=fastembed_cache_dir(),
-    )
-    return Path(path) if isinstance(path, str) else None
-
-
-def _pinned_tokenizer_path(spec: EmbedderSpec) -> Path | None:
-    """An API-run model's pinned tokenizer file in the project cache, found without fastembed."""
-    from huggingface_hub import try_to_load_from_cache
-
     if spec.tokenizer is None:
         raise ValueError(
             f"Embedder {spec.name!r} runs on {spec.backend} but names no tokenizer source"
         )
+
+    from huggingface_hub import try_to_load_from_cache
+
     path = try_to_load_from_cache(
         repo_id=spec.tokenizer.repo,
         filename=spec.tokenizer.filename,
@@ -329,7 +276,7 @@ def count_tokens(name: str, texts: Iterable[str]) -> list[int]:
     """
     spec = get_spec(name)
     texts = list(texts)
-    if spec.backend in ("fastembed", "openrouter"):
+    if spec.backend == "openrouter":
         if not texts:
             return []
         encodings = _local_tokenizer(spec).encode_batch(texts)

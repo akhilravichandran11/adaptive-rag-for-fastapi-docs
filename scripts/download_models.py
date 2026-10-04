@@ -1,22 +1,28 @@
 """
-Download the offline models for the FastAPI Q&A RAG project, or check they are present.
+Download the local model files for the FastAPI Q&A RAG project, or check they are present.
 
 Fills the git-ignored project cache described in ``data_ingestion/model_cache.py``
 (``models/fastembed`` and ``models/nltk`` by default). Run it once by hand; the
 indexing code only reads from the cache and never downloads on its own. Anything
 already present is skipped, so running it again downloads nothing.
 
-    uv run python scripts/download_models.py            # download whatever is missing (BGE-large is ~1.2 GB)
+Two files are needed. BGE-large itself runs on OpenRouter (IDX-12), so only its
+``tokenizer.json`` (711 KB) is fetched, pinned to one snapshot and checked against
+its sha256 so token counts never shift; it is used to truncate texts to 512 tokens
+and to count them. NLTK's ``punkt_tab`` (15 MB) splits sentences locally.
+
+    uv run python scripts/download_models.py            # download whatever is missing
     uv run python scripts/download_models.py --check    # report only; exit 0 if all present, 1 if not
 
 Environment (optional; read from the shell or the project .env):
-    FASTEMBED_CACHE_PATH   fastembed model folder (default: <project>/models/fastembed)
+    FASTEMBED_CACHE_PATH   Hugging Face cache for the tokenizer (default: <project>/models/fastembed)
     NLTK_DATA              NLTK data folder (default: <project>/models/nltk)
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -27,7 +33,11 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
 
-from data_ingestion.model_cache import (  # noqa: E402  (needs the path set above)
+from data_ingestion.embedders import (  # noqa: E402  (needs the path set above)
+    EMBEDDERS,
+    EmbedderSpec,
+)
+from data_ingestion.model_cache import (  # noqa: E402
     FASTEMBED_ENV_VAR,
     NLTK_ENV_VAR,
     fastembed_cache_dir,
@@ -36,16 +46,10 @@ from data_ingestion.model_cache import (  # noqa: E402  (needs the path set abov
 
 logger = logging.getLogger(__name__)
 
-# BGE-large: the secondary embedder and the semantic chunker's boundary model.
-FASTEMBED_MODELS = ("BAAI/bge-large-en-v1.5",)
-
-# Files fastembed needs, besides the ONNX weights, to load a text model.
-FASTEMBED_TOKENIZER_FILES = (
-    "config.json",
-    "tokenizer.json",
-    "tokenizer_config.json",
-    "special_tokens_map.json",
-)
+# Embedders whose tokenizer is kept locally: BGE-large, run on OpenRouter, whose
+# texts are truncated and counted with its own tokenizer. The repo, file, revision
+# and sha256 are pinned in its registry entry.
+TOKENIZER_EMBEDDERS = ("bge",)
 
 # NLTK package id -> the resource path looked up at load time. Haystack's
 # sentence splitting loads the punkt_tab sentence tokenizer.
@@ -56,8 +60,8 @@ NLTK_RESOURCES = {"punkt_tab": "tokenizers/punkt_tab"}
 class ModelStatus:
     """Whether one model is fully present in the project cache, and where."""
 
-    kind: str  # "fastembed" or "nltk"
-    name: str  # fastembed model name or NLTK package id
+    kind: str  # "tokenizer" or "nltk"
+    name: str  # embedder registry name or NLTK package id
     location: Path
     missing: list[str] = field(default_factory=list)
 
@@ -70,24 +74,36 @@ class ModelStatus:
         return f"{self.kind} {self.name}"
 
 
-def fastembed_status(model_name: str, cache_dir: Path) -> ModelStatus:
-    """Look for a fastembed model's files in ``cache_dir`` without touching the network."""
-    from fastembed import TextEmbedding
+def sha256_of(path: Path) -> str:
+    """The sha256 of a file, as lowercase hex."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def tokenizer_status(spec: EmbedderSpec, cache_dir: Path) -> ModelStatus:
+    """Look for an embedder's pinned tokenizer in ``cache_dir`` without touching the network.
+
+    A file whose sha256 differs from the pin counts as missing: its token counts
+    would not be the ones the study recorded.
+    """
     from huggingface_hub import try_to_load_from_cache
 
-    spec = next(m for m in TextEmbedding.list_supported_models() if m["model"] == model_name)
-    repo = spec["sources"]["hf"]
-    needed = [spec["model_file"], *spec["additional_files"], *FASTEMBED_TOKENIZER_FILES]
-
-    status = ModelStatus(
-        kind="fastembed", name=model_name, location=cache_dir / f"models--{repo.replace('/', '--')}"
+    source = spec.tokenizer
+    if source is None:
+        raise ValueError(f"Embedder {spec.name!r} names no tokenizer source")
+    snapshot = (
+        cache_dir / f"models--{source.repo.replace('/', '--')}" / "snapshots" / source.revision
     )
-    for filename in needed:
-        cached = try_to_load_from_cache(repo_id=repo, filename=filename, cache_dir=cache_dir)
-        if isinstance(cached, str):
-            status.location = Path(cached).parent  # the snapshot folder fastembed loads from
-        else:
-            status.missing.append(filename)
+    status = ModelStatus(kind="tokenizer", name=spec.name, location=snapshot / source.filename)
+    cached = try_to_load_from_cache(
+        repo_id=source.repo,
+        filename=source.filename,
+        revision=source.revision,
+        cache_dir=cache_dir,
+    )
+    if not isinstance(cached, str):
+        status.missing.append(source.filename)
+    elif sha256_of(Path(cached)) != source.sha256:
+        status.missing.append(f"{source.filename} (sha256 does not match the pin)")
     return status
 
 
@@ -105,17 +121,36 @@ def nltk_status(package: str, data_dir: Path) -> ModelStatus:
 
 
 def collect_status(fastembed_dir: Path, nltk_dir: Path) -> list[ModelStatus]:
-    statuses = [fastembed_status(name, fastembed_dir) for name in FASTEMBED_MODELS]
+    statuses = [tokenizer_status(EMBEDDERS[name], fastembed_dir) for name in TOKENIZER_EMBEDDERS]
     statuses += [nltk_status(package, nltk_dir) for package in NLTK_RESOURCES]
     return statuses
 
 
-def download_fastembed(model_name: str, cache_dir: Path) -> None:
-    """Download a fastembed model into ``cache_dir`` and load it once to prove it works."""
-    from fastembed import TextEmbedding
+def download_tokenizer(spec: EmbedderSpec, cache_dir: Path, *, force: bool = False) -> None:
+    """Download an embedder's pinned tokenizer into ``cache_dir`` and check its sha256.
 
+    ``force`` fetches the file again even if one is cached, for a cached copy whose
+    hash does not match the pin; otherwise the cached copy would be returned as is.
+    """
+    from huggingface_hub import hf_hub_download
+
+    source = spec.tokenizer
+    if source is None:
+        raise ValueError(f"Embedder {spec.name!r} names no tokenizer source")
     cache_dir.mkdir(parents=True, exist_ok=True)
-    TextEmbedding(model_name=model_name, cache_dir=str(cache_dir))
+    path = hf_hub_download(
+        repo_id=source.repo,
+        filename=source.filename,
+        revision=source.revision,
+        cache_dir=cache_dir,
+        force_download=force,
+    )
+    actual = sha256_of(Path(path))
+    if actual != source.sha256:
+        raise RuntimeError(
+            f"{source.repo}/{source.filename}@{source.revision} has sha256 {actual}, "
+            f"not the pinned {source.sha256}; delete {path} and run this script again"
+        )
 
 
 def download_nltk(package: str, data_dir: Path) -> None:
@@ -142,7 +177,7 @@ def log_status(statuses: list[ModelStatus]) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Download the offline models into the project cache, or check they are present.",
+        description="Download the local model files into the project cache, or check they are present.",
         epilog=(
             f"Environment: {FASTEMBED_ENV_VAR} overrides the fastembed folder "
             f"(default models/fastembed); {NLTK_ENV_VAR} overrides the NLTK folder "
@@ -201,10 +236,14 @@ def main(argv: list[str] | None = None) -> None:
     for status in missing:
         logger.info("Downloading %s ...", status.label)
         try:
-            if status.kind == "fastembed":
-                download_fastembed(status.name, fastembed_dir)
-            else:
+            if status.kind == "tokenizer":
+                download_tokenizer(
+                    EMBEDDERS[status.name], fastembed_dir, force=status.location.exists()
+                )
+            elif status.kind == "nltk":
                 download_nltk(status.name, nltk_dir)
+            else:
+                raise ValueError(f"no downloader for {status.kind!r}")
         except Exception as exc:  # noqa: BLE001  (CLI converts download failures to exit status)
             logger.error("Download of %s failed: %s", status.label, exc)
             raise SystemExit(1) from None

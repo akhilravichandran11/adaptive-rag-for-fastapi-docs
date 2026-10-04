@@ -6,6 +6,23 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-10-04 — The local BGE code path is removed
+
+**Decision.** The fastembed branches that ran BGE-large on the laptop are deleted;
+BGE is reached only through OpenRouter. Its tokenizer stays in `models/fastembed`
+(the folder keeps its name so nothing on disk moves), and the `fastembed` and
+`fastembed-haystack` packages stay as dependencies, because Qdrant's BM25 sparse
+vectors (`Qdrant/bm25`) run through them once hybrid search is built.
+
+**Why.** Unused code paths still have to be read, tested and kept in step; after
+IDX-12 no registry entry used this one.
+
+**Consequences.** Running BGE locally again would mean restoring the branches from
+git history (`91f9ddd` is the last version with them) and re-downloading the 1.2 GB
+model. The model file itself is deleted by hand.
+
+---
+
 ## 2026-10-04 — BGE-large runs on OpenRouter, not on the laptop
 
 **Decision.** BGE-large (`BAAI/bge-large-en-v1.5`, 1024 dimensions, 512-token input)

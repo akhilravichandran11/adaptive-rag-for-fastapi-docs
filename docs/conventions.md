@@ -44,16 +44,17 @@ dispatch on. Reading behaviour out of the key string is what makes a new entry
 fall through into another entry's branch, and a billed call is the worst way to
 find that out.
 
-**What.** `EmbedderSpec` carries `backend: str` (`"openrouter"`, `"voyage"`, or the
-unused `"fastembed"`; `bge` moved from fastembed to OpenRouter in IDX-12).
+**What.** `EmbedderSpec` carries `backend: str` (`"openrouter"` or `"voyage"`; `bge`
+moved from fastembed to OpenRouter in IDX-12, and the fastembed backend was removed
+in IDX-14).
 Every dispatch keys off `spec.backend` and ends in `raise _unsupported_backend(spec)`
 — `build_document_embedder`, `build_text_embedder`, `cached_tokenizer_path`,
 `count_tokens`.
 
 **Clarified 2026-09-29 (IDX-10).** "Ends in" describes the rule, not the position:
 each of the four functions raises `_unsupported_backend(spec)` for any backend it
-does not handle. `cached_tokenizer_path` does it in a guard at the top, because a
-fastembed-only body follows; the other three raise as their last line.
+does not handle. `cached_tokenizer_path` does it in a guard at the top, because an
+OpenRouter-only body follows; the other three raise as their last line.
 
 **Why.** The first version dispatched on the registry key: `if name == "bge": …
 else: <Voyage>`. A third entry added later would have fallen through to the Voyage

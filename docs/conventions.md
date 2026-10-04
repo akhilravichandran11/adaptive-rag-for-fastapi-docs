@@ -44,7 +44,8 @@ dispatch on. Reading behaviour out of the key string is what makes a new entry
 fall through into another entry's branch, and a billed call is the worst way to
 find that out.
 
-**What.** `EmbedderSpec` carries `backend: str` (`"fastembed"` or `"voyage"`).
+**What.** `EmbedderSpec` carries `backend: str` (`"openrouter"`, `"voyage"`, or the
+unused `"fastembed"`; `bge` moved from fastembed to OpenRouter in IDX-12).
 Every dispatch keys off `spec.backend` and ends in `raise _unsupported_backend(spec)`
 — `build_document_embedder`, `build_text_embedder`, `cached_tokenizer_path`,
 `count_tokens`.
@@ -217,8 +218,8 @@ policy. Fuzzy path correction and automatic retries are outside this design.
 **Status:** accepted (user, 2026-09-29) · **Introduced:** 2026-09-20, IDX-04 · **Where:** `tests/data_ingestion/test_embedders.py:50-59`; copied (non-autouse, plus client patches) in `tests/data_curation/test_stage3_source_identity.py:144-146`
 
 **The convention, stated.** No test may reach a paid API: Voyage
-(`api.voyageai.com`), Gemini (`generativelanguage.googleapis.com`) or OpenAI
-(`api.openai.com`). A test module whose code under test could call one installs a
+(`api.voyageai.com`), Gemini (`generativelanguage.googleapis.com`), OpenAI
+(`api.openai.com`) or OpenRouter (`openrouter.ai`, added by IDX-12). A test module whose code under test could call one installs a
 guard that makes the call fail the test instead of costing money.
 
 **Scope: paid calls only.** Qdrant, Redis and Opik are not billed per call. A test
@@ -232,7 +233,7 @@ may connect to them, locally or in the cloud; this convention does not block the
   unintended model downloads (F002's `punkt_tab`), so prefer it whenever the test
   needs no network.
 - *Paid hosts only*, for a test that needs Qdrant, Redis or Opik: patch
-  `socket.getaddrinfo` to raise for the three hosts above and pass every other name
+  `socket.getaddrinfo` to raise for the paid hosts above and pass every other name
   through. Block at name resolution: by the time `connect()` runs, urllib3 passes an
   IP address, so a host check there cannot see the name. (Checked 2026-09-29: this
   stops both `httpx` and `requests` before any connection, and `localhost` still

@@ -11,12 +11,15 @@ name: Auto-fill or suggest PR description
 # Also runs on "edited"/"reopened" (e.g. GitHub auto-populated the body from
 # a commit message at open-time, then someone cleared it) and can be run
 # manually via workflow_dispatch to fill or suggest text for a specific PR.
+# The workflow, script, and skill come from the default branch. PR commits
+# are fetched only for reading their log/diff, never checked out or executed.
+# Automatic fork PRs are skipped; manual runs must select the default branch.
 #
 # Required repo secret:
 #   OPENAI_API_KEY - stored under Settings > Secrets and variables > Actions
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, reopened]
   workflow_dispatch:
     inputs:
@@ -34,6 +37,11 @@ permissions:
 
 jobs:
   fill-description:
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     steps:
       - name: Resolve PR context
@@ -46,12 +54,15 @@ jobs:
           EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
           INPUT_PR_NUMBER: ${{ github.event.inputs.pr_number }}
         run: |
+          number="${INPUT_PR_NUMBER:-$EVENT_PR_NUMBER}"
+          if [[ ! "$number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::PR number must be a positive integer"
+            exit 1
+          fi
           if [ -n "$INPUT_PR_NUMBER" ]; then
-            number="$INPUT_PR_NUMBER"
             body="$(gh pr view "$number" --repo "$REPO" --json body --jq .body)"
             base_ref="$(gh pr view "$number" --repo "$REPO" --json baseRefName --jq .baseRefName)"
           else
-            number="$EVENT_PR_NUMBER"
             body="$EVENT_PR_BODY"
             base_ref="$EVENT_BASE_REF"
           fi
@@ -59,16 +70,18 @@ jobs:
             echo "number=$number"
             echo "base_ref=$base_ref"
           } >> "$GITHUB_OUTPUT"
+          delimiter="PR_BODY_$(cat /proc/sys/kernel/random/uuid)"
           {
-            echo "body<<PR_BODY_EOF"
+            echo "body<<$delimiter"
             echo "$body"
-            echo "PR_BODY_EOF"
+            echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Check out PR
+      - name: Check out trusted automation
         uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ steps.pr.outputs.number }}/head
+          # Both allowed events identify a default-branch commit with github.sha.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Set up Python

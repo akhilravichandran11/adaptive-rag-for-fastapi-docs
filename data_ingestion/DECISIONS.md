@@ -6,6 +6,46 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-10-04 — BGE-large runs on OpenRouter, not on the laptop
+
+**Decision.** BGE-large (`BAAI/bge-large-en-v1.5`, 1024 dimensions, 512-token input)
+stays in the study for both of its jobs — the semantic chunker's boundary model and
+the embedder behind the `*__bge` collections — but it now runs on OpenRouter
+(`baai/bge-large-en-v1.5`, OpenAI-compatible embeddings endpoint) instead of locally
+through fastembed. Only its tokenizer file stays on the laptop.
+
+**Why.** Time. The first full-corpus semantic run took 106 minutes on a MacBook Air
+with BGE-large on the CPU, with other applications closed to let it finish, and
+embedding every strategy's chunks for the `*__bge` collections would take hours more
+on the same machine. A study that is re-run whenever the corpus or a setting changes
+cannot wait that long. On OpenRouter the same model costs $0.01 per million tokens,
+and one pass over the corpus is about 240K tokens, so the whole study's BGE
+embedding costs cents.
+
+**Truncation is ours.** OpenRouter's documentation says input over the model's limit
+is "truncated or rejected" without saying which. Every text is cut to 512 BGE tokens
+(`[CLS]` and `[SEP]` included) with BGE's own tokenizer before it is sent, and the
+number cut is logged, so the result does not depend on what OpenRouter does and a
+long code block cannot fail a run. The truncation statistics are unchanged: they use
+the same tokenizer file, pinned to the snapshot already cached; its sha256 is
+checked when it is downloaded and by `scripts/download_models.py --check`.
+
+**Alternatives considered.**
+
+- **Keep running it locally.** Free and offline, but too slow to re-run.
+- **A GPU job (Colab, Modal).** Fast, but a learning curve this project does not need.
+- **A smaller BGE variant.** Faster locally, but a different vector size and a weaker
+  comparison against Voyage.
+
+**Consequences.** The BGE side of the pipeline is no longer offline or free: both
+embedders are now paid APIs (OpenRouter, Voyage), so the "runs offline and free" lines
+in the two BGE entries below no longer hold. Tests stay offline and never make a paid
+call; they stub the client. Public FastAPI documentation is sent to a third party, and
+a single hosting provider means an outage stops embedding until it is back. The
+1.34 GB local model file is no longer read and can be deleted.
+
+---
+
 ## 2026-09-20 — BGE-large is the second embedder, not the main one
 
 **Decision.** The corpus is indexed twice: once with Voyage `voyage-4-lite`

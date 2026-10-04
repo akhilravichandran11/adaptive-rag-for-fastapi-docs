@@ -127,7 +127,10 @@ questions, tradeoffs, and decisions. A plan lives under its target's
 Issues contain approved implementation work. Create one Markdown file per
 ticket in dependency order, using the local template from the `to-tickets`
 skill. Each ticket must state its blockers, its `Touches` list (the files, and
-where useful the functions/symbols, it will modify), and acceptance criteria.
+where useful the functions/symbols, it will modify), its `Seams` list (the
+public interfaces its tests will exercise, agreed with the user when the ticket
+is written), and acceptance criteria. The `to-tickets` template has neither
+`Touches` nor `Seams`; add both directly under its `**Blocked by:**` line.
 
 Only an issue with `Status: ready-for-agent` or `Status: in-progress`
 authorizes implementation. Material under `findings/`, `roadmaps/`, and
@@ -253,14 +256,59 @@ it. Mark the ticket `done` only after all acceptance criteria are satisfied.
    and its `_index.md` register.
 4. Triage the finding with the user: close it, defer it, promote it to a plan,
    or approve it for a direct ticket.
-5. For work needing design, capture the alternatives and decisions under the
-   target's `plans/<concern>/plan.md` and iterate until the user approves it.
+5. For work needing design, run a `grilling` session, or `/grill-with-docs`
+   (Codex: `$grill-with-docs`) when the session should also settle project
+   terms or record architecture decisions. Capture the alternatives and
+   decisions under the target's `plans/<concern>/plan.md`, and iterate until
+   the user approves it.
 6. Use `to-tickets` to create tracer-bullet issues from an approved finding or
-   plan; add each to the shared board with a `<PREFIX>-NN` id.
-7. Start a fresh implementation session with one ready ticket.
-8. Verify its acceptance criteria, record any convention the work introduced
-   in `docs/conventions.md`, update its status, then select the next
-   unblocked ticket.
+   plan, each with `Touches` and `Seams`; add each to the shared board with a
+   `<PREFIX>-NN` id.
+7. Start a fresh implementation session with one ready ticket, launched with
+   `/implement` (Codex: `$implement`). Write tests with `tdd`, only at the
+   ticket's `Seams`.
+8. Review the change with `code-review` (repo standards and the ticket), then
+   with the `active-code-reviewer` agent (bugs). Verify its acceptance
+   criteria, record any convention the work introduced in
+   `docs/conventions.md`, update its status, then select the next unblocked
+   ticket.
+
+### Skills and repo overrides
+
+The steps above name the skill that performs each one. If a skill is not
+available in the current tool, follow the step by hand. Where a skill's own
+instructions conflict with this repo, this repo wins:
+
+- **No commits.** `implement` ends by committing; skip that step and leave the
+  changes uncommitted. The user commits them with `commit-planning`.
+- **Both reviews run.** `implement` runs `code-review`; the
+  `active-code-reviewer` agent required by `AGENTS.md` still runs after it.
+- **Tests only at the ticket's `Seams`.** These are the pre-agreed seams `tdd`
+  asks for. Ask the user before testing at a seam the ticket does not list.
+- **Checks.** This repo has no type checker; where `implement` says to run
+  typechecking, run `uv run ruff check` instead. Acceptance still requires
+  `uv run pytest` to pass.
+- **The board rules still apply.** Claim the ticket in **Doing** before
+  starting, modify only files in its `Touches`, and mark it **Done** only as
+  described under Issue status.
+- **`grill-with-docs` writes the plan first.** Its questions, alternatives and
+  decisions go in the target's `plan.md`, as with `grilling`. It may also write
+  two repo-wide files, tracked like `docs/conventions.md`; these are the only
+  files outside its target a grilling session may write:
+  - `GLOSSARY.md` at the repo root, updated as each project-specific term is
+    resolved, in the `domain-modeling` format. No implementation details.
+  - `docs/adr/NNNN-<slug>.md`, only for a decision that passes all three of
+    `domain-modeling`'s tests (hard to reverse, surprising without context, a
+    real trade-off). Draft it under an **ADR candidates** heading in the plan,
+    create the file only after the user approves the plan, and link it from
+    the plan. Like a plan, an ADR records a decision; it does not authorize
+    implementation.
+- **One decision, one record.** A new code shape that later code should copy
+  goes in `docs/conventions.md`, not an ADR. A decision that fails the ADR
+  tests stays in the plan only.
+- **Read before exploring.** If `GLOSSARY.md` or `docs/adr/` exist, read the
+  glossary and any ADRs touching the area before working a target, and use the
+  glossary's terms in findings, plans and tickets.
 
 Use this session-start instruction for finding triage:
 
@@ -286,11 +334,13 @@ targets/<target-slug>/, and add any tickets to issues/_index.md with the
 <PREFIX>- id. Do not touch other targets.
 ```
 
-Use this session-start instruction with Codex or Claude to implement a ticket:
+Use this session-start instruction with Codex or Claude to implement a ticket
+(in Codex, start it with `$implement` instead of `/implement`):
 
 ```text
-Read docs/agents/issue-tracker.md and <ticket-path>. Confirm the ticket is ready,
-then work only within its scope and verify every acceptance criterion.
+/implement Read docs/agents/issue-tracker.md and <ticket-path>. Confirm the
+ticket is ready, then work only within its scope, follow "Skills and repo
+overrides", and verify every acceptance criterion.
 ```
 
 ## Action views (what is left to do)

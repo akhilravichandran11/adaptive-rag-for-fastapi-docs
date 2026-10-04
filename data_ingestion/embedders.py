@@ -4,8 +4,12 @@ The two embedders the chunking study compares, and how much text each one loses.
 One registry, ``EMBEDDERS``, knows each embedder's model, vector dimension, and
 input limit, and builds its Haystack components:
 
-    bge      BAAI/bge-large-en-v1.5   1024 dims     512 tokens   local, via fastembed
+    bge      BAAI/bge-large-en-v1.5   1024 dims     512 tokens   OpenRouter API (tokenizer local)
     voyage   voyage-4-lite            2048 dims   32000 tokens   Voyage AI API
+
+BGE ran locally through fastembed until IDX-12; a full semantic pass took 106
+minutes on a laptop CPU, so it now runs on OpenRouter (``openrouter_embeddings.py``).
+The fastembed branches below are kept, unused, until a later cleanup removes them.
 
 These values live here rather than in the environment on purpose. The study's
 results are only comparable if every run indexes with the same models at the same
@@ -26,9 +30,9 @@ tokens would mean calling the API.
     for stats in truncation_report(chunk_texts).values():
         logger.info("%s", stats.summary())
 
-Nothing here calls an API or downloads anything: the Voyage components only hold
-settings until they are run, and the BGE ones read the cache filled by
-``scripts/download_models.py`` (see ``model_cache.py``).
+Nothing here calls an API or downloads anything: both embedders' components only
+hold settings until they are run, and BGE's tokenizer is read from the cache filled
+by ``scripts/download_models.py`` (see ``model_cache.py``).
 """
 
 from __future__ import annotations
@@ -52,6 +56,16 @@ VOYAGE_TOKENS_PER_WORD = 1.3
 
 
 @dataclass(frozen=True)
+class TokenizerSource:
+    """Where an API-run model's tokenizer is downloaded from, pinned to one snapshot."""
+
+    repo: str
+    filename: str
+    revision: str
+    sha256: str
+
+
+@dataclass(frozen=True)
 class EmbedderSpec:
     """One embedder's identity, as the study fixes it.
 
@@ -66,8 +80,10 @@ class EmbedderSpec:
     model: str
     dimension: int
     max_tokens: int
-    backend: str  # "fastembed" (local) or "voyage" (API)
+    backend: str  # "openrouter" or "voyage" (APIs); "fastembed" (local, no longer used)
     exact_tokens: bool
+    api_model: str | None = None  # the provider's name for ``model``, where it differs
+    tokenizer: TokenizerSource | None = None  # local tokenizer for an API-run model
 
 
 EMBEDDERS: dict[str, EmbedderSpec] = {
@@ -76,8 +92,19 @@ EMBEDDERS: dict[str, EmbedderSpec] = {
         model="BAAI/bge-large-en-v1.5",
         dimension=1024,
         max_tokens=512,
-        backend="fastembed",
+        backend="openrouter",
         exact_tokens=True,
+        # Ran locally through fastembed until IDX-12; a full semantic pass took 106
+        # minutes on a laptop CPU (F016), so it now runs on OpenRouter.
+        api_model="baai/bge-large-en-v1.5",
+        # The tokenizer fastembed used, from the snapshot already cached, so token
+        # counts do not change with the switch.
+        tokenizer=TokenizerSource(
+            repo="qdrant/bge-large-en-v1.5-onnx",
+            filename="tokenizer.json",
+            revision="dc76b2c078fc38f0d243233d0ab0b51de925557e",
+            sha256="d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        ),
     ),
     "voyage": EmbedderSpec(
         name="voyage",
@@ -101,7 +128,7 @@ def _unsupported_backend(spec: EmbedderSpec) -> ValueError:
     """
     return ValueError(
         f"Embedder {spec.name!r} names backend {spec.backend!r}, which this module "
-        "does not build; supported backends: fastembed, voyage"
+        "does not build; supported backends: openrouter, voyage, fastembed"
     )
 
 
@@ -120,11 +147,19 @@ def get_spec(name: str) -> EmbedderSpec:
 def build_document_embedder(name: str):
     """Build the component that embeds documents during indexing.
 
-    BGE runs locally from the project model cache and never downloads
-    (``local_files_only=True``); Voyage holds its settings until it is run, so
-    building it makes no API call and needs no key.
+    Both the OpenRouter (BGE) and Voyage components hold their settings until they
+    are run, so building one makes no API call and needs no key. The fastembed
+    branch, no longer used by any entry, ran locally from the project model cache
+    and never downloaded (``local_files_only=True``).
     """
     spec = get_spec(name)
+    if spec.backend == "openrouter":
+        from data_ingestion.openrouter_embeddings import OpenRouterDocumentEmbedder
+
+        return OpenRouterDocumentEmbedder(
+            model=spec.api_model or spec.model, dimension=spec.dimension
+        )
+
     if spec.backend == "fastembed":
         # Imported here, not at module import: fastembed pulls in onnxruntime, and
         # the registry above is useful (for naming collections) without it.
@@ -157,6 +192,11 @@ def build_text_embedder(name: str):
     a different space from the documents they search.
     """
     spec = get_spec(name)
+    if spec.backend == "openrouter":
+        from data_ingestion.openrouter_embeddings import OpenRouterTextEmbedder
+
+        return OpenRouterTextEmbedder(model=spec.api_model or spec.model, dimension=spec.dimension)
+
     if spec.backend == "fastembed":
         from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder
 
@@ -182,13 +222,17 @@ def cached_tokenizer_path(name: str) -> Path | None:
     diagnostic, or to skip a test). ``None`` means "not cached", and for Voyage,
     which runs only as an API, "there is no local tokenizer to have".
 
-    Raises ``LookupError`` when the installed fastembed does not know the registry's
-    model at all, which is a dependency mismatch rather than a missing download, and
-    ``ValueError`` for a backend this module does not handle.
+    For OpenRouter the tokenizer is the file pinned in the registry entry, found
+    without fastembed. For the unused fastembed backend it comes through fastembed's
+    model catalogue, which raises ``LookupError`` when the installed fastembed does
+    not know the registry's model at all (a dependency mismatch rather than a missing
+    download). Raises ``ValueError`` for a backend this module does not handle.
     """
     spec = get_spec(name)
     if spec.backend == "voyage":
         return None
+    if spec.backend == "openrouter":
+        return _pinned_tokenizer_path(spec)
     if spec.backend != "fastembed":
         raise _unsupported_backend(spec)
 
@@ -214,6 +258,23 @@ def cached_tokenizer_path(name: str) -> Path | None:
     return Path(path) if isinstance(path, str) else None
 
 
+def _pinned_tokenizer_path(spec: EmbedderSpec) -> Path | None:
+    """An API-run model's pinned tokenizer file in the project cache, found without fastembed."""
+    from huggingface_hub import try_to_load_from_cache
+
+    if spec.tokenizer is None:
+        raise ValueError(
+            f"Embedder {spec.name!r} runs on {spec.backend} but names no tokenizer source"
+        )
+    path = try_to_load_from_cache(
+        repo_id=spec.tokenizer.repo,
+        filename=spec.tokenizer.filename,
+        revision=spec.tokenizer.revision,
+        cache_dir=fastembed_cache_dir(),
+    )
+    return Path(path) if isinstance(path, str) else None
+
+
 @lru_cache(maxsize=4)
 def _tokenizer_from_file(path: str):
     """Read one tokenizer from disk, keyed by path so a changed cache is reloaded."""
@@ -229,7 +290,7 @@ def _tokenizer_from_file(path: str):
 
 
 def _local_tokenizer(spec: EmbedderSpec):
-    """The cached tokenizer for a locally run embedder, or a pointer to the download script."""
+    """The cached tokenizer for an embedder with a local one, or a pointer to the download script."""
     path = cached_tokenizer_path(spec.name)
     if path is None:
         raise FileNotFoundError(
@@ -242,11 +303,13 @@ def _local_tokenizer(spec: EmbedderSpec):
 def bge_tokenizer():
     """BGE's own tokenizer, from the project model cache, without touching the network.
 
-    This is the tokenizer fastembed itself uses, so its counts include the ``[CLS]``
-    and ``[SEP]`` tokens that count against the 512-token budget.
+    This is the tokenizer fastembed used when BGE ran locally, and the one
+    ``openrouter_embeddings.truncate_to_bge_limit`` cuts with before a text is sent.
+    Its counts include the ``[CLS]`` and ``[SEP]`` tokens that count against the
+    512-token budget.
 
-    Raises ``FileNotFoundError`` pointing at the download script when the model has
-    not been cached yet. The load is memoized per cache folder, so moving
+    Raises ``FileNotFoundError`` pointing at the download script when the tokenizer
+    has not been cached yet. The load is memoized per cache folder, so moving
     ``FASTEMBED_CACHE_PATH`` mid-process reloads rather than returning the tokenizer
     from the folder that is no longer in use.
 
@@ -260,13 +323,13 @@ def bge_tokenizer():
 def count_tokens(name: str, texts: Iterable[str]) -> list[int]:
     """Count the tokens each text costs the named embedder.
 
-    Exact for the local model (its real tokenizer, special tokens included); for
+    Exact for BGE (its real tokenizer, special tokens included); for
     Voyage an estimate of ``VOYAGE_TOKENS_PER_WORD`` per whitespace-separated word,
     rounded up. ``get_spec(name).exact_tokens`` tells the two apart.
     """
     spec = get_spec(name)
     texts = list(texts)
-    if spec.backend == "fastembed":
+    if spec.backend in ("fastembed", "openrouter"):
         if not texts:
             return []
         encodings = _local_tokenizer(spec).encode_batch(texts)

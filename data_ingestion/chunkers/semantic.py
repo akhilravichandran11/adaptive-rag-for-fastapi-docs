@@ -15,12 +15,13 @@ vectors. ``semantic__bge`` and ``semantic__voyage`` are built from the same
 chunks, so the boundaries here always come from BGE, whichever embedder later
 indexes them.
 
-BGE is read from the project model cache and never downloaded; sentence
-boundaries come from NLTK's ``punkt_tab`` in the same cache (see
-:mod:`data_ingestion.chunkers.sentence`). Embedding every sentence group is slow
-on a laptop CPU, so a full-corpus run takes minutes, not seconds.
+BGE runs on OpenRouter (see :mod:`data_ingestion.openrouter_embeddings`), so
+splitting needs ``OPENROUTER_API_KEY`` and costs a few cents per full corpus.
+Each sentence group is truncated to BGE's 512 tokens before it is sent, with
+BGE's tokenizer from the project model cache. Sentence boundaries come from
+NLTK's ``punkt_tab`` in the same cache (see :mod:`data_ingestion.chunkers.sentence`).
 
-    uv run python -m data_ingestion.chunkers.semantic    # demo
+    uv run python -m data_ingestion.chunkers.semantic    # demo (a paid call)
 
 Run ``scripts/download_models.py`` once beforehand to fill the cache.
 """
@@ -78,12 +79,8 @@ class SemanticChunker:
         # the NLTK search path as it stands at lookup time.
         data_dir = register_nltk_data_dir()
         logger.debug("NLTK data directory registered for semantic splitting: %s", data_dir)
-        embedder = build_document_embedder(BOUNDARY_EMBEDDER)
-        # One bar per document, and again per re-split, would bury the splitter's
-        # warnings; FastEmbed reads this on every call, so setting it here is enough.
-        embedder.progress_bar = False
         self._splitter = EmbeddingBasedDocumentSplitter(
-            document_embedder=embedder,
+            document_embedder=build_document_embedder(BOUNDARY_EMBEDDER),
             sentences_per_group=SENTENCES_PER_GROUP,
             percentile=PERCENTILE,
             min_length=MIN_LENGTH,
@@ -91,7 +88,7 @@ class SemanticChunker:
         )
 
     def warm_up(self) -> None:
-        """Load the sentence tokenizer and BGE (Haystack also does this on first run)."""
+        """Load the sentence tokenizer (Haystack also does this on first run)."""
         self._splitter.warm_up()
 
     @component.output_types(documents=list[Document])

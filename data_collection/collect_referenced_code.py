@@ -25,7 +25,7 @@ import re
 import urllib.error
 import urllib.request
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # --- Locate the docs snapshot -------------------------------------------------
@@ -45,8 +45,8 @@ MANIFEST_SCHEMA_VERSION = 1
 # --- Reference parsing --------------------------------------------------------
 # `{* PATH <options> *}` — options are things like `ln[1:23] hl[20,23]`.
 MACRO_RE = re.compile(r"\{\*\s*(\S+)\s*([^*]*?)\s*\*\}")
-# `{! PATH !}` — legacy include (templates/static assets).
-LEGACY_RE = re.compile(r"\{!\s*(\S+?)\s*!\}")
+# `{! PATH !}` and `{!> PATH !}` — legacy includes.
+LEGACY_RE = re.compile(r"\{!>?\s*(\S+?)\s*!\}")
 
 # References resolve to repo-root paths under these top-level dirs.
 ALLOWED_ROOTS = ("docs_src/", "fastapi/")
@@ -96,7 +96,7 @@ def raw_url(repo: str, commit: str, path: str) -> str:
 
 def fetch_bytes(url: str) -> bytes:
     last_error: Exception | None = None
-    for attempt in range(RAW_RETRIES):
+    for _attempt in range(RAW_RETRIES):
         try:
             request = urllib.request.Request(url, headers={"User-Agent": "fastapi-docs-collector"})
             with urllib.request.urlopen(request, timeout=RAW_TIMEOUT) as response:
@@ -120,7 +120,7 @@ def write_code_manifest(source: dict, files: list[dict], failures: list[dict]) -
         },
         "referenced_from": DOCS_MANIFEST.name,
         "collection": {
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "fetched_at": datetime.now(UTC).isoformat(),
             "method": "raw.githubusercontent",
             "code_dir": CODE_DIRNAME,
         },

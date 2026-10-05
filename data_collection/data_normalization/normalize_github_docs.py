@@ -40,9 +40,9 @@ NORM_DOCS = NORM_DIR / "docs"
 NORM_MANIFEST = NORM_DIR / "manifest.json"
 MANIFEST_SCHEMA_VERSION = 1
 
-# `{* PATH <options> *}` (options like `ln[1:23] hl[20,23]`) and legacy `{! PATH !}`.
+# `{* PATH <options> *}` and legacy `{! PATH !}` / `{!> PATH !}`.
 MACRO_RE = re.compile(r"\{\*\s*(\S+)\s*([^*]*?)\s*\*\}")
-LEGACY_RE = re.compile(r"\{!\s*(\S+?)\s*!\}")
+LEGACY_RE = re.compile(r"\{!>?\s*(\S+?)\s*!\}")
 LN_RE = re.compile(r"ln\[([0-9:,]+)\]")
 
 LANG_BY_EXT = {".py": "python", ".html": "html", ".css": "css"}
@@ -75,6 +75,8 @@ def comment_line(lang: str, path: str) -> str:
         return f"<!-- {path} -->"
     if lang == "css":
         return f"/* {path} */"
+    if lang == "js":
+        return f"// {path}"
     return f"# {path}"
 
 

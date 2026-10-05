@@ -204,10 +204,19 @@ board. Keep target-specific detail in the target, not the hub.
 
 - `ready-for-agent`: approved, and every listed blocker is complete.
 - `in-progress`: one agent or session owns the ticket.
-- `blocked`: work cannot continue until the recorded condition changes.
+- `blocked`: work cannot continue until another ticket or an outside condition
+  changes; the status line names it.
+- `deferred`: parked by the user's choice, not by a dependency. The ticket keeps a
+  **Why deferred:** paragraph and a revisit condition. It locks no files. It returns
+  to `ready-for-agent` or becomes `wont-do` only on the user's say-so.
+- `wont-do`: the user decided no work is needed. The ticket keeps a **Why:** line;
+  any finding it served gets its status updated to match. Treated like `done` by the
+  views.
 - `done`: every acceptance criterion is checked, its verification completed,
   and no convention it introduced is still `proposed` in
   [`../conventions.md`](../conventions.md).
+
+Only the user sets `deferred` or `wont-do`; an agent may propose either.
 
 ## Board index (`issues/_index.md`)
 
@@ -230,6 +239,12 @@ onto the statuses above:
 - [ ] Q-03 stage2 dedup — waiting on: Q-02 (file stage2_knowledge_domains.py); Touches: stage2_knowledge_domains.py
 - [ ] S3-02 wire stage3 into orchestrator — waiting on: pipeline.py free; Touches: stage0_run_pipeline.py, pipeline.py
 
+## Deferred
+- [ ] Q-04 cache stage2 output — deferred 2026-10-05 (user): revisit if runs get slow
+
+## Won't do
+- [x] Q-05 <ticket-slug> — won't do 2026-10-05 (user): <one-line why>
+
 ## Done
 - [x] Q-01 <ticket-slug>
 ```
@@ -245,8 +260,10 @@ criterion is verified. The per-ticket file's `Status:` line and this board must
 agree; if they disagree, the ticket file wins and the board is corrected.
 
 Before implementation, read the full ticket and confirm that every blocker is
-`done`. Work within one ticket's scope and request user approval before expanding
-it. Mark the ticket `done` only after all acceptance criteria are satisfied.
+`done`. Also check that the ticket's reason still holds given what its blockers
+delivered; if a blocker removed it (a cheaper path now exists, the cost it targeted
+is gone), say so and offer `deferred` or `wont-do` before proposing a design. Work
+within one ticket's scope and request user approval before expanding it. Mark the ticket `done` only after all acceptance criteria are satisfied.
 
 ## Workflow
 
@@ -348,7 +365,8 @@ overrides", and verify every acceptance criterion.
 `.scratch/now.py` generates three views from the tracker's own files, so nobody keeps
 a second status list by hand:
 
-- `.scratch/NOW.md` — Needs you, Ready for an agent, In progress, Blocked. Open this first.
+- `.scratch/NOW.md` — Needs you, Ready for an agent, In progress, Blocked, and Needs you
+  later when anything is deferred. Open this first.
 - `.scratch/views/needs-you.md` — only what needs the user, by capability.
 - `.scratch/views/everything.md` — every open ticket, finding and inbox line.
 
@@ -358,7 +376,10 @@ edited. They read:
 - each ticket's and finding's `**Status:**` line (an `open` finding counts as needing
   the user's triage);
 - a `**Needs you:** <what>` line, placed directly under `**Status:**` in any ticket or
-  finding, for as long as something waits on the user;
+  finding, for as long as something waits on the user. To defer one, give it a start
+  date: `**Needs you (from YYYY-MM-DD):** <what>`. Until that date it is listed under
+  Needs you later instead of Needs you. A date or marker that does not parse is shown now
+  and listed under "Could not read";
 - `.scratch/INBOX.md`, which holds only loose items with no ticket or finding, as
   `- [<capability or general>] <text>`; a bullet with `**Needs you:**` is the user's.
 

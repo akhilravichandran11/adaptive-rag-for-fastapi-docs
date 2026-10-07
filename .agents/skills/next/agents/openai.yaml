@@ -1,0 +1,3 @@
+interface:
+  display_name: "Next"
+  short_description: "Your next actions and the agent's, in this chat and the tracker"

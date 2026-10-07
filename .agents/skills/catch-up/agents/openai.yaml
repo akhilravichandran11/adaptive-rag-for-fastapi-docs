@@ -1,0 +1,5 @@
+interface:
+  display_name: "Catch-up"
+  short_description: "Rebuild where a capability stands and refresh its hub"
+policy:
+  allow_implicit_invocation: false

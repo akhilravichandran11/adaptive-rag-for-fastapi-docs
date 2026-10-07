@@ -69,6 +69,9 @@ different targets:
   target's `targets/<slug>/` directory.
 - User-requested roadmap maintenance may update capability-level `roadmaps/`
   and its discovery links; this does not authorize work on other targets.
+- A `catch-up` run may rewrite its capability hub's `## Current state` block
+  and apply the record corrections the user approves; this does not
+  authorize work on any target.
 - Finding IDs (`F<NNN>`) are scoped to the target; the folder disambiguates them,
   so two targets may each have an `F001`.
 - Ticket IDs on the shared board are prefixed by target (e.g. `TAX-01`, `SDS-01`).
@@ -131,6 +134,10 @@ where useful the functions/symbols, it will modify), its `Seams` list (the
 public interfaces its tests will exercise, agreed with the user when the ticket
 is written), and acceptance criteria. The `to-tickets` template has neither
 `Touches` nor `Seams`; add both directly under its `**Blocked by:**` line.
+
+A ticket records progress under a `## Progress` heading at its end, one dated
+line per entry: `- YYYY-MM-DD (<tool>): <what changed>; <what was verified>;
+<what is next>`. An agent adds a line only after the user says yes.
 
 Only an issue with `Status: ready-for-agent` or `Status: in-progress`
 authorizes implementation. Material under `findings/`, `roadmaps/`, and
@@ -199,6 +206,14 @@ The hub is the entry point for a capability. It holds the shared context every
 target needs (references, conventions, how the work is measured) and a table of
 targets linking to each target's findings register and plan, plus a link to the
 board. Keep target-specific detail in the target, not the hub.
+
+Under its title and concern, a hub carries a dated `## Current state` block:
+where the capability stands, what git shows in flight, what changed since the
+last block, and what comes next and why. It links records rather than
+restating their status, and only a `catch-up` run writes it. To pick a
+capability back up, run `/catch-up <capability>` (Codex:
+`$catch-up <capability>`); it re-derives the block from the records and git,
+and proposes fixes for records git has outrun.
 
 ## Issue status
 
@@ -386,6 +401,14 @@ edited. They read:
 Hooks in the user's global Claude and Codex config run it at session start (printing
 one summary line into the agent's context) and after each reply. Run it by hand with
 `python3 .scratch/now.py` in any other tool.
+
+A second hook runs `.scratch/progress_check.py` after each reply. When the chat
+itself has changed a file in an open ticket's `Touches` list since the ticket was
+last updated, and the user's messages name that ticket (or it is `in-progress`), it
+has the agent ask the user whether to add a `## Progress` line (and a
+`**Needs you:**` line if the chat waits on them). It asks once per ticket version:
+after an answer it stays quiet until the ticket changes, or the files change again
+and 30 minutes have passed. Its docstring lists the writes it cannot see.
 
 **At the end of a chat** that touched `.scratch/` work or left something for the user:
 

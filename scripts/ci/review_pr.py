@@ -2,7 +2,7 @@
 """Post an LLM-generated code review comment on a GitHub pull request.
 
 Runs in CI (see .github/workflows/pr-review.yml). This reuses the review
-criteria and output contract defined in .agents/skills/code-review/SKILL.md
+criteria and output contract defined in .agents/skills/bug-review/SKILL.md
 so an automated CI review matches the same severity-ranked format as an
 interactive review done by an agent in Warp.
 
@@ -29,7 +29,7 @@ from pathlib import Path
 from openai import OpenAI, OpenAIError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "code-review" / "SKILL.md"
+SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "bug-review" / "SKILL.md"
 MAX_DIFF_CHARS = 15_000
 MODEL = os.getenv("PR_REVIEW_MODEL", "gpt-4o-mini")
 
@@ -38,8 +38,8 @@ def load_skill_instructions() -> str:
     """Strip the YAML frontmatter from SKILL.md and return the instructions body."""
     if not SKILL_PATH.is_file():
         raise SystemExit(
-            f"Code review skill not found at {SKILL_PATH}. "
-            "Commit .agents/skills/code-review/SKILL.md before enabling this workflow."
+            f"Bug-review skill not found at {SKILL_PATH}. "
+            "Commit .agents/skills/bug-review/SKILL.md before enabling this workflow."
         )
 
     text = SKILL_PATH.read_text(encoding="utf-8")

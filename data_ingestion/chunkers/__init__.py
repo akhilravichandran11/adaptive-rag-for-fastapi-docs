@@ -18,8 +18,8 @@ another one needs, and a strategy module stays runnable on its own with
 ``python -m``.
 
 Five strategies split by size (words, sentences, or characters); ``semantic``
-cuts where BGE embeddings say the topic changes. The structure-aware
-``markdown_ast`` strategy is added to the same table when it lands.
+cuts where BGE embeddings say the topic changes; ``markdown_ast`` follows the
+document's own headings and never cuts inside a code fence or a function.
 
 Build indexing pipelines in code rather than loading them from a saved
 dictionary or YAML: a pipeline holding one of these components serializes, but
@@ -50,6 +50,7 @@ __all__ = [
     "ChunkSettings",
     "Chunker",
     "build_chunks",
+    "build_markdown_ast",
     "build_naive_large",
     "build_naive_medium",
     "build_naive_small",
@@ -105,6 +106,13 @@ def build_semantic() -> Chunker:
     return SemanticChunker()
 
 
+def build_markdown_ast() -> Chunker:
+    """Cut at headings, then between paragraphs past 2,000; never inside a fence or a function."""
+    from data_ingestion.chunkers.markdown_ast import MarkdownAstChunker
+
+    return MarkdownAstChunker()
+
+
 # Strategy name -> factory. The order is the one the study reports them in.
 STRATEGIES: dict[str, Callable[[], Chunker]] = {
     "naive_small": build_naive_small,
@@ -113,6 +121,7 @@ STRATEGIES: dict[str, Callable[[], Chunker]] = {
     "sentence": build_sentence,
     "recursive": build_recursive,
     "semantic": build_semantic,
+    "markdown_ast": build_markdown_ast,
 }
 
 

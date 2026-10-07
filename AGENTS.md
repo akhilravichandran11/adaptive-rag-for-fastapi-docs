@@ -31,10 +31,12 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   `git status` as a problem to fix, and do not edit `.gitignore` to include them.
 - **Code review before finishing:** once a change or diff looks complete and
   before treating a coding task as done, spawn the `active-code-reviewer`
-  custom agent (defined in
-  [`.codex/agents/active-code-reviewer.toml`](.codex/agents/active-code-reviewer.toml))
-  to review it for real bugs. Skip this for style-only formatting/lint
-  requests.
+  custom agent to review it for real bugs. Skip this for style-only
+  formatting/lint requests. It is defined once per tool with the same
+  instructions: [`.claude/agents/active-code-reviewer.md`](.claude/agents/active-code-reviewer.md)
+  for Claude Code and
+  [`.codex/agents/active-code-reviewer.toml`](.codex/agents/active-code-reviewer.toml)
+  for Codex. Change both together.
 - **Local findings, plans, and tickets:** before recording or triaging findings,
   refining plans, or executing ticket work, read
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).

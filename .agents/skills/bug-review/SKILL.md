@@ -1,9 +1,9 @@
 ---
-name: code-review
+name: bug-review
 description: Review a diff, pull request, or named file(s) for bugs, correctness risks, and design weaknesses, and report findings in a strict severity-ranked contract. Use whenever the user asks to "review this PR", "review my changes", "review the diff", "check this file/PR for bugs", or when running as an automated PR reviewer in CI. Do not use for style-only requests like "format this file" or "run the linter" — this skill is for substantive correctness review, not formatting.
 ---
 
-# Code Review
+# Bug Review
 
 Find real bugs, not preferences. A reviewer who reports fifty style nits and misses the one input that crashes production has failed at the job, even if every nit was technically correct.
 

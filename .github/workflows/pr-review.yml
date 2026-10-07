@@ -4,7 +4,7 @@ name: Custom PR code review
 # listed below, using the OpenAI API directly (no Warp/Oz dependency).
 # The script skips review when OPENAI_API_KEY is unavailable, including
 # public fork pull requests. It reuses the review criteria in
-# .agents/skills/code-review/SKILL.md so the automated CI review follows
+# .agents/skills/bug-review/SKILL.md so the automated CI review follows
 # the same severity-ranked output contract as an interactive review.
 #
 # Required repo secret:

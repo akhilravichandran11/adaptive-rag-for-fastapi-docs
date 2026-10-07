@@ -88,7 +88,24 @@ def get_branch_summary(base_ref: str, pr_number: str) -> str:
     )
 
     log = subprocess.run(
-        ["git", "log", f"{base}..{head}", "--oneline"],
+        ["git", "log", f"{base}..{head}", "--format=%h %B"],
+        check=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    file_summary = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--numstat",
+            f"{base}...{head}",
+            "--",
+            ".",
+        ],
         check=True,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -117,7 +134,11 @@ def get_branch_summary(base_ref: str, pr_number: str) -> str:
     if truncated:
         diff += f"\n... (diff truncated to {MAX_DIFF_CHARS} characters)"
 
-    return f"Commits:\n{log}\nDiff:\n```diff\n{diff}\n```\n"
+    return (
+        f"Commits:\n{log}\n"
+        f"Changed files (added/deleted lines):\n{file_summary}\n"
+        f"Diff:\n```diff\n{diff}\n```\n"
+    )
 
 
 def build_prompt(branch_summary: str) -> tuple[str, str]:
@@ -125,6 +146,18 @@ def build_prompt(branch_summary: str) -> tuple[str, str]:
         load_skill_instructions() + "\n\nCI-specific requirements:\n"
         "Use exactly these level-two sections in order: Summary, Changes, Testing. "
         "Each section must contain text.\n"
+        "Choose the title from the complete commit and changed-file overview, "
+        "not just the first files in the diff or the latest commit. "
+        "Prioritize functional changes over supporting documentation or skills. "
+        "Do not infer importance from added/deleted line counts. "
+        "When unrelated scopes are mixed, omit the title scope and use a broad "
+        "summary that includes the main functional change; explain the mixed "
+        "scope in Summary and cover each logical change under Changes.\n"
+        "The title must use type(scope): summary or type: summary, optionally "
+        "with ! before the colon for a breaking change. "
+        "Use feat, fix, refactor, docs, chore, ci, test, or perf. "
+        "Keep it under 72 characters, in imperative mood, with no trailing "
+        "period or control characters.\n"
         "The supplied commits and diff are not test execution evidence. "
         "Do not claim tests were run or passed based on test files, commands, "
         "or commit messages. You may describe added tests under Changes.\n"
@@ -238,44 +271,88 @@ def main() -> int:
     system_prompt, user_prompt = build_prompt(branch_summary)
 
     client = OpenAI()
-    try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=1200,
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    for attempt in range(2):
+        try:
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                temperature=0.2,
+                max_tokens=1200,
+            )
+        except OpenAIError as error:
+            detail = getattr(error, "code", None) or type(error).__name__
+            print(
+                f"OpenAI request failed ({detail}); skipping PR description.",
+                file=sys.stderr,
+            )
+            return 0
+
+        if not response.choices:
+            print("Model returned no choices.", file=sys.stderr)
+            return 1
+
+        choice = response.choices[0]
+        if choice.finish_reason != "stop":
+            print(
+                f"Model response did not finish normally ({choice.finish_reason}); "
+                "nothing will be published.",
+                file=sys.stderr,
+            )
+            return 1
+
+        raw = choice.message.content
+        if not raw or not raw.strip():
+            print("Model returned an empty response.", file=sys.stderr)
+            return 1
+
+        try:
+            title, body = parse_response(raw.strip())
+        except ValueError as error:
+            print(f"Could not parse model response: {error}", file=sys.stderr)
+            return 1
+
+        title_error = ""
+        if not re.fullmatch(
+            r"(feat|fix|refactor|docs|chore|ci|test|perf)"
+            r"(?:\([^()\s]+\))?!?: \S.*",
+            title,
+        ):
+            title_error = "Use an allowed type with optional scope and a summary."
+        elif not title.isprintable():
+            title_error = "Remove control characters from the title."
+        elif len(title) >= 72:
+            title_error = "Keep the title under 72 characters."
+        elif title.endswith("."):
+            title_error = "Remove the trailing period."
+
+        if not title_error:
+            break
+
+        if attempt == 1:
+            print(
+                f"Invalid title after one correction: {title_error} Nothing will be published.",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(f"Requesting one title correction: {title_error}", file=sys.stderr)
+        messages.extend(
+            [
+                {"role": "assistant", "content": raw},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Correct the title: {title_error} "
+                        "Preserve the description body and return the complete "
+                        "TITLE/body response in the required format."
+                    ),
+                },
+            ]
         )
-    except OpenAIError as error:
-        detail = getattr(error, "code", None) or type(error).__name__
-        print(f"OpenAI request failed ({detail}); skipping PR description.", file=sys.stderr)
-        return 0
-
-    if not response.choices:
-        print("Model returned no choices.", file=sys.stderr)
-        return 1
-
-    choice = response.choices[0]
-    if choice.finish_reason != "stop":
-        print(
-            f"Model response did not finish normally ({choice.finish_reason}); "
-            "nothing will be published.",
-            file=sys.stderr,
-        )
-        return 1
-
-    raw = choice.message.content
-    if not raw or not raw.strip():
-        print("Model returned an empty response.", file=sys.stderr)
-        return 1
-
-    try:
-        title, body = parse_response(raw.strip())
-    except ValueError as error:
-        print(f"Could not parse model response: {error}", file=sys.stderr)
-        return 1
 
     if not pr_body.strip():
         pr_body = subprocess.run(

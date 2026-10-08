@@ -5,9 +5,10 @@ The text is split into sentences and the sentences are grouped three at a time.
 Each group is embedded with BGE-large, and a chunk ends wherever the cosine
 distance between two neighbouring groups is above the 95th percentile of all such
 distances in that document. A piece over 1,000 characters is split again the
-same way, and a piece under 50 characters is merged into the one after it.
-Neither is a guarantee: Haystack returns a long piece it cannot split further
-(with a warning), and never merges a document's last piece or the pieces a
+same way, and a piece under 50 characters is merged into the one after it (a
+short last piece, into the one before it, since Haystack 3.2.0). Neither is a
+guarantee: Haystack returns a long piece it cannot split further (with a
+warning), skips a merge that would reach 1,000, and never merges the pieces a
 re-split produces, so a chunk can be shorter than 50 or longer than 1,000.
 
 The embedding model only finds the cut points; the chunks never carry its

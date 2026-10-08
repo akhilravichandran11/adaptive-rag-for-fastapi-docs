@@ -5,7 +5,7 @@ description = "Adaptive and Corrective RAG System for Q & A for FastApi Document
 requires-python = ">=3.11"
 dependencies = [
     # Core Haystack
-    "haystack-ai>=2.16.1",
+    "haystack-ai>=3.2.0",
     # Haystack Integrations
     "qdrant-haystack>=9.2.0",
     "fastembed-haystack>=1.5.0",

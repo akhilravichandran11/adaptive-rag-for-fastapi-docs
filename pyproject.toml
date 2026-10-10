@@ -75,3 +75,25 @@ select = [
 ]
 
 ignore = ["E501"]
+
+[tool.pytest.ini_options]
+# Only tests/ holds this project's tests. data/ (the raw corpus) and .scratch/ (staged
+# corpus copies) both contain FastAPI's own test_main.py files.
+testpaths = ["tests"]
+# Also skip them when pytest is given a path such as `.`. Setting norecursedirs replaces
+# pytest's defaults, so they are repeated here before "data".
+norecursedirs = [
+    # pytest's defaults (".*" also keeps out .scratch/, .venv/ and .git/)
+    "*.egg",
+    ".*",
+    "_darcs",
+    "build",
+    "CVS",
+    "dist",
+    "node_modules",
+    "venv",
+    "{arch}",
+    # this project: the raw corpus. Matches any folder named data at any depth, so a
+    # folder of tests under tests/ must not use that name.
+    "data",
+]

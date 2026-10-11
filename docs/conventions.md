@@ -34,7 +34,7 @@ set yet.
 | [C006](#c006-tests-never-make-a-paid-api-call) | Tests never make a paid API call | IDX-04 | accepted |
 | [C007](#c007-a-stage-imports-modules-never-another-stage) | A stage imports modules, never another stage | PRT-01 | accepted |
 | [C008](#c008-a-multi-name-lookup-reports-every-unknown-name-at-once) | A multi-name lookup reports every unknown name at once | PRT-02 | accepted |
-| [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | proposed |
+| [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | accepted |
 
 ---
 
@@ -318,7 +318,7 @@ called by step 6).
 
 ## C009: Stages hand off through saved plain-JSON artifacts with an input fingerprint
 
-**Status:** proposed · **Introduced:** 2026-10-12, PRT-03 (plan D38) · **Where:** `data_ingestion/chunk_snapshot.py`, `data_ingestion/stage2_chunk_corpus.py`
+**Status:** accepted (user, 2026-10-12) · **Introduced:** 2026-10-12, PRT-03 (plan D38) · **Where:** `data_ingestion/chunk_snapshot.py`, `data_ingestion/stage2_chunk_corpus.py`
 
 **The convention, stated.** When one stage's output is another stage's input,
 the producing stage saves it in its run directory

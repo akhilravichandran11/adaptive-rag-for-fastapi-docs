@@ -32,6 +32,8 @@ set yet.
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
 | [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | accepted |
 | [C006](#c006-tests-never-make-a-paid-api-call) | Tests never make a paid API call | IDX-04 | accepted |
+| [C007](#c007-a-stage-imports-modules-never-another-stage) | A stage imports modules, never another stage | PRT-01 | accepted |
+| [C008](#c008-a-multi-name-lookup-reports-every-unknown-name-at-once) | A multi-name lookup reports every unknown name at once | PRT-02 | accepted |
 
 ---
 
@@ -259,3 +261,54 @@ no guard.
 **Alternatives.** `pytest-socket` (a new dev dependency); library switches such as
 `HF_HUB_OFFLINE=1` (cover one library, not the paid APIs); patching each SDK's client
 class, as the stage 3 test also does (precise, but must track every client).
+
+---
+
+## C007: A stage imports modules, never another stage
+
+**Status:** accepted (user, 2026-10-11) · **Introduced:** 2026-10-10, PRT-01 (plan D42) · **Where:** `data_ingestion/qdrant_store.py`, `data_ingestion/stage1_setup_qdrant.py`
+
+**The convention, stated.** A stage is a thin script that runs one step of a
+pipeline. Code that more than one stage needs lives in a module the stages
+import; a stage never imports another stage to borrow its code. An orchestrator
+that runs stages in order (`data_curation/stage0_run_pipeline.py`) is not a stage
+and may import them.
+
+**Why.** Each stage and module can be read, tested and explained on its own.
+Importing a stage drags in its command line and side effects, and loading one
+script from another by file path to borrow a single function hides that
+dependency from imports, linters and tests.
+
+**What it replaces.** Importing a stage for its helpers, which stage 3 would
+have needed to reach stage 1's Qdrant code.
+
+**Blast radius.** `qdrant_store.py` and stage 1's imports today; PRT-03/PRT-04
+are written to it. Rejecting it means stage 3 imports stage 1 instead.
+
+**Alternatives.** Copy the Qdrant code into stage 3 (duplication); stage 3
+imports stage 1 (rejected above).
+
+---
+
+## C008: A multi-name lookup reports every unknown name at once
+
+**Status:** accepted (user, 2026-10-12) · **Introduced:** 2026-10-12, PRT-02 · **Where:** `data_ingestion/variants.py` (`select_variants`)
+
+**The convention, stated.** A function that checks several user-supplied names
+against registries collects every unknown name and raises one `ValueError` that
+names each of them and lists the known names. A single-name lookup
+(`get_chunker`, `get_spec`) keeps raising on its one name.
+
+**Why.** A command with two typos (`--strategy` and `--embedder`) fails once with
+both named, not once per typo.
+
+**What it replaces.** Nothing multi-name existed; the single-name lookups stop
+at the first unknown name.
+
+**Blast radius.** `select_variants` and its test; stage 3 and step 6 call it.
+Rejecting it means calling `get_chunker`/`get_spec` per name and failing on the
+first.
+
+**Alternatives.** Reuse the single-name lookups (fails one typo at a time; three
+message styles stay); argparse `choices=` (CLI only, and `select_variants` is also
+called by step 6).

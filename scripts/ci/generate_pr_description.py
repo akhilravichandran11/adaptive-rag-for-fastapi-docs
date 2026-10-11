@@ -319,7 +319,8 @@ def main() -> int:
             title = raw.strip()
 
         print(
-            f"Title attempt {attempt + 1}/3: {len(title)} characters (maximum 71).",
+            f"Title attempt {attempt + 1}/3: {len(title)} characters "
+            f"(maximum 71). Candidate: {title!r}",
             file=sys.stderr,
         )
 

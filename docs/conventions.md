@@ -34,6 +34,7 @@ set yet.
 | [C006](#c006-tests-never-make-a-paid-api-call) | Tests never make a paid API call | IDX-04 | accepted |
 | [C007](#c007-a-stage-imports-modules-never-another-stage) | A stage imports modules, never another stage | PRT-01 | accepted |
 | [C008](#c008-a-multi-name-lookup-reports-every-unknown-name-at-once) | A multi-name lookup reports every unknown name at once | PRT-02 | accepted |
+| [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | proposed |
 
 ---
 
@@ -312,3 +313,38 @@ first.
 **Alternatives.** Reuse the single-name lookups (fails one typo at a time; three
 message styles stay); argparse `choices=` (CLI only, and `select_variants` is also
 called by step 6).
+
+---
+
+## C009: Stages hand off through saved plain-JSON artifacts with an input fingerprint
+
+**Status:** proposed · **Introduced:** 2026-10-12, PRT-03 (plan D38) · **Where:** `data_ingestion/chunk_snapshot.py`, `data_ingestion/stage2_chunk_corpus.py`
+
+**The convention, stated.** When one stage's output is another stage's input,
+the producing stage saves it in its run directory
+(`data_ingestion/outputs/<run_id>/`) through a module both stages import, as
+JSON Lines (one record per line, JSON values only) so it reads back equal. The
+producing stage writes `run_meta.json` last, recording a fingerprint of its
+input (here the sha256 of the corpus `manifest.json`). The consuming stage reads
+only from a named saved run (`--chunks-run <run_id>`) and refuses one whose
+fingerprint no longer matches today's input.
+
+**Why.** A paid or unrepeatable step (semantic's OpenRouter cut points) runs
+once, and both embedders index the same chunks across separate runs (D29). The
+saved chunks can be opened and compared locally, and each stage can be explained
+on its own (C007). The fingerprint stops a handoff from silently describing an
+older corpus build, which the corpus commit cannot detect: GDS-02 changed two
+documents without changing it.
+
+**What it replaces.** Chunking, embedding and writing in one in-memory pass with
+nothing saved. The data_curation stages also save per-run JSON (D12), but they
+share one run directory under the orchestrator and check no input fingerprint.
+
+**Blast radius.** `chunk_snapshot.py`, `stage2_chunk_corpus.py` and their tests;
+PRT-04's stage 3 is written to read through it. Rejecting it means stage 3
+chunks for itself: one pass per embedder, with semantic paid twice and its cut
+points never checked for repeatability.
+
+**Alternatives.** One stage with nothing saved; IDX-13's per-document cache
+(deferred by the user on 2026-10-05); pickle (unsafe and unreadable); Parquet
+(a new dependency).

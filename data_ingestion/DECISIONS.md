@@ -6,6 +6,74 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-10-08 — Chunk sizes are checked and reported, not enforced
+
+**Decision.** Every chunking strategy's chunks are held to five shape rules: no chunk
+over the strategy's declared size, none under its declared minimum unless it is the
+whole document, no text lost (whitespace ignored), chunks in source order, and no empty
+chunk. `data_ingestion/chunk_shape.py` checks them, and `scripts/chunk_size_report.py`
+writes a chunk-size report for a corpus run: per strategy, how many chunks break each
+rule, two informational counts (low-prose chunks and unbroken runs), and how many
+chunks go over each embedder's input limit. Nothing is enforced. A chunk that breaks a
+rule is counted, never re-split, merged or dropped; whether to fix sizes automatically,
+and for which strategies, is a later decision made from the report's numbers.
+
+**Why.** The corpus will change: it may grow, be pulled again, or gain a lower-quality
+source, so rules tuned to today's files would only hold for today's files. The shape
+rules name no content (no emoji, code fence, file name or encoding), and the tests run
+them on bad documents built for the purpose and on messy copies of real ones (blank
+lines stripped, punctuation removed, a long unbroken run injected, documents glued
+together). Only `semantic` breaks its declared size today: Haystack treats its lengths
+as targets, so it returns chunks of over 15,000 characters. `sentence` keeps its six
+sentences, but a fenced code block counts as one sentence, so its chunks can reach
+15,000 characters too. Both are measured, not oversights.
+
+The first report, on the 2026-10-05 build of the normalized `github-docs/v1` corpus
+(124 documents, `manifest.json` sha256 `898fc5bf…`, Haystack 3.2.0), found the five
+size-based strategies keeping all five rules. On Haystack 3.0.0 the same run had found
+`recursive` losing text in 4 documents, which is why the project now requires 3.2.0.
+`semantic` was not re-measured, because its run is paid; its tests mark the two size
+rules as known gaps.
+
+**Alternatives considered.**
+
+- **Cap every strategy at BGE's 512 tokens.** Reverses the 2026-09-20 decision below
+  and changes what `naive_*` and `recursive` are.
+- **Fix sizes automatically now** (re-split oversized chunks, merge tiny ones).
+  Deferred until the report shows where it is worth it: it changes chunk ids and means
+  re-indexing every strategy it touches.
+- **Content filters that drop chunks by what they contain.** Rules tuned to this
+  corpus; the report only counts low-prose chunks and unbroken runs.
+
+**Consequences.** A strategy that breaks its declared size is still indexed, so the
+report has to be run and read after each corpus pull. The five size-based strategies
+run offline and free; `semantic` runs only when asked for, because it calls a paid API.
+Indexing does not call the report yet.
+
+**Known limitations**, accepted rather than coded around, each with the number that
+justifies it and what would reopen it:
+
+- **`sentence` drops some line breaks.** Haystack's NLTK sentence splitter drops runs of
+  blank lines and newlines at some sentence boundaries, welding the words on either side
+  together. On the corpus above, 3 of 124 documents have a word that appears whole in no
+  `sentence` chunk; only whitespace is lost, so the "no text lost" rule still passes.
+  Revisit if a later step needs to map a chunk back to its offset in the file (store
+  offsets at split time instead), or a report shows words lost in more than a handful of
+  documents.
+- **One encoded image.** `advanced__stream-data.md` holds a 4,254-character base64 image
+  in a code sample, the corpus's only unbroken run. Each strategy carries it in one
+  chunk, except `recursive`, which cuts it at 2,000 characters across three. Stripping
+  it at load time would change every strategy's chunks. Revisit if a report finds
+  unbroken runs in more than one document, or among the largest chunks of a new corpus.
+- **Voyage token counts are an estimate.** They are counted as 1.3 tokens per word, so
+  they are a lower bound that understates text with little whitespace. No conclusion
+  depends on it today: the longest chunk is 15,647 characters, which BGE's tokenizer
+  counts as 4,893 tokens, and even at 2 characters per token it would stay under 8,000,
+  far under Voyage's 32,000-token input limit. Revisit if any chunk passes 64,000
+  characters, or Voyage's truncation numbers are ever used to make a decision.
+
+---
+
 ## 2026-10-04 — The local BGE code path is removed
 
 **Decision.** The fastembed branches that ran BGE-large on the laptop are deleted;
@@ -82,16 +150,31 @@ laptop CPU. The cost is size: about 1.2 GB of ONNX weights.
 
 **The 512-token limit is deliberate, and becomes a result.** Chunk sizes are kept at
 the sizes each strategy is meant to demonstrate, rather than shrunk to fit BGE. With
-those sizes, an estimated 69% of `naive_medium` chunks and 70% of `naive_large`
-chunks are longer than BGE can read, so their tails are silently dropped when
-embedded — usually by a few tokens for `naive_medium`, but up to half a chunk for
-`naive_large`. `naive_small` and `recursive` stay comfortably inside the limit.
-Voyage, with more than 60× the input budget, reads those same chunks whole.
+those sizes, every strategy has chunks longer than BGE can read, and their tails are
+silently dropped when embedded. Counted with BGE's own tokenizer by the first
+chunk-size report (2026-10-05 build of the normalized `github-docs/v1` corpus, 124
+documents; see the 2026-10-08 entry):
+
+| Strategy | Chunks over BGE's 512-token input limit | Average tokens dropped from each |
+|---|---|---|
+| `naive_small` | 121 of 842 (14.4%) | 70 |
+| `naive_medium` | 352 of 443 (79.5%) | 317 |
+| `naive_large` | 217 of 250 (86.8%) | 878 |
+| `sentence` | 274 of 621 (44.1%) | 626 |
+| `recursive` | 428 of 602 (71.1%) | 99 |
+
+The largest `naive_large` chunk loses about four-fifths of its tokens. Voyage, with
+more than 60× the input budget, reads those same chunks whole.
 
 That contrast is the point: "big chunks lose their tails on a small-context
 embedder" is a finding worth reporting, and designing it away would hide it. The
 indexing report records, per variant, how many chunks exceeded the limit and by how
 much, so the effect is measured rather than assumed.
+
+*Corrected 2026-10-08.* This entry first gave estimates (69% of `naive_medium` and
+70% of `naive_large` chunks over BGE's input limit, with `naive_small` and `recursive`
+"comfortably inside"), made before BGE's tokenizer was used to count. Code-heavy text
+costs more tokens per word than the estimate assumed.
 
 **Alternatives considered.**
 

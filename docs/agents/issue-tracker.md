@@ -323,6 +323,21 @@ instructions conflict with this repo, this repo wins:
 - **The board rules still apply.** Claim the ticket in **Doing** before
   starting, modify only files in its `Touches`, and mark it **Done** only as
   described under Issue status.
+- **Build a ticket in small steps** (adapted from Addy Osmani's
+  `incremental-implementation`, MIT). Inside one ticket:
+  - Write the smallest working step first and run its tests before writing
+    more. If a step would leave more than about 100 lines untested, split the
+    step, or propose splitting the ticket.
+  - One logical change per step: never mix a refactor with the ticket's
+    behavior change.
+  - After each step, checkpoint instead of committing: `uv run ruff check` and
+    the step's tests pass, then report what the step did, so the user can
+    commit it with `commit-planning`.
+  - List anything worth fixing outside the ticket's `Touches` under
+    **Noticed, not touched** in the report; record it as a finding only when
+    the user says yes. Never fix it in passing.
+  - Start with the simplest version that meets the acceptance criteria. Three
+    similar lines beat an abstraction with fewer than three uses.
 - **`grill-with-docs` writes the plan first.** Its questions, alternatives and
   decisions go in the target's `plan.md`, as with `grilling`. It may also write
   two repo-wide files, tracked like `docs/conventions.md`; these are the only
@@ -374,6 +389,37 @@ Use this session-start instruction with Codex or Claude to implement a ticket
 ticket is ready, then work only within its scope, follow "Skills and repo
 overrides", and verify every acceptance criterion.
 ```
+
+## Wayfinding operations
+
+Used by `/wayfinder` (Codex: `$wayfinder`) for an effort too big and too unclear
+for one session. A map holds decisions, not implementation work; when it
+clears, its outcome goes through the normal plan → `to-tickets` → `/implement`
+workflow.
+
+- **Map**: `.scratch/<capability>/wayfinder/<map-slug>/map.md`, with a
+  `**Label:** wayfinder:map` line under the title and the Destination, Notes,
+  Decisions so far, Not yet specified and Out of scope sections. Link the map
+  from the capability hub.
+- **Child ticket**: `.scratch/<capability>/wayfinder/<map-slug>/W-NN-<slug>.md`,
+  numbered from `01`, the question under `## Question`. A `**Type:**` line
+  records `wayfinder:research`, `wayfinder:prototype`, `wayfinder:grilling` or
+  `wayfinder:task`; a `**Status:**` line records `open`, `claimed` or
+  `resolved`. These files are not board tickets and stay out of
+  `issues/_index.md`.
+- **Blocking**: a `**Blocked by:**` line listing ticket names. A ticket is
+  unblocked when every one it lists is `resolved`.
+- **Frontier**: the map folder's tickets that are `open` and unblocked; lowest
+  number first.
+- **Claim**: set `**Status:** claimed` and save before any work.
+- **Resolve**: append the answer under `## Answer`, set `**Status:** resolved`,
+  then add one line to the map's Decisions so far: the ticket name as a link
+  and a one-line gist.
+- **Research tickets** write their findings to
+  `<map folder>/research/<slug>.md`, not to a git branch. No commits.
+- **Needs you**: while a frontier ticket waits on the user, keep one
+  `.scratch/INBOX.md` line for the map, `- [<capability>] **Needs you:**
+  wayfinder <map name>: <ticket name>`, so it shows in `NOW.md`.
 
 ## Action views (what is left to do)
 

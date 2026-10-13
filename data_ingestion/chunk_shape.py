@@ -66,9 +66,9 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = PROJECT_ROOT / "outputs" / "chunk-size-reports"
 
-# The strategies the shape rules cover (R5). ``markdown_ast`` joins when IDX-07
-# lands; this list is written out rather than read from ``STRATEGIES`` so a
-# strategy is added to the report on purpose.
+# The strategies the shape rules cover (R5): every built strategy. This list is
+# written out rather than read from ``STRATEGIES`` so a strategy is added to the
+# report on purpose.
 SHAPE_STRATEGIES = (
     "naive_small",
     "naive_medium",
@@ -76,10 +76,12 @@ SHAPE_STRATEGIES = (
     "sentence",
     "recursive",
     "semantic",
+    "markdown_ast",
 )
 # ``semantic`` finds its boundaries with BGE on OpenRouter: a paid call.
 PAID_STRATEGIES = ("semantic",)
-SIZE_BASED_STRATEGIES = tuple(name for name in SHAPE_STRATEGIES if name not in PAID_STRATEGIES)
+# Every other strategy runs offline and costs nothing.
+FREE_STRATEGIES = tuple(name for name in SHAPE_STRATEGIES if name not in PAID_STRATEGIES)
 
 # The five shape rules, in the order they are reported.
 OVER_MAX = "over_max"

@@ -16,6 +16,11 @@ They do not reopen their tickets; the gate applies to tickets started after
 Matching existing style needs no entry. This is only for style the repo has not
 set yet.
 
+> Code-shape rules live in [`simplification-conventions.md`](simplification-conventions.md).
+> Where an S-rule there conflicts with an entry here, the S-rule wins and the
+> entry is marked `superseded by S00N`. Open code-shape questions (C002 is Q09)
+> are tracked privately in `.scratch/code-simplification/questions.md`.
+
 ## Status
 
 - `proposed`: in the code, awaiting a ruling.

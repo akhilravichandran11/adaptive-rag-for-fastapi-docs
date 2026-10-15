@@ -13,9 +13,20 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
 
 - **Match the existing codebase:** when writing or editing code, use the same
   style, language, framework, testing framework, and linter as the
-  surrounding code. Match the naming, structure, and comment density of
-  nearby files. Don't add dependencies or reformat unrelated code without
-  saying why.
+  surrounding code. Match the naming, formatting, and comment density of
+  nearby files. This never means copying a layer (protocol, registry, factory,
+  base class) into new code; code shape follows the next bullet. Don't add
+  dependencies or reformat unrelated code without saying why.
+- **Code shape (simplification conventions):** before writing Python, read
+  [`docs/simplification-conventions.md`](docs/simplification-conventions.md) and
+  follow every decided S-rule; where an S-rule conflicts with
+  [`docs/conventions.md`](docs/conventions.md), the S-rule wins. Then read
+  `.scratch/code-simplification/questions.md`: while a question there is open,
+  add no new instances of the constructs in its "While a question is open" list,
+  and never act on an open question yourself; make the case for it in your final
+  report instead. Make the minimal change the task needs: don't add helpers,
+  classes, or abstractions for one-time operations, and don't design for
+  hypothetical future requirements.
 - **New conventions need a ruling:** if your change introduces a pattern this
   codebase does not already use — a new abstraction (protocol, registry, base
   class), a new dispatch or error-handling style, a new test structure, or a rule

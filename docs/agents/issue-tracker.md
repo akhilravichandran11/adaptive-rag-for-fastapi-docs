@@ -139,6 +139,12 @@ A ticket records progress under a `## Progress` heading at its end, one dated
 line per entry: `- YYYY-MM-DD (<tool>): <what changed>; <what was verified>;
 <what is next>`. An agent adds a line only after the user says yes.
 
+A ticket implemented by an agent also keeps that agent's decisions table,
+verbatim, under a `## Decisions` heading placed above `## Progress`: one row
+per choice with the alternative rejected, why, and where in the code. It is
+added with the Progress line, on the same yes. The table is the durable copy;
+the agent's transcript is swept after the cleanup period.
+
 Only an issue with `Status: ready-for-agent` or `Status: in-progress`
 authorizes implementation. Material under `findings/`, `roadmaps/`, and
 `plans/` remains non-executable context.
@@ -303,7 +309,10 @@ within one ticket's scope and request user approval before expanding it. Mark th
    with the `active-code-reviewer` agent (bugs). Verify its acceptance
    criteria, record any convention the work introduced in
    `docs/conventions.md`, update its status, then select the next unblocked
-   ticket.
+   ticket. Closing a ticket includes its dependents: once it is `done` and
+   committed, open every ticket whose **Blocked by** names it, remove the
+   entry, and set `ready-for-agent` when nothing remains. A ticket left
+   `blocked` on a finished blocker is stale state the next agent will trip on.
 
 ### Skills and repo overrides
 

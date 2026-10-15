@@ -10,11 +10,11 @@ truncate. The same report, with per-chunk detail and the sha256 of the corpus
 Nothing is changed: the report describes chunks, it never fixes them. See
 ``data_ingestion/chunk_shape.py`` for the rules.
 
-The five size-based strategies run offline and cost nothing. ``semantic`` finds its
-boundaries with BGE on OpenRouter — a paid call (cents per corpus) that needs
-``OPENROUTER_API_KEY`` — so it runs only with ``--include-semantic``.
+The five size-based strategies and ``markdown_ast`` run offline and cost nothing.
+``semantic`` finds its boundaries with BGE on OpenRouter — a paid call (cents per
+corpus) that needs ``OPENROUTER_API_KEY`` — so it runs only with ``--include-semantic``.
 
-    uv run python scripts/chunk_size_report.py                      # size-based strategies, current corpus
+    uv run python scripts/chunk_size_report.py                      # free strategies, current corpus
     uv run python scripts/chunk_size_report.py --messy              # messy copies of the corpus instead
     uv run python scripts/chunk_size_report.py --include-semantic   # adds semantic (paid)
 
@@ -40,10 +40,10 @@ from data_ingestion.chunk_shape import (  # noqa: E402  (needs the path set abov
     DEFAULT_MESSY_COUNT,
     DEFAULT_MESSY_SEED,
     DEFAULT_UNBROKEN_RUN,
+    FREE_STRATEGIES,
     MESSY_CHANGES,
     PAID_STRATEGIES,
     REPORTS_DIR,
-    SIZE_BASED_STRATEGIES,
     build_report,
     log_report,
     make_messy_copies,
@@ -86,8 +86,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--strategy",
         action="append",
-        choices=SIZE_BASED_STRATEGIES,
-        help="A size-based strategy to report on; repeat for several (default: all five)",
+        choices=FREE_STRATEGIES,
+        help="An offline (free) strategy to report on; repeat for several (default: all six)",
     )
     parser.add_argument(
         "--include-semantic",
@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> Path:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     load_dotenv(PROJECT_ROOT / ".env")
 
-    strategies = list(dict.fromkeys(args.strategy or SIZE_BASED_STRATEGIES))
+    strategies = list(dict.fromkeys(args.strategy or FREE_STRATEGIES))
     if args.include_semantic:
         logger.warning(
             "Including %s: a PAID call to OpenRouter (BGE boundaries, cents per corpus)",

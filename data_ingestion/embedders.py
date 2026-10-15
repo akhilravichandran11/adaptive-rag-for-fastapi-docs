@@ -165,7 +165,10 @@ def build_document_embedder(name: str):
 
         # truncate defaults to True: Voyage silently cuts anything past its 32k limit
         # rather than failing. truncation_report says how often that would happen.
-        return VoyageDocumentEmbedder(model=spec.model, output_dimension=spec.dimension)
+        # "document" here pairs with "query" in build_text_embedder (D39).
+        return VoyageDocumentEmbedder(
+            model=spec.model, output_dimension=spec.dimension, input_type="document"
+        )
 
     raise _unsupported_backend(spec)
 
@@ -185,7 +188,9 @@ def build_text_embedder(name: str):
     if spec.backend == "voyage":
         from haystack_integrations.components.embedders.voyage_embedders import VoyageTextEmbedder
 
-        return VoyageTextEmbedder(model=spec.model, output_dimension=spec.dimension)
+        return VoyageTextEmbedder(
+            model=spec.model, output_dimension=spec.dimension, input_type="query"
+        )
 
     raise _unsupported_backend(spec)
 

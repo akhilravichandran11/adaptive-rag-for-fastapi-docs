@@ -36,3 +36,8 @@ Personal Prompt Instructions for AI coding agents (Codex, Claude Code, etc.) wor
 - Please read .py and analyze it again
 - I have .py and addressed some comments please review it again and update your comments from your earlier review.
 - lets work on these three review comments and see if these need to be implemented or what needs to be implemented.
+
+## For Confirmation
+
+- why do we need this and if this is not implemented what would happen.
+- Seems to be a perfect solution, whats a simple imperfect solution we can implement instead for the current data corpus and assume new data can be added later and you cant review all of it.

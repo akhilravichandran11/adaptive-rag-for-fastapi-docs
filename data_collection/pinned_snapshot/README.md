@@ -1,9 +1,9 @@
 # Pinned snapshot collection
 
 Read selected FastAPI documents and their referenced examples directly from one
-local checkout into a **new candidate directory**. This collector is implemented;
-the existing collectors and active corpus remain the baseline pending separate
-adoption approval.
+local checkout into a **new candidate directory**. This is the default workflow
+for future collection. The active corpus has not been switched; replacing it
+requires separate approval.
 
 The collector uses Python 3.11+, the standard library, and installed Git. Run it
 as a module from this repository root. It borrows the two include regexes from
@@ -16,14 +16,17 @@ Choose a previously unused run name. Keep the checkout and generated data under
 the local plan's verification directory, outside this source folder:
 
 ```sh
-run=".scratch/data-collection-pipeline/targets/github-docs-source/plans/direct-snapshot/verification/manual-01"
-mkdir "$run"
+run=".scratch/data-collection-pipeline/targets/github-docs-source/plans/direct-snapshot/adoption-verification/manual-01"
+mkdir -p "$run"
 git init "$run/upstream"
 git -C "$run/upstream" fetch --depth 1 https://github.com/fastapi/fastapi.git 6a6002298106d89d3a65fd62527dc0bdc4e681fd
 git -C "$run/upstream" -c core.autocrlf=false checkout --detach 6a6002298106d89d3a65fd62527dc0bdc4e681fd
 python -m data_collection.pinned_snapshot.collect \
   --snapshot-dir "$run/upstream" \
   --output-dir "$run/raw"
+python -m data_collection.data_normalization.normalize_github_docs \
+  --raw-dir "$run/raw" \
+  --output-dir "$run/normalized"
 ```
 
 The Git setup downloads the public revision once. The collector only reads the
@@ -37,6 +40,18 @@ untracked references fail. Checkout filters that alter selected bytes also fail.
 checkout and this project's `data/fastapi/raw/` and `data/fastapi/normalized/`
 trees. A retry needs another fresh output directory. Both path arguments are
 required; there is no implicit active-corpus destination.
+
+The normalizer requires `--raw-dir` and `--output-dir` together. It reads the
+candidate's docs and code, requires both source manifests, and writes normalized
+docs and a manifest to a fresh directory. Resolved output paths must not overlap the input
+or sit inside active raw/normalized trees. `--help` writes nothing. Its no-argument
+behavior remains for compatibility; use explicit paths for candidate runs.
+
+Inspect both candidates before seeking separate approval for manual promotion.
+Back up and replace complete active directories
+(`data/fastapi/{raw,normalized}/github-docs/v1/`), rather than merging files.
+Saved chunks must be regenerated for the new manifest fingerprint before indexing.
+These commands stop before promotion and do not regenerate chunks.
 
 ## Output and failures
 

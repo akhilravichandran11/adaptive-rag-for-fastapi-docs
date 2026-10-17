@@ -4,8 +4,8 @@
 Runs in CI (see .github/workflows/pr-description.yml). Applies generated
 title/body text when the description is empty/whitespace. Otherwise, leaves
 the PR unchanged and publishes suggestions in one workflow comment and the
-Actions summary. Reuses .agents/skills/pr-description/SKILL.md for the
-Conventional Commits title and Summary/Changes/Testing body structure.
+Actions summary. Reuses .agents/skills/pr-writeup/SKILL.md for the
+Conventional Commits title, with a CI-only Summary/Changes/Testing body.
 The checkout contains trusted default-branch automation. PR refs are fetched
 only to read their commits and diff; PR files are never checked out or executed.
 
@@ -34,7 +34,7 @@ from pathlib import Path
 from openai import OpenAI, OpenAIError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "pr-description" / "SKILL.md"
+SKILL_PATH = REPO_ROOT / ".agents" / "skills" / "pr-writeup" / "SKILL.md"
 MAX_DIFF_CHARS = 15_000
 MODEL = os.getenv("PR_DESCRIPTION_MODEL", "gpt-4o-mini")
 TESTING_NOTE = "Test execution was not verified by this workflow."
@@ -44,7 +44,7 @@ Respond in exactly this format, with no other text before or after:
 
 TITLE: <the PR title, one line>
 ---
-<the PR body markdown, following the Output contract's Body structure>
+<the PR body markdown, with exactly the Summary, Changes, and Testing sections from the CI-specific requirements>
 """
 
 
@@ -52,8 +52,8 @@ def load_skill_instructions() -> str:
     """Strip the YAML frontmatter from SKILL.md and return the instructions body."""
     if not SKILL_PATH.is_file():
         raise SystemExit(
-            f"pr-description skill not found at {SKILL_PATH}. "
-            "Commit .agents/skills/pr-description/SKILL.md before enabling this workflow."
+            f"pr-writeup skill not found at {SKILL_PATH}. "
+            "Commit .agents/skills/pr-writeup/SKILL.md before enabling this workflow."
         )
 
     text = SKILL_PATH.read_text(encoding="utf-8")
@@ -144,7 +144,11 @@ def get_branch_summary(base_ref: str, pr_number: str) -> str:
 def build_prompt(branch_summary: str) -> tuple[str, str]:
     instructions = (
         load_skill_instructions() + "\n\nCI-specific requirements:\n"
-        "Use exactly these level-two sections in order: Summary, Changes, Testing. "
+        "These requirements replace the Output contract's Body: use exactly these "
+        "level-two sections in order: Summary, Changes, Testing, with no Evidence "
+        "or Merge Danger section and no summary visual. "
+        "Ignore the skill's Summary visual, Evidence, Merge Danger, and "
+        "attribution guidance, and add nothing after the Testing bullet. "
         "Each section must contain text.\n"
         "Choose the title from the complete commit and changed-file overview, "
         "not just the first files in the diff or the latest commit. "

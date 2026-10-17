@@ -7,6 +7,8 @@ description: Draft a pull request title and description from the current branch'
 
 A good PR title and description let a reviewer understand the change without opening every file. Optimize for that reader, not for describing your own process.
 
+The Evidence and Merge Danger sections are adapted from Matt Pocock's `pr` skill (MIT), whose summary visuals come from HumanLayer's `show-me` (MIT). See `THIRD_PARTY_NOTICES.md`.
+
 ## Scope and authorization
 
 - Determine the target: the current branch's commits against its base branch (ask if the base isn't obvious — this repo doesn't always merge into `main`), or an existing PR number if one was given.

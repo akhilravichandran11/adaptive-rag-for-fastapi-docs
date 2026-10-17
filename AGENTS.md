@@ -41,6 +41,15 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   running them — ticket acceptance criteria still require `uv run pytest` to
   pass — but do not propose adding them to git, do not treat their absence from
   `git status` as a problem to fix, and do not edit `.gitignore` to include them.
+- **Commit-only requests:** planning, staging, or committing existing changes
+  does not trigger `code-review`, `active-code-reviewer`, or
+  `active-code-simplifier`. Invoke them for such a request only when the user
+  asks. The implementation review requirements below still apply when the
+  current task includes implementing changes and then committing them.
+  Keep normal Git hooks enabled. If commit preparation reveals a needed fix
+  outside the approved changes, report it and obtain approval before editing;
+  pause the affected phase. Inspect automatic hook fixes and restage only
+  approved paths before retrying.
 - **Simplify before review:** once a coding task's tests pass, and before the
   reviews below, spawn the `active-code-simplifier` custom agent on the Python
   files the task changed, naming the starting commit. It applies basic

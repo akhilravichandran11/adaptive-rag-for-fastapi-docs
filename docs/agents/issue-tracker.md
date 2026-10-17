@@ -180,6 +180,8 @@ file is authoritative if its status differs from the register.
 - `proposed`: in the code, awaiting a ruling.
 - `accepted`: the shape later code should follow.
 - `rejected`: to be undone; the entry records what has to change.
+- `superseded by S00N`: an S-rule in `docs/simplification-conventions.md`
+  replaced it; follow the S-rule.
 
 ## Conventions register (`docs/conventions.md`)
 
@@ -316,8 +318,9 @@ within one ticket's scope and request user approval before expanding it. Mark th
 
 ### Skills and repo overrides
 
-The steps above name the skill that performs each one. If a skill is not
-available in the current tool, follow the step by hand. Where a skill's own
+The steps above name the skill that performs each one; most are Matt Pocock's
+skills (MIT, see `THIRD_PARTY_NOTICES.md`). If a skill is not available in the
+current tool, follow the step by hand. Where a skill's own
 instructions conflict with this repo, this repo wins:
 
 - **No commits.** `implement` ends by committing; skip that step and leave the
@@ -333,7 +336,8 @@ instructions conflict with this repo, this repo wins:
   starting, modify only files in its `Touches`, and mark it **Done** only as
   described under Issue status.
 - **Build a ticket in small steps** (adapted from Addy Osmani's
-  `incremental-implementation`, MIT). Inside one ticket:
+  `incremental-implementation`, MIT; see `THIRD_PARTY_NOTICES.md`). Inside one
+  ticket:
   - Write the smallest working step first and run its tests before writing
     more. If a step would leave more than about 100 lines untested, split the
     step, or propose splitting the ticket.

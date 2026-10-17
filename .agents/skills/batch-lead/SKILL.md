@@ -88,6 +88,11 @@ before the worker implements it.
 Inspect the actual files against the starting state and approved ticket.
 Read complete untracked and ignored files; an ordinary Git diff omits them.
 
+Once the handback's verification passes, spawn the active-code-simplifier on
+that ticket's Python files with the handback's starting commit, and wait for
+it. Run the reviews below on the simplified files. Only the first build and
+revisions over about 50 lines get the simplifier.
+
 Perform the repository's standards/spec review and then run the
 active-code-reviewer. If a diff-oriented review workflow cannot cover new
 untracked files, explicitly review their full contents against standards and

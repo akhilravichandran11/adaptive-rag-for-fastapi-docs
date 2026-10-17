@@ -324,7 +324,9 @@ current tool, follow the step by hand. Where a skill's own
 instructions conflict with this repo, this repo wins:
 
 - **No commits.** `implement` ends by committing; skip that step and leave the
-  changes uncommitted. The user commits them with `commit-planning`.
+  changes uncommitted. End the report with the `git add <paths>` line (only the
+  files this ticket changed) and a Conventional Commit message; the user runs
+  both. For several logical commits, use `commit-planning` instead.
 - **Both reviews run.** `implement` runs `code-review`; the
   `active-code-reviewer` agent required by `AGENTS.md` still runs after it.
 - **`code-review` sees the working tree.** It diffs `<fixed point>...HEAD`,

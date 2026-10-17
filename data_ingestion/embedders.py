@@ -84,6 +84,7 @@ class EmbedderSpec:
     exact_tokens: bool
     api_model: str | None = None  # the provider's name for ``model``, where it differs
     tokenizer: TokenizerSource | None = None  # local tokenizer for an API-run model
+    query_prefix: str = ""  # sent before every query, never before a document
 
 
 EMBEDDERS: dict[str, EmbedderSpec] = {
@@ -105,6 +106,8 @@ EMBEDDERS: dict[str, EmbedderSpec] = {
             revision="dc76b2c078fc38f0d243233d0ab0b51de925557e",
             sha256="d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
         ),
+        # BGE's model card asks for this before queries (huggingface.co/BAAI/bge-large-en-v1.5).
+        query_prefix="Represent this sentence for searching relevant passages: ",
     ),
     "voyage": EmbedderSpec(
         name="voyage",
@@ -183,7 +186,11 @@ def build_text_embedder(name: str):
     if spec.backend == "openrouter":
         from data_ingestion.openrouter_embeddings import OpenRouterTextEmbedder
 
-        return OpenRouterTextEmbedder(model=spec.api_model or spec.model, dimension=spec.dimension)
+        return OpenRouterTextEmbedder(
+            model=spec.api_model or spec.model,
+            dimension=spec.dimension,
+            prefix=spec.query_prefix,
+        )
 
     if spec.backend == "voyage":
         from haystack_integrations.components.embedders.voyage_embedders import VoyageTextEmbedder

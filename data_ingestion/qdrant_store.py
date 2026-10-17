@@ -27,6 +27,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # more means a better graph and slower indexing).
 HNSW_TUNING = {"m": 16, "ef_construct": 200}
 
+# Seconds a Qdrant request may take when QDRANT_TIMEOUT is unset. Without one the
+# client falls back to httpx's 5 s, which timed out 2048-dim upserts (~2.6 MB each).
+DEFAULT_QDRANT_TIMEOUT = 60
+
 
 @dataclass
 class QdrantSettings:
@@ -39,6 +43,7 @@ class QdrantSettings:
     url: str
     collection: str
     embedding_dim: int
+    timeout: int = DEFAULT_QDRANT_TIMEOUT  # seconds, for every Qdrant request
 
 
 def load_settings(
@@ -48,9 +53,10 @@ def load_settings(
     """Read config from ``PROJECT_ROOT/.env`` and fail loudly if anything is wrong.
 
     The overrides replace ``QDRANT_COLLECTION`` and ``EMBEDDING_DIMENSION``; with
-    both given, neither variable is required. Raises ``ValueError`` naming every
-    missing variable, or naming ``EMBEDDING_DIMENSION`` and its value when it is
-    not a positive integer.
+    both given, neither variable is required. ``QDRANT_TIMEOUT`` is optional: unset
+    or empty means ``DEFAULT_QDRANT_TIMEOUT`` seconds. Raises ``ValueError`` naming
+    every missing variable, or naming ``EMBEDDING_DIMENSION`` or ``QDRANT_TIMEOUT``
+    and its value when it is not a positive integer.
     """
     load_dotenv(PROJECT_ROOT / ".env")
 
@@ -83,7 +89,19 @@ def load_settings(
     if embedding_dim <= 0:
         raise ValueError(f"EMBEDDING_DIMENSION must be a positive integer; got {raw_dim!r}")
 
-    return QdrantSettings(url=url, collection=collection, embedding_dim=embedding_dim)
+    raw_timeout = os.getenv("QDRANT_TIMEOUT") or str(DEFAULT_QDRANT_TIMEOUT)
+    try:
+        timeout = int(raw_timeout)
+    except ValueError:
+        raise ValueError(
+            f"QDRANT_TIMEOUT must be a positive integer; got {raw_timeout!r}"
+        ) from None
+    if timeout <= 0:
+        raise ValueError(f"QDRANT_TIMEOUT must be a positive integer; got {raw_timeout!r}")
+
+    return QdrantSettings(
+        url=url, collection=collection, embedding_dim=embedding_dim, timeout=timeout
+    )
 
 
 def collection_exists(settings: QdrantSettings) -> bool:
@@ -93,7 +111,9 @@ def collection_exists(settings: QdrantSettings) -> bool:
     missing collection as soon as it first connects, so this check uses its own client.
     """
     client = QdrantClient(
-        url=settings.url, api_key=Secret.from_env_var("QDRANT_API_KEY").resolve_value()
+        url=settings.url,
+        api_key=Secret.from_env_var("QDRANT_API_KEY").resolve_value(),
+        timeout=settings.timeout,
     )
     try:
         return client.collection_exists(settings.collection)
@@ -127,6 +147,7 @@ def build_document_store(
         recreate_index=recreate,
         return_embedding=return_embedding,
         wait_result_from_api=True,  # confirm writes before returning
+        timeout=settings.timeout,
         hnsw_config=HNSW_TUNING,
         payload_fields_to_index=payload_fields_to_index,
     )

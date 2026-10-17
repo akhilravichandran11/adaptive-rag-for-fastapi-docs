@@ -19,8 +19,10 @@ Raw is left untouched (immutable provenance); this is a derived stage.
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import sys
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -102,12 +104,15 @@ def render_block(
     return f"{fence}{label}\n{body}\n{fence}"
 
 
-def normalize_text(text: str, includes: list[dict]) -> str:
+def normalize_text(text: str, includes: list[dict], raw_code: Path | None = None) -> str:
     """Expand includes, reusing author fences whose sole content is an include.
 
     Recognize backtick or tilde fences of at least three characters, indented
     by up to three spaces. This is not a full Markdown container parser.
     """
+
+    if raw_code is None:
+        raw_code = RAW_CODE
 
     def replace(
         reference: str,
@@ -116,7 +121,7 @@ def normalize_text(text: str, includes: list[dict]) -> str:
         fence: str = "```",
     ) -> str:
         path = repo_path(reference)
-        code_file = RAW_CODE / path
+        code_file = raw_code / path
         record = {"repo_path": path, "options": options.strip(), "resolved": False}
         includes.append(record)
         if not code_file.is_file():
@@ -164,7 +169,14 @@ def normalize_text(text: str, includes: list[dict]) -> str:
     return "".join(parts)
 
 
-def write_manifest(source: dict, files: list[dict], breakdown: dict[str, dict[str, int]]) -> None:
+def write_manifest(
+    source: dict,
+    files: list[dict],
+    breakdown: dict[str, dict[str, int]],
+    output_manifest: Path | None = None,
+) -> None:
+    if output_manifest is None:
+        output_manifest = NORM_MANIFEST
     total_files = sum(bucket["files"] for bucket in breakdown.values())
     total_bytes = sum(bucket["bytes"] for bucket in breakdown.values())
     total_includes = sum(len(record["includes"]) for record in files)
@@ -197,24 +209,52 @@ def write_manifest(source: dict, files: list[dict], breakdown: dict[str, dict[st
         },
         "files": files,
     }
-    NORM_MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    output_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
-def main() -> None:
-    NORM_DOCS.mkdir(parents=True, exist_ok=True)
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--raw-dir", type=Path, help="Raw candidate with docs, code and manifests")
+    parser.add_argument("--output-dir", type=Path, help="Fresh normalized candidate directory")
+    args = parser.parse_args([] if argv is None else argv)
+    if (args.raw_dir is None) != (args.output_dir is None):
+        parser.error("--raw-dir and --output-dir must be supplied together")
 
-    docs_manifest = json.loads(DOCS_MANIFEST.read_text(encoding="utf-8"))
+    raw_docs, raw_code = RAW_DOCS, RAW_CODE
+    docs_manifest_path = DOCS_MANIFEST
+    output_docs, output_manifest = NORM_DOCS, NORM_MANIFEST
+    if args.raw_dir is not None:
+        raw_dir = args.raw_dir.resolve()
+        output_dir = args.output_dir.resolve()
+        if args.output_dir.exists() or args.output_dir.is_symlink():
+            parser.error("--output-dir must not exist")
+        if output_dir.is_relative_to(raw_dir) or raw_dir.is_relative_to(output_dir):
+            parser.error("--output-dir must not overlap --raw-dir")
+        for active_tree in (DATA_ROOT / "raw", DATA_ROOT / "normalized"):
+            if output_dir.is_relative_to(active_tree.resolve()):
+                parser.error("--output-dir must be outside the active raw and normalized trees")
+        for name in ("manifest.json", "code_manifest.json"):
+            if not (raw_dir / name).is_file():
+                parser.error(f"--raw-dir is missing {name}")
+        raw_docs, raw_code = raw_dir / "docs", raw_dir / "code"
+        docs_manifest_path = raw_dir / "manifest.json"
+        output_docs, output_manifest = output_dir / "docs", output_dir / "manifest.json"
+        output_dir.mkdir(parents=True)
+
+    output_docs.mkdir(parents=True, exist_ok=True)
+
+    docs_manifest = json.loads(docs_manifest_path.read_text(encoding="utf-8"))
     source = docs_manifest["source"]
 
     files: list[dict] = []
     breakdown: dict[str, dict[str, int]] = defaultdict(lambda: {"files": 0, "bytes": 0})
 
     for record in sorted(docs_manifest["files"], key=lambda r: r["output_filename"]):
-        raw_text = (RAW_DOCS / record["output_filename"]).read_text(encoding="utf-8")
+        raw_text = (raw_docs / record["output_filename"]).read_text(encoding="utf-8")
         includes: list[dict] = []
-        normalized = normalize_text(raw_text, includes)
+        normalized = normalize_text(raw_text, includes, raw_code)
 
-        (NORM_DOCS / record["output_filename"]).write_text(normalized, encoding="utf-8")
+        (output_docs / record["output_filename"]).write_text(normalized, encoding="utf-8")
 
         byte_size = len(normalized.encode("utf-8"))
         bucket = record["bucket"]
@@ -231,16 +271,16 @@ def main() -> None:
             }
         )
 
-    write_manifest(source, files, dict(breakdown))
+    write_manifest(source, files, dict(breakdown), output_manifest)
 
     total_files = len(files)
     total_kb = sum(r["bytes"] for r in files) / 1024
     inlined = sum(1 for r in files for i in r["includes"] if i["resolved"])
     unresolved = sum(1 for r in files for i in r["includes"] if not i["resolved"])
-    print(f"normalized {total_files} docs ({total_kb:.1f} KB) -> {NORM_DOCS}")
+    print(f"normalized {total_files} docs ({total_kb:.1f} KB) -> {output_docs}")
     print(f"inlined includes: {inlined}, unresolved: {unresolved}")
-    print(f"manifest written: {NORM_MANIFEST}")
+    print(f"manifest written: {output_manifest}")
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

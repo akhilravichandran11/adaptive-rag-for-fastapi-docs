@@ -41,6 +41,10 @@ step.
 
 - Read the handback report in full. Confirm `Status`, the `Files` list, and
   that `Verification` shows actual counts.
+- Once the handback's verification passes, spawn `active-code-simplifier` on
+  that ticket's Python files with the handback's `Start` sha, and wait for it.
+  Then run the reviews below on the simplified files. Only the first build and
+  rounds over about 50 lines get the simplifier; a small fix round does not.
 - Run `code-review` (standards and the ticket's spec) and then the
   `active-code-reviewer` agent on that ticket's files. Fix nothing yourself
   for a bug: resume the implementer by name with the findings. A resumed

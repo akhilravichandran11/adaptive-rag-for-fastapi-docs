@@ -25,8 +25,9 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   add no new instances of the constructs in its "While a question is open" list,
   and never act on an open question yourself; make the case for it in your final
   report instead. Make the minimal change the task needs: don't add helpers,
-  classes, or abstractions for one-time operations, and don't design for
-  hypothetical future requirements.
+  classes, or abstractions for one-time operations (splitting a long function
+  into named steps is not one), and don't design for hypothetical future
+  requirements.
 - **New conventions need a ruling:** if your change introduces a pattern this
   codebase does not already use — a new abstraction (protocol, registry, base
   class), a new dispatch or error-handling style, a new test structure, or a rule
@@ -40,6 +41,15 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   running them — ticket acceptance criteria still require `uv run pytest` to
   pass — but do not propose adding them to git, do not treat their absence from
   `git status` as a problem to fix, and do not edit `.gitignore` to include them.
+- **Simplify before review:** once a coding task's tests pass, and before the
+  reviews below, spawn the `active-code-simplifier` custom agent on the Python
+  files the task changed, naming the starting commit. It applies basic
+  readability rules only and never adds or removes a construct the user rules
+  on. Skip it when no Python changed. It is defined once per tool with the same
+  instructions: [`.claude/agents/active-code-simplifier.md`](.claude/agents/active-code-simplifier.md)
+  for Claude Code and
+  [`.codex/agents/active-code-simplifier.toml`](.codex/agents/active-code-simplifier.toml)
+  for Codex. Change both together.
 - **Code review before finishing:** once a change or diff looks complete and
   before treating a coding task as done, spawn the `active-code-reviewer`
   custom agent to review it for real bugs. Skip this for style-only
@@ -47,7 +57,8 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   instructions: [`.claude/agents/active-code-reviewer.md`](.claude/agents/active-code-reviewer.md)
   for Claude Code and
   [`.codex/agents/active-code-reviewer.toml`](.codex/agents/active-code-reviewer.toml)
-  for Codex. Change both together.
+  for Codex. They share a purpose but are maintained separately, because the
+  two tools' agent features differ.
 - **Local findings, plans, and tickets:** before recording or triaging findings,
   refining plans, or executing ticket work, read
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).

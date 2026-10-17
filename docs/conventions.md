@@ -26,6 +26,8 @@ set yet.
 - `proposed`: in the code, awaiting a ruling.
 - `accepted`: the shape later code should follow.
 - `rejected`: to be undone; the entry records what has to change.
+- `superseded by S00N`: an S-rule in `docs/simplification-conventions.md`
+  replaced it; follow the S-rule.
 
 ## Register
 
@@ -40,6 +42,7 @@ set yet.
 | [C007](#c007-a-stage-imports-modules-never-another-stage) | A stage imports modules, never another stage | PRT-01 | accepted |
 | [C008](#c008-a-multi-name-lookup-reports-every-unknown-name-at-once) | A multi-name lookup reports every unknown name at once | PRT-02 | accepted |
 | [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | accepted |
+| [C010](#c010-a-stage-refuses-an-existing-run-folder-and-creates-it-exclusively-before-its-first-write) | A stage refuses an existing run folder and creates it exclusively before its first write | PRT-09 | proposed |
 
 ---
 
@@ -353,3 +356,43 @@ points never checked for repeatability.
 **Alternatives.** One stage with nothing saved; IDX-13's per-document cache
 (deferred by the user on 2026-10-05); pickle (unsafe and unreadable); Parquet
 (a new dependency).
+
+---
+
+## C010: A stage refuses an existing run folder and creates it exclusively before its first write
+
+**Status:** proposed · **Introduced:** 2026-10-16, PRT-09 · **Where:** `data_ingestion/stage2_chunk_corpus.py`, `data_ingestion/stage3_index_chunks.py` (`main`)
+
+**The convention, stated.** A stage that writes into
+`data_ingestion/outputs/<run_id>/` exits 1, naming the folder, when that folder
+already exists, before it reads any input. Once every input check has passed, it
+creates the folder with `mkdir(parents=True)` (no `exist_ok`) right before its
+first write, and exits 1 on `FileExistsError`. A run folder then holds one run's
+files only.
+
+**Why.** Two runs sharing a folder corrupt each other without a word (F001):
+stage 3's `run_meta.json` replaced a chunk run's, two stage-3 passes overwrote one
+`index_report.json`, and a stage-2 re-run left a stale `run_meta.json` beside new
+chunk files. The early check fails before any paid work. The exclusive create
+closes the window between the check and the first write, which for a stage-2
+`semantic` run is the whole paid pass. On macOS's case-insensitive disk both also
+catch run ids that differ only in case.
+
+**What it replaces.** Writing into the folder through `mkdir(exist_ok=True)`
+(`chunk_snapshot.write_chunks`, stage 3's `write_json`), and stage 3's narrower
+refusal of a run id equal to `--chunks-run`, which stays for its clearer message.
+
+**Cost.** A run that fails after creating its folder uses up its run id, even when
+the folder is empty; the retry needs a new one. The check and the create are
+copied in both stages, because C007 bars one importing the other and
+`pipeline.py` was outside PRT-09's Touches.
+
+**Blast radius.** Both stages' `main` and their tests (the run-folder, case-only
+and race tests); step 6 would copy it if it writes run folders. Rejecting it
+means removing both guards from both stages and those tests.
+
+**Alternatives.** The existence check alone (leaves the race window); creating the
+folder at the check (an input error after it leaves an empty folder that blocks the
+id and looks like a killed run); clearing an existing folder first (destroys an
+earlier run's output); a shared `pipeline.new_run_dir(run_id)` helper (the better
+home once `pipeline.py` may change, e.g. in SMP-06/07).

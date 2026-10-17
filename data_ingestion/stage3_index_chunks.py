@@ -13,8 +13,9 @@ chunked here, so both embedders index the same chunks, in any order and across r
 
 Each collection is named ``<prefix>__<strategy>__<embedder>`` (``variants.py``). One
 that already exists is rebuilt only with ``--recreate``; without it the run stops
-before anything is written. A run writes into ``data_ingestion/outputs/<run_id>/``
-(see ``pipeline.py``):
+before anything is written. A run writes into a new folder,
+``data_ingestion/outputs/<run_id>/`` (see ``pipeline.py``); a run id whose folder
+exists, from either stage, is refused:
 
     index_report.json   one entry per collection: its embedder, the chunk run and its
                         limit, the points written, the truncation, the tokens sent and
@@ -33,9 +34,10 @@ Both embedders are PAID APIs: ``bge`` calls OpenRouter (``OPENROUTER_API_KEY``) 
 
 Needs BGE's tokenizer in the project model cache (``scripts/download_models.py``): the
 BGE embedder cuts every text to 512 tokens with it, and the report counts tokens with
-it. Exits 2 for a bad command line (an unknown strategy or embedder name included), and
-1 when the run cannot start, an input is missing or malformed, a collection exists
-without ``--recreate``, or a collection ends partial.
+it. Exits 2 for a bad command line (an unknown strategy or embedder name, or a bad
+collection prefix, included), and 1 when the run cannot start (its run folder exists),
+an input is missing or malformed, a collection exists without ``--recreate``, or a
+collection ends partial.
 """
 
 from __future__ import annotations
@@ -79,7 +81,12 @@ from data_ingestion.qdrant_store import (  # noqa: E402
     collection_exists,
     load_settings,
 )
-from data_ingestion.variants import DEFAULT_PREFIX, Variant, select_variants  # noqa: E402
+from data_ingestion.variants import (  # noqa: E402
+    DEFAULT_PREFIX,
+    Variant,
+    check_prefix,
+    select_variants,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +230,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--collection-prefix",
         default=DEFAULT_PREFIX,
         help="Collections are named <prefix>__<strategy>__<embedder> (default: %(default)s); "
-        "another prefix gives throwaway collections, e.g. ix_verify_20261008",
+        "another prefix gives throwaway collections, e.g. ix_verify_20261008. Letters, "
+        "digits, _ and -, with no __ and no _ at the end",
     )
     parser.add_argument(
         "--recreate",
@@ -238,6 +246,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     try:
         select_variants(args.strategy, args.embedder)  # names every unknown name at once (C008)
+        check_prefix(args.collection_prefix)
     except ValueError as exc:
         parser.error(str(exc))
     for flag, run_id in (("--chunks-run", args.chunks_run), ("--run-id", args.run_id)):
@@ -272,9 +281,9 @@ def main(argv: list[str] | None = None) -> Path:
         raise SystemExit(1)
 
     run_id = resolve_run_id(args.run_id)
-    # In the chunk run's own folder, this run's run_meta.json would replace stage 2's,
-    # the fingerprint and chunk counts read below (F001). Checked here rather than in
-    # parse_args so that a RUN_ID from the environment is caught too.
+    # In the chunk run's own folder, this run's run_meta.json would replace stage 2's
+    # (F001). The folder check below refuses it too; this one comes first for its clearer
+    # message, and here rather than in parse_args so that RUN_ID is caught too.
     if run_id == args.chunks_run:
         logger.error(
             "Run id %s is the chunk run's own id; pick another --run-id (or RUN_ID) so "
@@ -287,6 +296,12 @@ def main(argv: list[str] | None = None) -> Path:
     except ValueError as exc:  # only RUN_ID can fail here; parse_args checked --run-id
         logger.error("RUN_ID: %s", exc)
         raise SystemExit(1) from None
+    # An earlier run's files, from either stage, would be mixed with or replaced by this
+    # run's (F001). On a case-insensitive disk (macOS) this also finds a folder whose
+    # name differs only in case.
+    if run_dir.exists():
+        logger.error("Run folder %s already exists; pick a new --run-id (or RUN_ID)", run_dir)
+        raise SystemExit(1)
 
     chunks_run_dir = resolve_run_dir(args.chunks_run)  # parse_args checked it
     try:
@@ -296,8 +311,8 @@ def main(argv: list[str] | None = None) -> Path:
         logger.error("Chunk run %s: %s", args.chunks_run, exc)
         raise SystemExit(1) from None
 
-    # The strategies run_meta.json lists, not the files in chunks/: a run id that was
-    # reused can leave a chunk file this chunk run did not make (F001).
+    # The strategies run_meta.json lists, not the files in chunks/: a chunk run made
+    # before stage 2 refused a reused run id can hold a chunk file it did not make (F001).
     chunk_run_strategies = chunk_meta["strategies"]
     # A chunk run that lists a strategy this code does not know (one made before a
     # rename) was made by another code version, so it is refused whatever --strategy
@@ -336,7 +351,8 @@ def main(argv: list[str] | None = None) -> Path:
         logger.error("Chunk run %s: %s", args.chunks_run, exc)
         raise SystemExit(1) from None
     # A chunk file whose length run_meta.json does not record was not finished by the
-    # run that wrote run_meta.json, e.g. a re-run into the same run id that failed (F001).
+    # run that wrote run_meta.json: a failed re-run into the same run id, which stage 2
+    # allowed before it refused a reused run id (F001).
     for name, chunks in chunks_by_strategy.items():
         if len(chunks) != chunk_run_strategies[name]["chunk_count"]:
             logger.error(
@@ -401,6 +417,13 @@ def main(argv: list[str] | None = None) -> Path:
         ]
     except ValueError as exc:  # load_settings: the Qdrant settings are incomplete
         logger.error("%s", exc)
+        raise SystemExit(1) from None
+    # Created only now, before the first write, so that of two runs that both passed
+    # the folder check above, one writes and the other stops (F001).
+    try:
+        run_dir.mkdir(parents=True)
+    except FileExistsError:
+        logger.error("Run folder %s was created by another run since this one started", run_dir)
         raise SystemExit(1) from None
 
     report: list[dict[str, Any]] = []

@@ -1,13 +1,10 @@
 # Roadmap
 
-**Adaptive RAG for the FastAPI documentation** — a corrective/adaptive RAG (CRAG)
-application built over the FastAPI docs. This roadmap tracks the project as a
-sequence of pipeline capabilities, from raw source collection through retrieval
-and evaluation.
+Adaptive RAG for the FastAPI documentation is a corrective/adaptive RAG (CRAG)
+application. This roadmap tracks it as a sequence of pipeline capabilities, from
+raw source collection through retrieval and evaluation.
 
-Status legend: **Done** · **In progress** · **Planned**
-
----
+Statuses: Done, In progress, Deferred, Planned.
 
 ## Overview
 
@@ -22,9 +19,7 @@ collect  →  normalize  →  curate  →  chunk  →  index  →  retrieve  →
 Raw and generated artifacts (`data/`, `outputs/`) are kept out of version control;
 the code that produces them is the deliverable.
 
----
-
-## 1. Source collection — **Done**
+## 1. Source collection: Done
 
 Reproducible, provenance-tracked collection of the FastAPI documentation.
 
@@ -35,74 +30,94 @@ Reproducible, provenance-tracked collection of the FastAPI documentation.
   every referenced source file at the pinned commit, and fetches them with
   back-links recorded in a `code_manifest.json`.
 - Deterministic file identities so re-collection is idempotent.
+- A collector that reads a local pinned checkout (no network, bytes verified
+  against Git blobs) is the default for future collection. The active corpus
+  still comes from the collectors above; replacing it requires separate approval.
 
-## 2. Normalization — **Done**
+## 2. Normalization: Done
 
 - Inliner that resolves the docs' code-include directives, honoring line-range
   slices, and emits self-contained normalized documents with source provenance
   comments preserved.
 
-## 3. Curation — **In progress**
+## 3. Curation: Deferred
 
 An LLM-assisted quality pass over the normalized corpus, structured as
 independently runnable stages that share a per-run output directory.
 
-- **Stage 1 — Content quality analysis — Done.** Scores every document across
-  quality dimensions using structured (schema-validated) model outputs, with
-  bounded concurrency, fail-fast setup validation, per-run metadata, and a
+> Deferred: the first metadata and quality pass was a learning exercise; a
+> revised approach will follow once retrieval and evaluation are in place.
+
+All four stages are built and run in order from one orchestrator:
+
+- Stage 1, content quality analysis: scores every document across quality
+  dimensions using structured (schema-validated) model outputs, with bounded
+  concurrency, fail-fast setup validation, per-run metadata, and a
   quality-tiered report. Includes prompt-injection quarantine so untrusted
   content is treated as data and flagged out of the curated set.
-- **Stage 2 — Knowledge-domain extraction — In progress.** Migrate to the
-  shared per-run artifact contract and structured outputs; resolve its input to
-  the latest upstream artifact rather than a fixed name.
-- **Stage 3 — Learning taxonomy — Planned.** Same contract and structured-output
-  treatment.
-- **Stage 5 — Synthetic dataset generation — Planned.** Generate evaluation
-  question/answer pairs from curated content.
+- Stage 2, knowledge-domain extraction: selects qualifying documents, extracts
+  concepts and their relationships, and builds an initial taxonomy.
+- Stage 3, final taxonomy and synthesis plan: produces the learning taxonomy
+  and a plan for candidate documents, selecting sources by run-local ID, then
+  derives an implementation roadmap from them.
+- Stage 4, candidate document generation: writes the planned documents,
+  grounded in the sources each plan entry declares.
+- A validated offline source inventory, the first piece of the revised
+  approach, is built (`data_curation/pipeline_v2/`).
 
-## 4. Pipeline orchestration — **In progress**
+## 4. Pipeline orchestration: Done
 
 - Shared run-directory contract: one run id per invocation, each stage reading
-  and writing fixed artifact names under `outputs/<run_id>/` — **Done.**
+  and writing fixed artifact names under `outputs/<run_id>/`.
 - Orchestrator with fail-fast execution, single-stage (`--only`) and resume
-  (`--resume`) modes, and a document limit passthrough for cheap dry runs —
-  **Done** (currently drives Stage 1).
-- Wire Stages 2, 3, and 5 into the orchestrator once they adopt the run-directory
-  contract; raise loudly on missing input instead of degrading silently —
-  **Planned.**
+  (`--resume`) modes, and a document limit for cheap stage 1 dry runs. It runs
+  stages 1 to 4.
 
-## 5. Chunking — **Planned**
+## 5. Chunking: Done
 
-- Chunk the normalized/curated documents for retrieval, preserving source and
-  section metadata and keeping full-file links for reference.
+- Seven strategies compared on the same corpus: three fixed-size word sweeps
+  (`naive_small`, `naive_medium`, `naive_large`), `sentence`, `recursive`,
+  `semantic` (embedding-based, paid), and `markdown_ast` (heading-aware
+  Markdown with Python AST splitting for code).
+- Every chunk carries the same metadata fields whatever strategy produced it,
+  including its source path and position in the parent document.
+- Chunk runs are saved with the corpus build they came from, so indexing can
+  refuse a chunk run made from a different corpus.
+- A chunk-size report checks every strategy's chunks against shared shape rules
+  (sizes are checked and reported, not enforced).
 
-## 6. Indexing (Qdrant) — **In progress**
+## 6. Indexing (Qdrant): In progress
 
-- Qdrant collection setup and configuration — **Done.**
-- Index curated/chunked documents into a single collection, with `source` and
-  routing information in the payload and deterministic point IDs for idempotent
-  upserts — **Planned.**
+- Qdrant collection setup and configuration (done).
+- Embedders (done): Voyage AI and BGE-large via OpenRouter, with a pinned local
+  BGE tokenizer to measure truncation.
+- Index saved chunk runs into one collection per strategy × embedder pair, with
+  payload indexes and fixed point IDs, after checking the corpus build and chunk
+  counts (done).
+- Live end-to-end runs across all 14 pairs completed on 2026-10-15, including
+  the successful retry of Voyage's `markdown_ast` collection.
+- Choosing the pairs that go forward to retrieval (in progress).
 
-## 7. Retrieval & adaptive RAG — **Planned**
+## 7. Retrieval and adaptive RAG: Planned
 
 - Retrieval over the indexed corpus.
 - Corrective/adaptive RAG control flow (relevance grading, query rewriting,
   fallback strategies).
 
-## 8. Evaluation — **Planned**
+## 8. Evaluation: Planned
 
-- Use the synthetic Q/A pairs as a retrieval/answer evaluation set.
+- Build a question and answer set over the corpus to evaluate retrieval and
+  answers.
 - Track quality metrics across pipeline changes.
-
----
 
 ## Engineering practices
 
-- **Structured LLM outputs** (Pydantic schemas) instead of free-text parsing.
-- **Bounded concurrency** for API-bound stages.
-- **Prompt-injection defense**: document content is delimited and treated as
-  untrusted data; suspicious content is quarantined from curated output.
-- **Provenance**: pinned upstream commit, per-source manifests, per-run metadata.
-- **Agent-assisted workflow**: implementation work is tracked as tracer-bullet
-  tickets with explicit dependencies (see
-  [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)).
+- LLM outputs are parsed into Pydantic schemas, not free text.
+- API-bound stages run with bounded concurrency.
+- Document content is delimited and treated as untrusted data, and suspicious
+  content is quarantined from curated output, to defend against prompt
+  injection.
+- Provenance is recorded through the pinned upstream commit, per-source
+  manifests, and per-run metadata.
+- Implementation work is tracked as tracer-bullet tickets with explicit
+  dependencies (see [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)).

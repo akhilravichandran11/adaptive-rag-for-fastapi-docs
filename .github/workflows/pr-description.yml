@@ -4,9 +4,8 @@ name: Auto-fill or suggest PR description
 # Fills the title/body when the description is empty; otherwise publishes
 # suggestions in one PR comment and the Actions summary without replacing
 # the existing title/body. Reuses the criteria in
-# .agents/skills/pr-description/SKILL.md so the generated title/body follow
-# the same Conventional Commits + Summary/Changes/Testing structure as an
-# interactive draft from an agent.
+# .agents/skills/pr-writeup/SKILL.md for the Conventional Commits title; the
+# script overrides the body with a CI-only Summary/Changes/Testing structure.
 #
 # Also runs on "edited"/"reopened" (e.g. GitHub auto-populated the body from
 # a commit message at open-time, then someone cleared it) and can be run

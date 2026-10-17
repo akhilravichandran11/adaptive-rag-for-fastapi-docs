@@ -14,7 +14,7 @@ You start with no memory of the conversation that spawned you. The spawn prompt 
 
 1. **Pre-flight.** Read the ticket file in full, then the files it names under `Touches` or in its text. Record the starting commit with `git rev-parse HEAD` and note any uncommitted changes in your files from `git status --short`. Write down the file list you own: the ticket's `Touches`, plus test files under `tests/` for them. Read `CLAUDE.md` and `docs/conventions.md` for the rules that bind the change.
 2. **Scope check.** If the ticket is Blocked, or a file you need is also named by another in-progress ticket (the board rule in `docs/agents/issue-tracker.md`), do not edit. Report the conflict and stop.
-3. **Work.** Implement the acceptance criteria, in the ticket's build order when it gives one. Match the surrounding code's style and structure. Write or update tests under `tests/` for the behaviour you change.
+3. **Work.** Implement the acceptance criteria, in the ticket's build order when it gives one. Match the surrounding code's naming and style; code shape follows AGENTS.md. Write or update tests under `tests/` for the behaviour you change.
 4. **Verify.** Run what the ticket's `Verification` section lists. At minimum: `uv run ruff check` on the files you changed, and `uv run pytest tests` offline. Tests must never reach a paid API (convention C006).
 5. **Hand back.** End your turn with the report below. Nothing else goes after it.
 

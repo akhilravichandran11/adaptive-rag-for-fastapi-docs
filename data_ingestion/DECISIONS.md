@@ -6,6 +6,138 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-10-09 — The corpus is chunked once and indexed 14 times
+
+**Decision.** Indexing is two stages with saved chunks between them.
+`data_ingestion/stage2_chunk_corpus.py` splits the corpus with each of the seven
+chunking strategies and saves every chunk, text and metadata, in its run folder.
+`data_ingestion/stage3_index_chunks.py` reads one saved chunk run and embeds it into
+one Qdrant collection per strategy and embedder, named
+`fastapi_docs__<strategy>__<embedder>`: seven strategies and two embedders (Voyage
+`voyage-4-lite` and BGE-large) make 14 collections. Each indexing run rebuilds the
+collections it writes, but stops before writing anything if one already exists and
+`--recreate` was not given. Every collection is created with four payload indexes:
+`bucket`, `source_path` and `knowledge_domain` as keywords, and `quality_score` as a
+float.
+
+The first full run, on 2026-10-15, chunked all 124 documents of the normalized
+`github-docs/v1` corpus, dropped none, and filled all 14 collections. Each collection
+holds exactly its strategy's chunk count:
+
+| Strategy | Chunks, and points in each of its two collections |
+|---|---|
+| `naive_small` | 842 |
+| `naive_medium` | 443 |
+| `naive_large` | 250 |
+| `sentence` | 621 |
+| `recursive` | 602 |
+| `markdown_ast` | 1,137 |
+| `semantic` | 583 |
+
+That is 4,478 chunks and 8,956 points. BGE on OpenRouter cost about $0.024, including
+`semantic`'s cut points; Voyage cost about $0.040 at list price, inside its free
+allowance.
+
+**Why 14 collections.** The study compares chunking strategies, and each strategy is
+read by both embedders so that "this strategy is better" can be told apart from "this
+strategy suits this embedder" (see the 2026-09-20 entry). One collection per pair
+makes each comparison a change of collection name and nothing else: the same corpus
+build, the same chunks, the same settings. Haystack's Qdrant store also takes one
+vector size per collection, and the two embedders' vectors differ (2048 and 1024
+dimensions).
+
+**Why chunking and indexing are separate stages.** The two `semantic` collections
+compare the embedders fairly only if they hold the same chunks, and `semantic` is not
+known to give the same chunks twice: its cut points come from BGE through a paid API,
+whether two runs agree has never been checked, and earlier runs, made before the
+current corpus build, gave 584 and 587 chunks. Chunking once and saving the result
+lets both embedders read the same file, in any order and across any number of runs.
+After the full run, all 583 `semantic` chunks held the same text in both collections,
+matched by source file and chunk number. Saved chunks can also be opened and compared
+without querying Qdrant, and a failed indexing run is repeated from the same chunks
+without paying for `semantic` again (about 20 minutes and $0.008 a run). Stage 3
+refuses a chunk run made from a different build of the corpus: it compares the sha256
+of the corpus manifest recorded at chunking time with today's, so saved chunks cannot
+describe older files. Each stage is a thin script with one job; shared logic lives in
+modules the stages import, and no stage imports another.
+
+**Why each run rebuilds its collections.** Every point gets a fixed id, a UUID made
+from its strategy, embedder, source file and chunk number, so re-running from the
+same chunks writes the same points. Rebuilding means a re-run after a chunker change
+cannot leave the old version of a changed chunk behind, still retrievable.
+`--recreate` is the guard that stops a collection being wiped by accident. Because the
+embedder is part of the id, a chunk's BGE and Voyage points have different ids; the
+two collections are matched by source file and chunk number instead.
+
+A rebuild empties a collection before refilling it, so whether a collection can be
+used is read from the run's `index_report.json`, never from the collection alone.
+Each collection's entry is written as `partial` before its first write, and becomes
+`complete` only when every batch was written and the collection's point count equals
+its chunk count, so a run killed part way leaves `partial` behind. The run's
+`run_meta.json` is written last, also when a collection fails or the run is stopped
+with Ctrl-C, so it shows that a run ended, not that it succeeded. The first full run
+needed this: a Qdrant write timed out and left Voyage's `markdown_ast` collection at
+704 of its 1,137 points, its entry said `partial`, and a rebuild with a longer client
+timeout completed it.
+
+**Why some metadata fields are indexed.** The Qdrant cluster runs in strict mode,
+which refuses a filter on a field that has no payload index. Haystack's
+`count_documents_by_filter` catches that refusal and returns 0, so a missing index
+looks the same as "no matches" and nothing fails. Four fields are indexed, each for a
+use (Haystack keeps metadata under `meta`, so the Qdrant fields are `meta.bucket` and
+so on):
+
+- `bucket` (keyword): filter retrieval by section of the docs, such as tutorial,
+  advanced or deployment.
+- `quality_score` (float): range filters on the curation step's quality score (0–10),
+  such as 7 or more. It only filters; it never keeps a document out of the index.
+- `source_path` (keyword): pull one document's chunks, and match retrieved chunks to
+  the source files an evaluation question expects.
+- `knowledge_domain` (keyword): nearly constant today (113 of 124 documents share one
+  value), but it lets a later router filter by domain without re-indexing.
+
+The offline tests use in-memory Qdrant, which has no strict mode, so only a live run
+proves the indexes. All four appear in the schema of each of the 14 collections, and
+in a test collection a filter on `meta.bucket` counted all 95 matching chunks instead
+of 0.
+
+**Alternatives considered.**
+
+- **One stage that chunks, embeds and writes in one pass,** the shape most tutorials
+  use. Less code, but the two `semantic` collections share chunks only when both
+  embedders index in the same run, and a failed run means chunking again.
+- **A per-document chunk cache inside the semantic chunker.** Shares chunks too, but
+  costs about 150 lines, a dozen tests and a new pattern for this codebase.
+- **Write into existing collections and sweep stale points after a complete run.**
+  Keeps each collection searchable while it is re-indexed, which a study with no live
+  users does not need, and it needed an index and guards of its own. It was the
+  earlier plan, chosen when Voyage looked expensive; at about $0.04 for all seven
+  strategies, a rebuild costs less than the code.
+- **Write into existing collections with ids made from chunk content.** A changed
+  chunk gets a new id, so its old version stays in the collection and is still
+  retrieved.
+- **Index only `bucket` and `quality_score`,** the first choice. `source_path` was
+  added for evaluation and `knowledge_domain` for routing; both were already in every
+  chunk's metadata.
+
+**Consequences.** Each chunk run takes about 10 MB in the git-ignored outputs folder.
+A failed or killed run leaves the collection it was writing `partial` until the next
+`--recreate` run, which costs cents. A new metadata field, such as a topic label,
+needs a new index and a rebuild from a chunk run that carries it. Vectors are dense
+only, compared by cosine, so hybrid search will mean new collections rather than
+converting these. Filters on the keyword fields should use `==`: Haystack's Qdrant
+integration (10.5.0) turns `!=` and `in` on a string with no spaces into a full-text
+match, which matches substrings and which strict mode may refuse.
+
+**Timeout follow-up.** The first full run inherited the client's 5-second
+timeout. Voyage's write batches (64 points of 2,048 numbers, about 2.6 MB a
+request) hit it twice, which is why `markdown_ast` was rebuilt with the timeout
+raised to 60 seconds at run time. `QDRANT_TIMEOUT` now sets a positive integer
+timeout in seconds for both the collection check and document store; unset or
+empty values use the 60-second default. The setting is documented in `.env.example`.
+
+---
+
 ## 2026-10-08 — Chunk sizes are checked and reported, not enforced
 
 **Decision.** Every chunking strategy's chunks are held to five shape rules: no chunk

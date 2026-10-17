@@ -91,14 +91,23 @@ Read complete untracked and ignored files; an ordinary Git diff omits them.
 Once the handback's verification passes, spawn the active-code-simplifier on
 that ticket's Python files with the handback's starting commit, and wait for
 it. Run the reviews below on the simplified files. Only the first build and
-revisions over about 50 lines get the simplifier.
+revisions over about 50 lines get the simplifier. Report its Split list (each
+new step and its one-line job) to the user verbatim; step names are a design
+call.
 
-Perform the repository's standards/spec review and then run the
-active-code-reviewer. If a diff-oriented review workflow cannot cover new
-untracked files, explicitly review their full contents against standards and
-the ticket and disclose that method.
+Perform the repository's standards/spec review (the code-review skill where
+available) with the handback's starting commit as the fixed point. Nothing is
+committed, so a <start>...HEAD diff is empty: review `git diff <start>`, and
+read new untracked files in full against the standards and the ticket,
+disclosing that method. Standards sources: docs/conventions.md,
+docs/simplification-conventions.md and
+.scratch/code-simplification/questions.md, whose open-question list bans
+constructs a smell-based review may suggest. Spec: the ticket file. Then run
+the active-code-reviewer for runtime bugs.
 
-Return actionable in-scope findings together to the assigned implementer,
+Check each finding against docs/conventions.md,
+docs/simplification-conventions.md and the open-question list first, then
+return actionable in-scope findings together to the assigned implementer,
 with file/line evidence and expected behavior. The lead does not make the
 implementation fix. Reinspect the revision and repeat affected checks.
 

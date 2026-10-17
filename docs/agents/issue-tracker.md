@@ -327,6 +327,12 @@ instructions conflict with this repo, this repo wins:
   changes uncommitted. The user commits them with `commit-planning`.
 - **Both reviews run.** `implement` runs `code-review`; the
   `active-code-reviewer` agent required by `AGENTS.md` still runs after it.
+- **`code-review` sees the working tree.** It diffs `<fixed point>...HEAD`,
+  which is empty when nothing is committed. Give it the starting commit as
+  the fixed point, have it review `git diff <start>` and read new untracked
+  files in full, and name `docs/conventions.md`,
+  `docs/simplification-conventions.md` and
+  `.scratch/code-simplification/questions.md` as its standards sources.
 - **Tests only at the ticket's `Seams`.** These are the pre-agreed seams `tdd`
   asks for. Ask the user before testing at a seam the ticket does not list.
 - **Checks.** This repo has no type checker; where `implement` says to run

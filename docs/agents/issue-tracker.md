@@ -324,9 +324,17 @@ current tool, follow the step by hand. Where a skill's own
 instructions conflict with this repo, this repo wins:
 
 - **No commits.** `implement` ends by committing; skip that step and leave the
-  changes uncommitted. The user commits them with `commit-planning`.
+  changes uncommitted. End the report with the `git add <paths>` line (only the
+  files this ticket changed) and a Conventional Commit message; the user runs
+  both. For several logical commits, use `commit-planning` instead.
 - **Both reviews run.** `implement` runs `code-review`; the
   `active-code-reviewer` agent required by `AGENTS.md` still runs after it.
+- **`code-review` sees the working tree.** It diffs `<fixed point>...HEAD`,
+  which is empty when nothing is committed. Give it the starting commit as
+  the fixed point, have it review `git diff <start>` and read new untracked
+  files in full, and name `docs/conventions.md`,
+  `docs/simplification-conventions.md` and
+  `.scratch/code-simplification/questions.md` as its standards sources.
 - **Tests only at the ticket's `Seams`.** These are the pre-agreed seams `tdd`
   asks for. Ask the user before testing at a seam the ticket does not list.
 - **Checks.** This repo has no type checker; where `implement` says to run
@@ -335,6 +343,10 @@ instructions conflict with this repo, this repo wins:
 - **The board rules still apply.** Claim the ticket in **Doing** before
   starting, modify only files in its `Touches`, and mark it **Done** only as
   described under Issue status.
+- **Record edits go on a proposal page.** When edits to findings, plans,
+  tickets or boards touch more than one file or add one, show them as a
+  proposal page before anything is written; see
+  [`visual-tools.md`](visual-tools.md).
 - **Build a ticket in small steps** (adapted from Addy Osmani's
   `incremental-implementation`, MIT; see `THIRD_PARTY_NOTICES.md`). Inside one
   ticket:

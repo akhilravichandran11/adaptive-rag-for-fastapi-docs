@@ -10,7 +10,8 @@ counts measured on today's files. Every chunk a strategy produces is held to fiv
     under_min     no chunk shorter than its declared minimum, unless it is the
                   document's only chunk (only ``semantic`` declares one today)
     lost_text     no text lost: with whitespace ignored, the chunks cover the
-                  whole document (overlap allowed)
+                  whole document (overlap allowed, and a chunk may add whole
+                  lines at its start or end)
     out_of_order  chunks follow the document's order
     empty         no empty or whitespace-only chunk
 
@@ -257,6 +258,10 @@ def check_chunks(
 def _check_coverage(parent_text: str, texts: Sequence[str]) -> list[RuleBreak]:
     """Rules 3 and 4: the chunks cover the parent, in its order, whitespace ignored.
 
+    A chunk the parent does not hold verbatim is placed by its longest run of
+    whole lines that the parent does hold (``_text_to_place``), so lines a
+    chunker adds at a chunk's start or end are not reported (R17).
+
     The chunks keep both rules when each can be placed in the parent at or after
     the previous chunk's start and no later than the end of what is covered so
     far (overlapping chunks repeat the previous chunk's tail), covering it to the
@@ -271,8 +276,8 @@ def _check_coverage(parent_text: str, texts: Sequence[str]) -> list[RuleBreak]:
     still covers both.
     """
     source = _without_whitespace(parent_text)
-    needles = [needle for needle in map(_without_whitespace, texts) if needle]
-    if _fits_in_order(source, needles):
+    needles = [_text_to_place(source, text) for text in texts]
+    if _fits_in_order(source, [needle for needle in needles if needle]):
         return []
 
     breaks: list[RuleBreak] = []
@@ -280,8 +285,7 @@ def _check_coverage(parent_text: str, texts: Sequence[str]) -> list[RuleBreak]:
     previous_start = 0
     covered_end = 0
 
-    for index, text in enumerate(texts):
-        needle = _without_whitespace(text)
+    for index, needle in enumerate(needles):
         if not needle:
             continue  # reported as empty
         # The latest placement that still touches what is covered: overlap is
@@ -320,6 +324,39 @@ def _check_coverage(parent_text: str, texts: Sequence[str]) -> list[RuleBreak]:
             )
         )
     return breaks
+
+
+# A chunk with more lines than this is not searched for a line run, and is
+# reported whole; below it the search makes at most two checks per line.
+_MAX_SEARCHED_LINES = 1_000
+
+
+def _text_to_place(source: str, text: str) -> str:
+    """``text`` without whitespace, or its longest run of whole lines that ``source`` holds.
+
+    The run stands in only when ``source`` lacks the whole text. It is trimmed
+    only at its start and end, so it never bridges a line missing from the
+    middle: that text is lost unless another chunk covers it.
+    A run ``source`` holds still fits with its first line dropped, so each start
+    carries on from the previous end. With no line in ``source``, or too many
+    lines to search, the whole text is returned, to be reported.
+    """
+    needle = _without_whitespace(text)
+    if needle in source:
+        return needle
+    lines = [_without_whitespace(line) for line in text.splitlines()]
+    if len(lines) > _MAX_SEARCHED_LINES:
+        return needle
+    longest = ""
+    end = 0
+    for start in range(len(lines)):
+        end = max(end, start)
+        while end < len(lines) and "".join(lines[start : end + 1]) in source:
+            end += 1
+        run = "".join(lines[start:end])
+        if len(run) > len(longest):
+            longest = run
+    return longest or needle
 
 
 # Placements tried before giving up on finding one; only text that repeats

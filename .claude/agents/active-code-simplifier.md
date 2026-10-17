@@ -46,14 +46,16 @@ You start with no memory of the conversation that spawned you.
 
 Run this:
 
-    uv run ruff check --no-cache --select C901,PLR0912,PLR0915,SIM,RET,PIE,ERA <files>
+    uv run ruff check --no-cache --select C901,PLR0912,PLR0915,SIM,RET,PIE,ERA --ignore SIM105 <files>
 
 It reports:
 - functions that are too complex, or have too many branches or statements
 - code that can be written more simply
 - commented-out code
 
-Then read every function that is in scope.
+Then read every function that is in scope. Ruff hits are candidates, not
+instructions: a fix that adds an import or a construct (a context manager, a
+ternary, a merged `with`) is flagged, not applied.
 
 ## Simplify, one change at a time
 
@@ -86,7 +88,7 @@ Then read every function that is in scope.
     a pattern match on a hash it computed)
   - an `except X: raise X(...)` that adds nothing
 
-**Words**
+**Words** (S002)
 - Delete *what* comments, docstrings that repeat the name, and banner comments.
 - Keep every *why* comment (a constraint, a library quirk, a decision).
 - Add no docstrings, comments or type hints.
@@ -127,22 +129,26 @@ Then read every function that is in scope.
 - **Edit files outside scope:** tests, other files, `.scratch/`, `docs/`,
   `pyproject.toml`.
 - **Commit, stash, or use `git checkout` or `git restore`.** The files hold
-  uncommitted work. Undo a change by editing the lines back.
+  uncommitted work. Undo a change from the copy you saved before it.
 
 ## Verify every change
 
+Before each change, copy the file to `/tmp/` (`cp <file> /tmp/<name>.bak`).
 After each change:
 1. Run `uv run ruff check <file>`.
 2. Run the tests that import the file (`grep -rln <module> tests/`).
 3. For a file under `data_curation/`, run
    `python3 -I .scratch/code-simplification/score_similarity.py <file>`; it
    must stay under 25%.
-4. If anything fails, undo that change by editing it back, and note it.
+4. If anything fails, copy the saved file back over it, and note it.
 
 At the end:
 1. Run `uv run pytest tests` offline. It must make no paid API call (C006).
 2. Run `python3 -I .scratch/code-simplification/score_similarity.py <files>`
    on every changed file and report the scores.
+3. If the prompt names a golden output (a saved run the file must reproduce)
+   and regenerating it makes no paid call, regenerate it and confirm it is
+   byte-identical. If it is not, undo every change to that file.
 
 ## Report
 
@@ -155,6 +161,9 @@ Result: <N> changes in <files>; <lines before → after>; ruff complexity hits <
 
 ### Changed (one line each)
 - file:line — <what>
+
+### Split (the user rules on step names)
+- file:line — <original>(): <step_a> (<one-line job>); <step_b> (<job>)
 
 ### Flagged, not changed
 - file:line — <what, and why it needs the user or a ticket>

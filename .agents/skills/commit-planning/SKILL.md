@@ -10,7 +10,7 @@ A commit plan is only useful if each phase can stand on its own: revertible inde
 ## Scope and authorization
 
 - This skill is read-only: inspect `git status`, `git diff`, and `git diff --staged`, and report a plan. Never run `git add` or `git commit` from this skill.
-- Once the user approves the plan (or one specific phase), use the `git-commit` skill to stage and commit that phase's files — don't duplicate its staging or message-generation logic here.
+- Approval of a plan alone does not authorize staging or committing. When the user asks to execute a phase, hand off to `git-commit` with that phase's exact paths, commit message, exclusions, and any restrictions on skills or agents. Follow AGENTS.md's commit-only boundary. If execution needs a skill or agent outside the user's allowed set, stop and explain before invoking it.
 - Never include a file that shouldn't be committed at all: secrets (`.env` and variants), scratch/sandbox directories, personally named or course-marker files, generated data/output directories, or anything else this repo's `.gitignore` (and any `block-private-files`-style guard) already excludes. If such a file shows up as tracked or staged anyway, list it under **Do not commit** rather than silently dropping it from the plan or silently including it in a phase.
 
 ## Workflow
@@ -40,4 +40,10 @@ If the changes don't actually need splitting (everything is one cohesive change)
 
 ## Reporting
 
-Present the full plan before touching git. If the user approves a phase, use the `git-commit` skill to stage exactly that phase's file list and execute the commit. Do not run a broad `git add`, and do not proceed to the next phase until asked.
+Present the full plan before changing the index or creating commits.
+
+When executing an explicitly requested phase through `git-commit`:
+- Recheck the working tree and index against the approved phase. If unrelated changes are already staged, stop and report them rather than including or unstaging them.
+- Stage only the approved paths and preserve the user's exclusions. Stop after that phase unless the user requested additional phases.
+- Report the commit hash and subject, checks actually run and their results, and any remaining uncommitted changes.
+- Report skills actually invoked and agents actually spawned, including none when applicable. Reading a skill file as content being inspected or committed does not count as invoking it.

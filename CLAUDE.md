@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Pre-commit blocks any path containing `akr` (case-insensitive), `.env`, `.scratch`, `data`, `outputs`, `sandbox`, and leftover debug-instrumentation lines. Strip debug prints before committing (see `AGENTS_DEBUG_ADDER.md`).
 - Haystack pipelines are built in code; YAML loading fails for the custom chunkers.
 - `.scratch/NOW.md` is generated — regenerate with `python3 .scratch/now.py`, never hand-edit it.
-- Record ingestion design decisions in `data_ingestion/DECISIONS.md` (newest first).
+- Design decisions go in one `DECISIONS.md` per top-level package that makes them (`data_ingestion/DECISIONS.md` exists; create `data_curation/DECISIONS.md` or `data_collection/DECISIONS.md` on their first entry): dated entries, newest first, each naming the files it touches. Code keeps a one-line pointer to the entry instead of the rationale (S002 in `docs/simplification-conventions.md`).
 - The shell is zsh on macOS: a word starting with `=` (an `=====` separator in `echo`) is expanded and fails, an unquoted `$VAR` does not split into words, and there is no `timeout` command. Quote the first two; for the third use a Python or `uv run` timeout.
 
 ## Agent teams
@@ -30,6 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each teammate owns a disjoint set of files. Never give two teammates the same module, `DECISIONS.md`, or `docs/conventions.md`.
 - The repo gotchas bind teammates too: no paid API calls from tests, don't run the semantic chunker or `--include-semantic` reports, strip debug instrumentation before commits.
 - With teams enabled, a *named* `Agent` call (without `fork` or `isolation`) launches a teammate. When you only want the `active-code-reviewer` result back (the AGENTS.md review step), spawn it unnamed so it runs as a plain subagent.
+- `.claude/agents/active-code-simplifier.md` and `.codex/agents/active-code-simplifier.toml` are twins: the markdown body and the TOML `developer_instructions` must stay identical except for one tool-wording line, so change both together. The `simplifier-twins` pre-commit hook (`scripts/hooks/check-simplifier-twins.sh`) fails the commit on any other difference.
 - To opt out for yourself, set it to `"0"` in `.claude/settings.local.json` (git-ignored; overrides the project value). `~/.claude/settings.json` won't work because project settings win over user settings. Edit `.claude/settings.json` only to disable it repo-wide.
 
 ## Git

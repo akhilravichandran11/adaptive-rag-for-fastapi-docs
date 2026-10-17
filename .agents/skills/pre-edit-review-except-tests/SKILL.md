@@ -45,6 +45,8 @@ For each file requiring review, present:
 4. **Tradeoffs or caveats** — relevant risks, limitations, or alternatives. If none are known, say so.
 5. **Verification plan** — the specific checks and results that would confirm success.
 
+When record or doc edits touch more than one file or add one, present the contract as a proposal page instead of in chat, and apply only after the user's gate approval and "yes" in chat; `docs/agents/visual-tools.md` says how.
+
 ## Workflow
 
 1. Read current file content and classify the edits.

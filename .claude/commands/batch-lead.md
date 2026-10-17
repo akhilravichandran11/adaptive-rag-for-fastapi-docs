@@ -45,14 +45,26 @@ step.
   that ticket's Python files with the handback's `Start` sha, and wait for it.
   Then run the reviews below on the simplified files. Only the first build and
   rounds over about 50 lines get the simplifier; a small fix round does not.
-- Run `code-review` (standards and the ticket's spec) and then the
-  `active-code-reviewer` agent on that ticket's files. Fix nothing yourself
+  Its Split list (each new step and its job) comes to me verbatim with the
+  ticket's report; step names are a design call.
+- Run `code-review` with the handback's `Start` sha as the fixed point.
+  Nothing is committed, so its default `<Start>...HEAD` diff is empty: tell
+  it to review `git diff <Start>` and to read every untracked file in full.
+  Name its standards sources: `docs/conventions.md`,
+  `docs/simplification-conventions.md` and
+  `.scratch/code-simplification/questions.md` (its smell baseline suggests
+  constructs the open-question list bans). Spec: the ticket file. It answers
+  "is this what the ticket and our rules asked for"; then run the
+  `active-code-reviewer` agent on the same files for runtime bugs. Fix
+  nothing yourself
   for a bug: resume the implementer by name with the findings. A resumed
   agent reloads its whole transcript, so send every in-scope finding in one
   message, not one at a time.
-- Before sending a fix list, check each item against `docs/conventions.md`
-  and the ticket's Seams: a fix that contradicts an accepted convention
-  costs a whole round.
+- Before sending a fix list, check each item against `docs/conventions.md`,
+  `docs/simplification-conventions.md`, the "While a question is open" list
+  in `.scratch/code-simplification/questions.md` and the ticket's Seams: a
+  fix that contradicts an accepted convention, or adds a construct the open
+  list bans, costs a whole round.
 - Review depth per round: the first build and any round that changes an
   interface or more than about 50 lines get the full set (`code-review`,
   then `active-code-reviewer`). A smaller fix round gets

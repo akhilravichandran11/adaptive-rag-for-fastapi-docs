@@ -75,6 +75,16 @@ repos:
         types: [python]
         pass_filenames: true
 
+      - id: simplifier-twins
+        name: simplifier agent twins are in sync
+        description: >-
+          Refuse commits where the Claude and Codex simplifier agent
+          definitions differ beyond their one tool-wording line.
+        entry: scripts/hooks/check-simplifier-twins.sh
+        language: script
+        files: ^\.(claude|codex)/agents/active-code-simplifier\.(md|toml)$
+        pass_filenames: false
+
       - id: uv-lock-check
         name: uv.lock is in sync with pyproject.toml
         entry: uv lock --check

@@ -11,20 +11,26 @@ in ``scripts/chunk_size_report.py`` (D41 withdrawn).
     python stage2_chunk_corpus.py --strategy naive_small --curation-run 20260925_032632 --limit 5
     python stage2_chunk_corpus.py --strategy all --curation-run 20260925_032632   # includes semantic (paid)
 
-A run writes into ``data_ingestion/outputs/<run_id>/`` (see ``pipeline.py``):
+A run writes into a new folder, ``data_ingestion/outputs/<run_id>/`` (see
+``pipeline.py``); a run id whose folder exists, from either stage, is refused:
 
     chunks/<strategy>.jsonl   one per selected strategy, saved as each strategy finishes
     run_meta.json             written last (D40): the corpus commit and manifest sha256,
-                              the curation run, the limit, the documents loaded, dropped
-                              and chunked, and each strategy's chunk count and settings
+                              the curation run, the limit (null unless it cut documents),
+                              the documents loaded, dropped and chunked, and each
+                              strategy's chunk count and settings
 
 Every strategy but ``semantic`` runs offline and costs nothing. ``semantic`` finds its
 cut points with BGE on OpenRouter: a paid call (about $0.008 for the corpus) that needs
-``OPENROUTER_API_KEY`` in ``.env``. ``--strategy all`` includes it.
+``OPENROUTER_API_KEY`` in ``.env``; without it, a run that selects ``semantic`` stops
+before chunking anything. ``--strategy all`` includes it.
 
 Needs BGE's tokenizer and NLTK's ``punkt_tab`` in the project model cache
-(``scripts/download_models.py``). Exits 2 for a bad command line, and 1 when the run
-cannot start or an input is missing or malformed.
+(``scripts/download_models.py``). Exits 2 for a bad command line, and 1, without
+writing ``run_meta.json``, when the run cannot start (its run folder exists, or
+``semantic`` has no key), an input is missing or malformed, no document is left to
+chunk, or a strategy makes no chunks. A run that fails once it has started chunking
+keeps its folder, even an empty one, so a retry needs a new run id.
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ import argparse
 import dataclasses
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -174,9 +181,24 @@ def main(argv: list[str] | None = None) -> Path:
     except ValueError as exc:  # only RUN_ID can fail here; parse_args checked --run-id
         logger.error("RUN_ID: %s", exc)
         raise SystemExit(1) from None
+    # An earlier run's files, from either stage, would be mixed with or replaced by this
+    # run's (F001). On a case-insensitive disk (macOS) this also finds a folder whose
+    # name differs only in case.
+    if run_dir.exists():
+        logger.error("Run folder %s already exists; pick a new --run-id (or RUN_ID)", run_dir)
+        raise SystemExit(1)
 
     strategies = list(STRATEGIES) if args.strategy == "all" else [args.strategy]
     if PAID_STRATEGY in strategies:
+        # Checked before anything is chunked: under --strategy all, semantic runs sixth
+        # of seven, after five free strategies that would be chunked for nothing (F002).
+        if not os.getenv("OPENROUTER_API_KEY", "").strip():
+            logger.error(
+                "%s needs OPENROUTER_API_KEY for its paid OpenRouter calls, and it is not "
+                "set in .env or the environment",
+                PAID_STRATEGY,
+            )
+            raise SystemExit(1)
         logger.warning(
             "%s calls OpenRouter (BGE) for its cut points: a PAID call, about $0.008 for "
             "the corpus, that needs OPENROUTER_API_KEY",
@@ -195,11 +217,21 @@ def main(argv: list[str] | None = None) -> Path:
         raise SystemExit(1) from None
 
     kept = enriched.documents
-    if args.limit is not None:
-        kept = kept[: args.limit]
+    if not kept:
+        logger.error(
+            "Curation run %s drops all %d loaded documents; nothing is left to chunk",
+            args.curation_run,
+            len(documents),
+        )
+        raise SystemExit(1)
+    # Recorded only when it cuts documents, so stage 3 warns only about a run that is
+    # really limited (F002).
+    limit = args.limit if args.limit is not None and args.limit < len(kept) else None
+    if limit is not None:
+        kept = kept[:limit]
         logger.info(
             "--limit %d: chunking the first %d of %d kept documents",
-            args.limit,
+            limit,
             len(kept),
             enriched.kept_count,
         )
@@ -211,7 +243,24 @@ def main(argv: list[str] | None = None) -> Path:
         manifest.corpus_commit,
         manifest_hash[:8],
     )
+    # Created only now, before the first write, so that of two runs that both passed
+    # the folder check above, one writes and the other stops (F001).
+    try:
+        run_dir.mkdir(parents=True)
+    except FileExistsError:
+        logger.error("Run folder %s was created by another run since this one started", run_dir)
+        raise SystemExit(1) from None
     records = chunk_corpus(kept, strategies, run_dir)
+    # Stage 3 would rebuild an empty collection from a strategy with no chunks (F002).
+    empty_strategies = [name for name, record in records.items() if not record["chunk_count"]]
+    if empty_strategies:
+        logger.error(
+            "%s made no chunks from %d documents; %s is not written",
+            ", ".join(empty_strategies),
+            len(kept),
+            RUN_META_FILE,
+        )
+        raise SystemExit(1)
 
     run_meta = {
         "stage": STAGE,
@@ -219,7 +268,7 @@ def main(argv: list[str] | None = None) -> Path:
         "corpus_commit": manifest.corpus_commit,
         "manifest_sha256": manifest_hash,
         "curation_run": args.curation_run,
-        "limit": args.limit,
+        "limit": limit,
         "documents": {
             "loaded": len(documents),
             "dropped": enriched.dropped_filenames,

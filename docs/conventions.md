@@ -42,7 +42,7 @@ set yet.
 | [C007](#c007-a-stage-imports-modules-never-another-stage) | A stage imports modules, never another stage | PRT-01 | accepted |
 | [C008](#c008-a-multi-name-lookup-reports-every-unknown-name-at-once) | A multi-name lookup reports every unknown name at once | PRT-02 | accepted |
 | [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | accepted |
-| [C010](#c010-a-stage-refuses-an-existing-run-folder-and-creates-it-exclusively-before-its-first-write) | A stage refuses an existing run folder and creates it exclusively before its first write | PRT-09 | proposed |
+| [C010](#c010-a-stage-refuses-an-existing-run-folder-and-creates-it-exclusively-before-its-first-write) | A stage refuses an existing run folder and creates it exclusively before its first write | PRT-09 | accepted |
 
 ---
 
@@ -361,7 +361,7 @@ points never checked for repeatability.
 
 ## C010: A stage refuses an existing run folder and creates it exclusively before its first write
 
-**Status:** proposed · **Introduced:** 2026-10-16, PRT-09 · **Where:** `data_ingestion/stage2_chunk_corpus.py`, `data_ingestion/stage3_index_chunks.py` (`main`)
+**Status:** accepted (user, 2026-10-17) · **Introduced:** 2026-10-16, PRT-09 · **Where:** `data_ingestion/stage2_chunk_corpus.py`, `data_ingestion/stage3_index_chunks.py` (`main`)
 
 **The convention, stated.** A stage that writes into
 `data_ingestion/outputs/<run_id>/` exits 1, naming the folder, when that folder

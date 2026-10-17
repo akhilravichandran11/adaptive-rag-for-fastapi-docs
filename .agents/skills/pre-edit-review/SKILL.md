@@ -1,6 +1,7 @@
 ---
 name: pre-edit-review
-description: Before editing any file, show the exact existing code, the exact proposed replacement, the reason for each change, tradeoffs/caveats, and the verification plan, then wait for explicit approval before touching any file. Use whenever the user says things like "don't edit yet", "show me first", "walk me through the changes before you make them", or explicitly invokes this skill ahead of a coding task. Do not use for tasks the user has already approved, for read-only questions where no edit was ever going to happen, or once the user has explicitly told you to proceed with the edit.
+description: Before editing any file, show the exact existing code, the exact proposed replacement, the reason for each change, tradeoffs/caveats, and the verification plan, then wait for explicit approval before touching any file. Use when the user invokes /pre-edit-review or $pre-edit-review before a coding task, or says things like "don't edit yet", "show me first", or "walk me through the changes before you make them". Do not use for tasks the user has already approved, for read-only questions where no edit was ever going to happen, or once the user has explicitly told you to proceed with the edit.
+disable-model-invocation: true
 ---
 
 # Pre-Edit Review

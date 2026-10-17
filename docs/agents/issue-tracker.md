@@ -343,6 +343,10 @@ instructions conflict with this repo, this repo wins:
 - **The board rules still apply.** Claim the ticket in **Doing** before
   starting, modify only files in its `Touches`, and mark it **Done** only as
   described under Issue status.
+- **Record edits go on a proposal page.** When edits to findings, plans,
+  tickets or boards touch more than one file or add one, show them as a
+  proposal page before anything is written; see
+  [`visual-tools.md`](visual-tools.md).
 - **Build a ticket in small steps** (adapted from Addy Osmani's
   `incremental-implementation`, MIT; see `THIRD_PARTY_NOTICES.md`). Inside one
   ticket:

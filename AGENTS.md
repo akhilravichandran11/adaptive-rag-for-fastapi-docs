@@ -75,6 +75,10 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   of any chat that changed `.scratch/` work, follow "Action views" in
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) and answer from
   `.scratch/NOW.md`.
+- **Visual tools:** before you explain a design, ask the user for decisions,
+  or ask them to approve edits or review code, read
+  [`docs/agents/visual-tools.md`](docs/agents/visual-tools.md) and use the tool
+  it names for the job.
 - **Debug / trace instrumentation:** to add the project's personal debug-print
   style to a Python file (the `debug_print` / `debug_object` helpers, scope
   banners, STARTED/ENDED markers, variable dumps), follow

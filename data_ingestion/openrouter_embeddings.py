@@ -164,11 +164,15 @@ class OpenRouterDocumentEmbedder:
 class OpenRouterTextEmbedder:
     """Embeds one string (a question at search time) with the same model as the documents."""
 
-    def __init__(self, model: str = DEFAULT_MODEL, dimension: int | None = None) -> None:
+    def __init__(
+        self, model: str = DEFAULT_MODEL, dimension: int | None = None, prefix: str = ""
+    ) -> None:
         self.model = model
         self.dimension = dimension
+        self.prefix = prefix
 
     @component.output_types(embedding=list[float])
     def run(self, text: str) -> dict[str, list[float]]:
-        """Return the vector for ``text``, truncated to BGE's limit like every document."""
-        return {"embedding": embed_texts([text], model=self.model, dimension=self.dimension)[0]}
+        """Return the vector for ``prefix + text``, truncated to BGE's limit like every document."""
+        vectors = embed_texts([self.prefix + text], model=self.model, dimension=self.dimension)
+        return {"embedding": vectors[0]}

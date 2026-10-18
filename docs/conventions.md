@@ -43,6 +43,7 @@ set yet.
 | [C008](#c008-a-multi-name-lookup-reports-every-unknown-name-at-once) | A multi-name lookup reports every unknown name at once | PRT-02 | accepted |
 | [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | accepted |
 | [C010](#c010-a-stage-refuses-an-existing-run-folder-and-creates-it-exclusively-before-its-first-write) | A stage refuses an existing run folder and creates it exclusively before its first write | PRT-09 | accepted |
+| [C011](#c011-a-module-may-carry-a-guarded-command-line-and-still-be-imported-by-a-stage) | A module may carry a guarded command line and still be imported by a stage | PRT-11 | accepted |
 
 ---
 
@@ -396,3 +397,42 @@ folder at the check (an input error after it leaves an empty folder that blocks 
 id and looks like a killed run); clearing an existing folder first (destroys an
 earlier run's output); a shared `pipeline.new_run_dir(run_id)` helper (the better
 home once `pipeline.py` may change, e.g. in SMP-06/07).
+
+---
+
+## C011: A module may carry a guarded command line and still be imported by a stage
+
+**Status:** accepted (user, 2026-10-18) · **Introduced:** 2026-10-18, PRT-11 (plan D46) · **Where:** `retrieval/baseline_rag.py` (`parse_args`, `main`)
+
+**The convention, stated.** A module whose functions other code imports may also be
+run by path for one-off use. Its command line lives in `parse_args` and `main` and
+runs only under `if __name__ == "__main__"`, so importing the module parses no
+arguments and opens no connection. A stage may import such a module like any other
+(C007), provided the command line writes no run folder: a file that saves a run is
+a stage.
+
+**Why.** Step 6 must query each variant exactly as a single question from the
+command line does, and one module for both keeps them the same. A separate script for
+one question would be a stage that step 6 may not import (C007), so the pipeline code
+would move into a module anyway and leave a script of a few lines around it.
+
+**What it replaces.** No written rule. In `data_ingestion/` a file with a command
+line has been a stage, and a module has had none. Elsewhere the shape already occurs:
+the chunker modules keep demo `__main__` blocks that take no arguments, and
+`data_collection/collect_referenced_code.py` has a `main()` while
+`data_collection/pinned_snapshot/collect.py` imports it.
+
+**Cost.** The module carries the `sys.path` line a script needs (Q08 is open), so
+importing it also puts the project root on `sys.path`: the import-time, process-wide
+side effect C004 rules out, harmless here because any importer has that root on its
+path already. Its command line is one more thing an importer loads and never runs.
+
+**Blast radius.** `retrieval/baseline_rag.py` (`parse_args`, `main`, the `sys.path`
+line) and its `main` tests; step 6 is to import `build_rag_pipeline` and `ask`.
+Rejecting it means moving `parse_args` and `main` into a separate script beside the
+module, which imports both functions.
+
+**Alternatives.** A separate thin script (two files for one step, and a script that
+is not a stage but looks like one); no command line, asking questions only through
+step 6 or a REPL (no quick way to try one question against one variant); running it
+as `python -m retrieval.baseline_rag` (waits on Q08).

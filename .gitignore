@@ -99,8 +99,3 @@ outputs/
 
 # Experiments are kept local for now
 /experiments/
-
-# Local Codex skill logging
-/scripts/codex_skill_log.py
-/scripts/codex_skills_summary.py
-/docs/codex-skill-logging.md

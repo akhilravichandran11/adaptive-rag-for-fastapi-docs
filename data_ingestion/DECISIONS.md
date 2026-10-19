@@ -6,6 +6,27 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-10-17 — Each embedder is queried the way its maker recommends
+
+**Decision.** A question sent to BGE-large is prefixed with the model's own query
+instruction, `Represent this sentence for searching relevant passages: `, and a
+question sent to Voyage is embedded with `input_type="query"`. Documents get neither
+change: BGE embeds them as they are, and Voyage embeds them with
+`input_type="document"`. The prefix is set on BGE's entry in
+`data_ingestion/embedders.py` and added in `data_ingestion/openrouter_embeddings.py`,
+inside BGE's 512-token limit; nothing was re-indexed. How the retrieved chunks are
+then used is recorded in [`retrieval/DECISIONS.md`](../retrieval/DECISIONS.md).
+
+**Why.** The study's questions are short queries matched against long passages, the
+case both makers give these instructions for. Giving Voyage its query mode and
+not giving BGE its instruction would handicap BGE in the comparison for no reason. It
+costs about ten more tokens per BGE query and nothing at indexing.
+
+**Known limitation.** OpenRouter is assumed to pass the prefixed text to BGE unchanged
+and to add no instruction of its own; its documentation says nothing either way.
+
+---
+
 ## 2026-10-09 — The corpus is chunked once and indexed 14 times
 
 **Decision.** Indexing is two stages with saved chunks between them.

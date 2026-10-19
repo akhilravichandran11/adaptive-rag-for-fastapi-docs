@@ -24,4 +24,19 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 - *Applies to:* all Python.
 - *Decided:* 2026-10-17 (setup-review grill, Q7).
 
-<!-- Next: S004 from Q01 (lru_cache + deepcopy), and so on. -->
+**S004 — No `Protocol` or ABC classes.**
+- *Why:* only a type checker reads a `Protocol`, and none runs here (no mypy or pyright), so it would be documentation nothing checks. A seam is a constructor's or function's arguments, and tests passing fakes prove it works.
+- *Applies to:* all Python. `chunkers/base.py`'s `Splitter` and `Chunker` go in their `SMP-` ticket. Revisit if a type checker is added.
+- *Decided:* 2026-10-20 (CRAG first-cut grill, Q02; repo-wide by the same grill's Q12).
+
+**S005 — Failures raise built-in exceptions with a message naming the step and the input; no custom exception classes until a caller must catch one kind apart from the others.**
+- *Why:* where nothing catches a failure by type, a class hierarchy is code with no reader. When a caller does need it (a retry on one error type, an HTTP status per failure), add one class for that caller, as `data_curation/openai_llm_utils.py`'s `EmptyStructuredResponse` does for tenacity.
+- *Applies to:* all Python. `data_ingestion/metadata.py`'s three classes (tests use the subclasses 11×) change in its `SMP-` ticket.
+- *Decided:* 2026-10-20 (CRAG first-cut grill, Q04; repo-wide by Q12).
+
+**S006 — A `@dataclass` only for a record passed between functions, and not `frozen` unless something relies on it never changing (a dict key, a set member, an object shared across threads). Pydantic models where data comes from outside (LLM replies, API request and response bodies).**
+- *Why:* a dataclass checks nothing at runtime, so it is for data this code builds; Pydantic validates, so it is for data this code receives. `frozen` adds a rule to explain that most records never use.
+- *Applies to:* all Python. The 10 frozen dataclasses are revisited in their files' `SMP-` tickets.
+- *Decided:* 2026-10-20 (CRAG first-cut grill, Q06; repo-wide by Q12).
+
+<!-- Next: S007 from Q01 (lru_cache + deepcopy), and so on. -->

@@ -14,6 +14,46 @@ how to run it.
 | Get code reviewed | inline comments on the diff, a visual recap, or a diff review | `crit`, `visual-recap`, `plannotator review` |
 | Plan | an interactive plan with diagrams and open questions | `visual-plan` |
 
+## Codex execution
+
+This section applies only to Codex. Claude keeps the existing workflow.
+Use the job table automatically when its condition applies; Crit and
+grill-with-ui remain opt-in, as described below.
+
+- **Explain:** use Codex's available inline visualization capability for a
+  small visual. Use visual-explainer for a standalone page. Save previews
+  in a writable task-owned location, open them in Codex when supported,
+  and provide a browser link when using a local server.
+- **Listen:** choose the feedback path from the tools actually available.
+  A tool that explicitly delivers later review messages may end the turn.
+  For CLI reviews, keep the command in a managed running session and poll
+  that same session in bounded waits of at most 60 seconds. A background
+  process alone is not a subscription that wakes a finished chat.
+- **Resume:** follow grill-with-ui's Wait mode and drain pending submissions
+  after interruption. If listening stops, say so; do not claim the page is
+  still connected to an active agent.
+- **Finish a questionnaire:** complete the interview state, but treat its
+  proposed plan text as a draft. Updating the canonical plan still requires
+  the document-edit approval process below; Finish alone does not authorize
+  that write.
+- **Prepare a review:** temporary records, preview pages and review-session
+  files may be created to show the proposal. Target documents and code remain
+  untouched until approval. An explicit user instruction allowing no file
+  writes overrides this exception: show the proposal in chat first.
+- **Apply approved edits:** use the builder's Codex procedure in its README:
+  page approval, then "yes" in chat, read-only check, apply_patch, and
+  verification against the approved records. A successful check is not
+  evidence of human approval. If acting on feedback changes the proposal,
+  rebuild and review it again.
+- **Keep plans local:** use the installed local-files mode for visual-plan
+  and visual-recap unless publishing is explicitly requested. Local storage
+  can still use a hosted viewer; it is not a promise of an offline UI.
+  Use local/chat feedback for local plans, not hosted feedback APIs.
+- **Find the private builder:** in a worktree, use its absolute path in the
+  canonical checkout. If it is missing, report that dependency rather than
+  inventing a replacement. This repo's AGENTS.md supplies the entry point
+  for new sessions; it does not configure unrelated repositories.
+
 ## Explain
 
 To explain a design, a flow or the difference between options, start from a

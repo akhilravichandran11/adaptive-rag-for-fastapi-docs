@@ -34,7 +34,7 @@ set yet.
 | ID | Convention | Introduced | Status |
 |---|---|---|---|
 | [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | accepted |
-| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | accepted |
+| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | `Protocol` half superseded by S004; registry half accepted (open as Q09) |
 | [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
 | [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | accepted |
@@ -44,6 +44,7 @@ set yet.
 | [C009](#c009-stages-hand-off-through-saved-plain-json-artifacts-with-an-input-fingerprint) | Stages hand off through saved plain-JSON artifacts with an input fingerprint | PRT-03 | accepted |
 | [C010](#c010-a-stage-refuses-an-existing-run-folder-and-creates-it-exclusively-before-its-first-write) | A stage refuses an existing run folder and creates it exclusively before its first write | PRT-09 | accepted |
 | [C011](#c011-a-module-may-carry-a-guarded-command-line-and-still-be-imported-by-a-stage) | A module may carry a guarded command line and still be imported by a stage | PRT-11 | accepted |
+| [C012](#c012-crag-adapters-are-required-constructor-arguments-the-caller-builds-them-once-at-startup) | CRAG adapters are required constructor arguments; the caller builds them once at startup | CRG-07 | accepted |
 
 ---
 
@@ -89,7 +90,7 @@ five.
 
 ## C002: `Protocol`-based structural typing with a name → factory registry
 
-**Status:** accepted · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
+**Status:** `Protocol` half superseded by S004 (2026-10-20); registry half accepted, open as Q09 · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
 
 **Ruled before IDX-06 and IDX-07.** Both add a strategy to this package, so both
 copy this shape: a `@component` class satisfying `Chunker` structurally, a
@@ -436,3 +437,58 @@ module, which imports both functions.
 is not a stage but looks like one); no command line, asking questions only through
 step 6 or a REPL (no quick way to try one question against one variant); running it
 as `python -m retrieval.baseline_rag` (waits on Q08).
+
+---
+
+## C012: CRAG adapters are required constructor arguments; the caller builds them once at startup
+
+**Status:** accepted 2026-10-20 · **Introduced:** 2026-10-20, CRG-07 (CRAG first-cut plan D4) · **Where:** `crag/orchestrator.py` (`CragOrchestrator.__init__`)
+
+**The convention, stated.** The orchestrator takes every step it calls (the
+`retrieve` function and the grader, decomposer, web search, refinement and
+generator objects) as a required constructor argument and stores it, nothing
+else. It builds no default adapter, opens no client, calls no `warm_up()` and
+reads no environment variable. The caller (`crag/run.py`, the backend's startup)
+reads the settings, builds each adapter once and passes it in. Each adapter is a
+plain object with `run(...)` returning a dict; no `Protocol` or base class
+describes it (S004). When an LLM answered, that dict includes `"model"`, the model
+that answered (D5), so the orchestrator can record it.
+
+**The step trace.** `CragResult.steps` holds one dict per step that ran, in order:
+`{"step", "started", "ended", "counts", "model"?}`. `started` and `ended` are ISO
+UTC times, `counts` is a small dict of integers (such as `{"relevant": 3,
+"total": 10}`), and `model` is present only when an LLM answered. A step that is
+skipped (the decomposer returned no vector or no web queries) has no entry. A
+fallback adds a `"fallback"` step.
+
+**Routes.** `CragResult.route` is `"correct"`, `"ambiguous"`, `"incorrect"` or
+`"no_documents"` (`NO_DOCUMENTS_ROUTE`: retrieval returned nothing, so nothing was
+graded or searched). Any route whose context ends up empty returns the fixed
+`FALLBACK_ANSWER` without generating.
+
+**Why.** Creating the orchestrator should cost nothing and touch no network, so
+tests pass fakes that record their calls and a web server builds one orchestrator
+at startup and reuses it. Settings are read in one place, so an environment
+variable cannot silently replace an argument the caller passed.
+
+**What it replaces.** Adapters built inside the orchestrator with
+environment-driven defaults: construction opened the LLM and web search clients,
+and settings read inside the classes could override the model a caller passed in
+(plan fixes 1 and 2). Elsewhere in the repo,
+`retrieval/baseline_rag.py` builds its components inside `build_rag_pipeline`.
+
+**Cost.** Every caller writes the construction itself: six adapters in
+`crag/run.py` and again in the backend, and a test builds six fakes.
+
+**Blast radius.** `crag/orchestrator.py` and its tests; the wave 2 adapters
+(`crag/grader.py`, `decomposer.py`, `web_search.py`, `refinement.py`) take their
+clients and settings as arguments for the same reason; `crag/run.py` (CRG-12) and
+`backend/app/main.py` (CRG-14) build them; the backend's response model and the
+frontend read `route` and `steps` in the shapes above. Rejecting it means the orchestrator
+builds defaults when an argument is `None`, and its tests must patch the clients.
+
+**Alternatives.** Optional arguments with defaults built inside (construction
+opens clients); a factory function that builds the real
+orchestrator from settings (adds a factory while Q09 is open, and the caller still
+needs one for fakes); a `ConditionalRouter` pipeline with the adapters as
+components (rejected by D8 and D9).

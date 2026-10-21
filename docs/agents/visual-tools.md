@@ -125,3 +125,10 @@ one is registered with `.scratch/open-plan.sh add <name> <url>`. The target's
   approval nor feedback: ask in chat.
 - The Claude app's browser pane may not show a local page. Give the user the
   URL to open in their own browser.
+- The chat built into a Plannotator page is a separate agent with read-only
+  tools: it cannot edit files, and what you discuss there does not reach this
+  session by itself. It can pass a message on to the session when you ask it
+  to, but a relayed message is context, not a decision. (Plannotator's plugin
+  connects the chat to the session directly, but only in an interactive
+  terminal `claude`, not in Claude Desktop.) Put decisions in the page's
+  annotations and press Annotate or Approve: only the gate's decision counts.

@@ -233,7 +233,8 @@ policy. Fuzzy path correction and automatic retries are outside this design.
 
 **The convention, stated.** No test may reach a paid API: Voyage
 (`api.voyageai.com`), Gemini (`generativelanguage.googleapis.com`), OpenAI
-(`api.openai.com`) or OpenRouter (`openrouter.ai`, added by IDX-12). A test module whose code under test could call one installs a
+(`api.openai.com`), OpenRouter (`openrouter.ai`, added by IDX-12) or Tavily
+(`api.tavily.com`, added by CRG-10). A test module whose code under test could call one installs a
 guard that makes the call fail the test instead of costing money.
 
 **Scope: paid calls only.** Qdrant, Redis and Opik are not billed per call. A test

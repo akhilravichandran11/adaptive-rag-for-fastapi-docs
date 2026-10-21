@@ -188,6 +188,9 @@ class CragOrchestrator:
                 "reretrieved": len(reretrieved),
                 "web": len(web_documents),
                 "refined": len(refined["refined_context"]),
+                "internal_kept": refined["internal_kept"],
+                "reretrieval_kept": refined["reretrieval_kept"],
+                "web_kept": refined["web_kept"],
             },
             refined["model"],
         )
@@ -213,7 +216,11 @@ class CragOrchestrator:
             steps,
             "refine",
             started,
-            {"web": len(web_documents), "refined": len(refined["refined_context"])},
+            {
+                "web": len(web_documents),
+                "refined": len(refined["refined_context"]),
+                "web_kept": refined["web_kept"],
+            },
             refined["model"],
         )
         return refined["refined_context"]

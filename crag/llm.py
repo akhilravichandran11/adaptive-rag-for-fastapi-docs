@@ -15,7 +15,7 @@ from tenacity import (
     wait_exponential,
 )
 
-FALLBACK_MODEL = "gemini-2.5-flash-lite"
+FALLBACK_MODEL = "gemini-flash-lite-latest"
 MAX_ATTEMPTS = 3
 RETRIED_ERRORS = (errors.ClientError, errors.ServerError, ValidationError)
 

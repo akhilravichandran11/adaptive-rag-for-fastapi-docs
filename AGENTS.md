@@ -28,6 +28,18 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   classes, or abstractions for one-time operations (splitting a long function
   into named steps is not one), and don't design for hypothetical future
   requirements.
+- **Portfolio scope:** this is a portfolio project. Its reader is a senior
+  engineer screening a candidate, who spends ten minutes on the repo. Prefer the
+  simplest design that works: every design decision must be explainable to them
+  in sixty seconds, and anything that is not should be simplified or dropped.
+- **Plan judge:** before asking the user to approve any plan under
+  `.scratch/**/plans/`, or finishing a grill that produces one, run
+  `scripts/judge_plan.sh <plan.md> --planner <the tool you are>` and attach the
+  resulting `judge.md` to the approval request, then revise the plan in your own
+  words citing the rows you accept. A plan request without a budget gets one
+  question back, the budget, before any planning. The user may write "skip the
+  judge" in an approval to waive it. Design:
+  [`docs/agents/plan-complexity-judge-design.md`](docs/agents/plan-complexity-judge-design.md).
 - **New conventions need a ruling:** if your change introduces a pattern this
   codebase does not already use — a new abstraction (protocol, registry, base
   class), a new dispatch or error-handling style, a new test structure, or a rule

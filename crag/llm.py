@@ -38,7 +38,7 @@ class StructuredLLM:
 
     def ask(self, prompt: str, schema: type[BaseModel]) -> tuple[BaseModel, str]:
         try:
-            return self._generate(self.primary, prompt, schema), self.primary
+            return self._generate(self.primary, prompt, schema)
         except RETRIED_ERRORS as error:
             if not is_retryable(error):
                 raise
@@ -50,7 +50,7 @@ class StructuredLLM:
                 error,
                 self.fallback,
             )
-        return self._generate(self.fallback, prompt, schema), self.fallback
+        return self._generate(self.fallback, prompt, schema)
 
     @retry(
         retry=retry_if_exception(is_retryable),
@@ -59,7 +59,7 @@ class StructuredLLM:
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-    def _generate(self, model: str, prompt: str, schema: type[BaseModel]) -> BaseModel:
+    def _generate(self, model: str, prompt: str, schema: type[BaseModel]) -> tuple[BaseModel, str]:
         response = self.client.models.generate_content(
             model=model,
             contents=prompt,
@@ -69,4 +69,4 @@ class StructuredLLM:
                 "temperature": 0,
             },
         )
-        return schema.model_validate_json(response.text)
+        return schema.model_validate_json(response.text), response.model_version or model

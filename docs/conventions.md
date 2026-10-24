@@ -452,8 +452,9 @@ else. It builds no default adapter, opens no client, calls no `warm_up()` and
 reads no environment variable. The caller (`crag/run.py`, the backend's startup)
 reads the settings, builds each adapter once and passes it in. Each adapter is a
 plain object with `run(...)` returning a dict; no `Protocol` or base class
-describes it (S004). When an LLM answered, that dict includes `"model"`, the model
-that answered (D5), so the orchestrator can record it.
+describes it (S004). When an LLM answered, that dict includes `"model"`: the version
+the response reports (`model_version`), or the alias that was called when the response
+has none (D5, D11), so the orchestrator can record it.
 
 **The step trace.** `CragResult.steps` holds one dict per step that ran, in order:
 `{"step", "started", "ended", "counts", "model"?}`. `started` and `ended` are ISO

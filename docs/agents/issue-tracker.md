@@ -126,6 +126,10 @@ Use these finding types:
 Plans contain exploration from design or grill sessions: alternatives,
 questions, tradeoffs, and decisions. A plan lives under its target's
 `plans/<concern>/` and is ready to become tickets only after the user approves it.
+A plan's header records `**Budget:** Nh`, the total hours of the user's own time
+the user stated for the concern; a plan request without one gets that question
+back before any planning. Before asking for approval, run the plan judge
+(`scripts/judge_plan.sh`, see [`plan-complexity-judge-design.md`](plan-complexity-judge-design.md)).
 
 Issues contain approved implementation work. Create one Markdown file per
 ticket in dependency order, using the local template from the `to-tickets`
@@ -134,6 +138,9 @@ where useful the functions/symbols, it will modify), its `Seams` list (the
 public interfaces its tests will exercise, agreed with the user when the ticket
 is written), and acceptance criteria. The `to-tickets` template has neither
 `Touches` nor `Seams`; add both directly under its `**Blocked by:**` line.
+Add `**Budget:** Nh` next to `Touches`: the hours of the user's own time the
+ticket may consume end to end; a plan's tickets sum to no more than the plan's
+budget.
 
 A ticket records progress under a `## Progress` heading at its end, one dated
 line per entry: `- YYYY-MM-DD (<tool>): <what changed>; <what was verified>;

@@ -5,7 +5,8 @@
 #
 # --planner claude  → Codex judges (codex exec, read-only sandbox).
 # --planner codex   → Claude judges (claude -p, tools limited to Read/Grep/Glob).
-# Writes judge.md next to the plan and prints its path. The flag is required:
+# Writes judge.md next to the plan and prints its path; the CLI's own transcript
+# goes to judge.log beside it (Codex streams ~200 KB of it). The flag is required:
 # the script cannot tell who wrote a plan, and guessing wrong puts the planner
 # in the judge's seat. Design: docs/agents/plan-complexity-judge-design.md.
 
@@ -42,6 +43,7 @@ case "$planner" in claude|codex) ;; *) usage ;; esac
 repo="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)"
 plan="$(cd "$(dirname "$plan")" && pwd)/$(basename "$plan")"
 out="$(dirname "$plan")/judge.md"
+log="$(dirname "$plan")/judge.log"
 trap 'rm -f "$out.tmp"' EXIT
 
 # The plan's budget is the user's total for the concern; "not stated" is itself
@@ -84,11 +86,13 @@ Do not propose additions. Do not rewrite code. Do not edit files."
 
 case "$planner" in
   claude)
-    codex exec -s read-only -C "$repo" --skip-git-repo-check -o "$out" "$prompt" >/dev/null </dev/null
+    codex exec -s read-only -C "$repo" --skip-git-repo-check -o "$out" "$prompt" >"$log" 2>&1 </dev/null \
+      || { echo "judge_plan: codex failed; see $log" >&2; exit 1; }
     ;;
   codex)
     # Write via a temp file so a failed run never leaves an empty judge.md.
-    (cd "$repo" && claude -p "$prompt" --allowedTools Read Grep Glob --permission-mode dontAsk) > "$out.tmp" </dev/null
+    (cd "$repo" && claude -p "$prompt" --allowedTools Read Grep Glob --permission-mode dontAsk) >"$out.tmp" 2>"$log" </dev/null \
+      || { echo "judge_plan: claude failed; see $log" >&2; exit 1; }
     mv "$out.tmp" "$out"
     ;;
 esac

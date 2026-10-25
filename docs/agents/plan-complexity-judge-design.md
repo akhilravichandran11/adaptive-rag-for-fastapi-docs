@@ -133,7 +133,7 @@ Do not propose additions. Do not rewrite code. Do not edit files.
 1. Exit with a usage error if `--planner` is missing or not one of the two values.
 2. Resolve the repository root, the plan's absolute path, its folder, and `OUT=<plan folder>/judge.md`.
 3. Read `<BUDGET>` from the plan's `**Budget:**` line, else "not stated"; substitute both placeholders into the prompt above.
-4. `--planner claude` → `codex exec -s read-only -C "$REPO" --skip-git-repo-check -o "$OUT" "$PROMPT"`.
+4. `--planner claude` → `codex exec -s read-only -C "$REPO" --skip-git-repo-check -o "$OUT" "$PROMPT"`. The CLI's own transcript (Codex streams about 200 KB of it to stderr) goes to `judge.log` beside `judge.md`, so an agent running the script sees only the output path; on failure the script exits 1 and points at the log.
 5. `--planner codex` → `claude -p "$PROMPT" --allowedTools Read Grep Glob --permission-mode dontAsk > "$OUT"` (run from `$REPO`). `dontAsk` denies any tool outside the allowlist without prompting, which is what makes the limit hold in a non-interactive run.
 6. Print the output path.
 
@@ -154,6 +154,10 @@ Do not propose additions. Do not rewrite code. Do not edit files.
 - Plans live at `.scratch/<hub>/.../plans/<concern>/plan.md` and are "ready to become tickets only after the user approves" them (docs/agents/issue-tracker.md).
 - Ticket files carry bold header lines (`**Plan:**`, `**Target:**`, `**Origin:**`, `**Blocked by:**`, `**Status:**`, `**Touches:**`, `**Seams:**`); a budget line fits that shape.
 - The repo has `.claude/commands/` (one command), `scripts/` (Python tools and hooks) and `docs/agents/` (agent-facing docs).
+
+## First run (2026-10-26)
+
+Blind run on `.scratch/data-ingestion-pipeline/targets/indexing-components/plans/chunk-size-rules/plan.md` (Claude-written, already implemented; Codex judged). 3m23s; the judge opened 15 files beyond the plan (findings, DECISIONS.md, the chunker, the checker, the report script and its tests); 28 rows, 16 keep, 10 simplify, 2 drop; format held. It flagged the missing budget as finding 0, applied the "stated reasons are not evidence" rule (low-prose heuristic, configurability flags), and grounded one verdict in code the plan did not mention (the sentence chunker's overlap). Weak spots: it did not say until late that the plan was already implemented; it made a table row for finding 0 and one for the plan's prose length. The stderr flood led to the `judge.log` change above. The user's tally against their private list is pending.
 
 ## Risks
 

@@ -28,41 +28,64 @@ from crag.orchestrator import CragOrchestrator  # noqa: E402
 from crag.refinement import KnowledgeRefinement  # noqa: E402
 from crag.web_search import WebSearch  # noqa: E402
 from data_ingestion.variants import select_variants  # noqa: E402
+from retrieval import hybrid  # noqa: E402
 from retrieval.baseline_rag import build_rag_pipeline  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 STRATEGY = "markdown_ast"
 EMBEDDER = "voyage"
-REQUIRED_SETTINGS = ("GOOGLE_API_KEY", "TAVILY_API_KEY", "GEMINI_MODEL", "GEMINI_LIGHT_MODEL")
+REQUIRED_SETTINGS = (
+    "GOOGLE_API_KEY",
+    "TAVILY_API_KEY",
+    "VOYAGE_API_KEY",
+    "GEMINI_MODEL",
+    "GEMINI_LIGHT_MODEL",
+)
 
 # The routes are LLM judgments, so a mismatch is reported, not raised.
 ROUTE_CHECK = (
     (
-        "How do I give a query parameter a default value in FastAPI?",
+        "How do I read a custom request header such as X-Token in a path operation?",
         "correct",
-        "covered directly by the query-parameter tutorial",
+        "covered by the header-parameters tutorial",
     ),
     (
-        "How do I return a 201 status code from a path operation?",
+        "How do I accept an uploaded file in a FastAPI endpoint?",
         "correct",
-        "covered by the response-status-code page",
+        "covered by the request-files tutorial",
     ),
     (
-        "How do I protect an endpoint with OAuth2 bearer tokens and rate-limit failed login "
-        "attempts?",
+        "How do I let a frontend on another origin call my API?",
+        "correct",
+        "covered by the CORS tutorial",
+    ),
+    (
+        "How do I set a cookie on the response from a path operation?",
+        "correct",
+        "covered by the response-cookies page",
+    ),
+    (
+        "How do I protect an endpoint with HTTP Basic auth and lock an account after five failed "
+        "password attempts?",
         "ambiguous",
-        "OAuth2 is documented; rate limiting is not part of FastAPI",
+        "HTTP Basic auth is documented; account lockout is not",
     ),
     (
-        "How do I run a background task after the response and retry it when it fails?",
+        "How do I stream a large file with StreamingResponse while reading it from an Amazon S3 "
+        "bucket with boto3?",
         "ambiguous",
-        "background tasks are documented; retries are not",
+        "streaming responses are documented; S3 and boto3 are not",
     ),
     (
-        "How do I deploy a FastAPI app to AWS Lambda with Mangum?",
+        "How do I send push notifications to iOS devices through Apple's APNs service?",
         "incorrect",
-        "the docs don't cover Lambda or Mangum",
+        "the docs don't cover iOS or APNs",
+    ),
+    (
+        "How do I export Prometheus metrics and OpenTelemetry traces from a FastAPI app?",
+        "incorrect",
+        "the docs don't cover Prometheus or OpenTelemetry",
     ),
 )
 
@@ -80,7 +103,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Run the {len(ROUTE_CHECK)} fixed questions and compare each route to the "
         "expected one",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--retriever",
+        choices=("hybrid", "dense"),
+        default="hybrid",
+        help="hybrid: BM25 + dense, fused and reranked; dense: Qdrant only (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+    # BM25 refuses an empty query only inside the run, after the paid query embedding.
+    if args.question is not None and not args.question.strip():
+        parser.error("--question must not be empty")
+    return args
 
 
 def run_route_check(crag: CragOrchestrator) -> None:
@@ -136,14 +169,24 @@ def main(argv: list[str] | None = None) -> None:
 
     [variant] = select_variants(STRATEGY, EMBEDDER)
     try:
-        pipeline = build_rag_pipeline(variant, retrieve_only=True)
-    except ValueError as exc:  # a missing collection, or missing Qdrant config
+        if args.retriever == "hybrid":
+            pipeline = hybrid.build_hybrid_pipeline(variant)
+
+            def retrieve(query: str, top_k: int) -> list[Document]:
+                return hybrid.retrieve(pipeline, query, top_k)
+
+        else:
+            pipeline = build_rag_pipeline(variant, retrieve_only=True)
+
+            def retrieve(query: str, top_k: int) -> list[Document]:
+                outputs = pipeline.run(
+                    {"query_embedder": {"text": query}, "retriever": {"top_k": top_k}}
+                )
+                return outputs["retriever"]["documents"]
+
+    except ValueError as exc:  # a missing collection or chunk run, or missing Qdrant config
         logger.error("%s", exc)
         raise SystemExit(1) from None
-
-    def retrieve(query: str, top_k: int) -> list[Document]:
-        outputs = pipeline.run({"query_embedder": {"text": query}, "retriever": {"top_k": top_k}})
-        return outputs["retriever"]["documents"]
 
     client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
     pro = StructuredLLM(client, primary=os.environ["GEMINI_MODEL"], fallback=pro_fallback)

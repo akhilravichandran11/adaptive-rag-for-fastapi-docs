@@ -1,9 +1,10 @@
 # Third-party notices
 
 This project's agent workflow (skills, agents, and the issue-tracker process
-under `docs/agents/`) was built on ideas from the open-source projects below.
-Unless a row says otherwise, the text here is rewritten, not copied; each
-source keeps its own license. The project's own code is under [LICENSE](LICENSE).
+under `docs/agents/`) was built on ideas from the open-source projects,
+documentation, articles, and video below. Unless a row says otherwise, the
+text here is rewritten, not copied; each source keeps its own license or
+copyright. The project's own code is under [LICENSE](LICENSE).
 
 | Source | License | Used for | Files here |
 |---|---|---|---|
@@ -15,3 +16,6 @@ source keeps its own license. The project's own code is under [LICENSE](LICENSE)
 | [l-mb, `python-refactoring-skills`](https://github.com/l-mb/python-refactoring-skills) | MIT | Catching complexity with deterministic tools (the `ruff` complexity check) | same simplifier files |
 | [affaan-m, ECC `python-patterns`](https://github.com/affaan-m/ECC/blob/main/skills/python-patterns/SKILL.md) | MIT | Plain-Python idioms | same simplifier files |
 | [Fabio Akita, "Clean Code for AI Agents"](https://akitaonrails.com/en/2026/04/20/clean-code-for-ai-agents/) (article) | © the author; ideas only, no text | Distinctive names; error messages that include the value; *why* comments over *what* comments | same simplifier files |
+| [Anthropic, "Orchestrate teams of Claude Code sessions"](https://code.claude.com/docs/en/agent-teams) (Claude Code docs) | © Anthropic; ideas only, no text | Running several tickets at once with a lead and named teammates; when to use a team instead of one session | `.claude/settings.json`, the "Agent teams" section of `CLAUDE.md`, `.claude/commands/batch-lead.md` |
+| [Felix Rieseberg, "How to be more ambitious: A tutorial for humans with models"](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/) (article) | © the author; ideas only, no text | Use an outside judge: a plan is reviewed by the model that did not write it | `scripts/judge_plan.sh`, `docs/agents/plan-complexity-judge-design.md`, the "Plan judge" rule in `AGENTS.md` |
+| [AI LABS, video summary of the article above](https://www.youtube.com/watch?v=92ZDgn8bgLM) (video) | © the author; ideas only, no text | Where I found the article; no ideas beyond it | same judge files |

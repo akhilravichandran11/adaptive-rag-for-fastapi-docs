@@ -13,6 +13,7 @@ from typing import Annotated
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from google import genai
 from tavily import TavilyClient
 
@@ -30,6 +31,7 @@ from retrieval import hybrid
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
 STRATEGY = "markdown_ast"
 EMBEDDER = "voyage"
 # VOYAGE_API_KEY too: the query embedder and the reranker need it.
@@ -90,3 +92,7 @@ def query(
 ) -> QueryResponse:
     crag_result = crag.run(body.question)
     return QueryResponse(**dataclasses.asdict(crag_result))
+
+
+# Mounted last: a mount at "/" only gets the requests no route above matched.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adaptive RAG for the FastAPI docs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 0.5rem; }
+    button { font: inherit; padding: 0.4rem 1.2rem; margin-top: 0.5rem; }
+    #route { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 0.3rem; background: #e8eef7; font-family: monospace; }
+    #answer { white-space: pre-wrap; }
+    #error { color: #b00020; white-space: pre-wrap; }
+    .origin { font-family: monospace; color: #555; margin-right: 0.4rem; }
+  </style>
+</head>
+<body>
+  <h1>Adaptive RAG for the FastAPI docs</h1>
+  <p>Ask a question about FastAPI. The answer cites the docs, or the web when the docs fall short.</p>
+
+  <form id="ask-form">
+    <label for="question">Question</label>
+    <textarea id="question" name="question" rows="3" maxlength="1000"></textarea>
+    <button id="ask" type="submit">Ask</button>
+  </form>
+
+  <p id="status" hidden>Working… (a query takes about 30 seconds)</p>
+  <p id="error" hidden></p>
+
+  <section id="result" hidden>
+    <p>Route: <span id="route"></span></p>
+    <h2>Answer</h2>
+    <p id="answer"></p>
+    <h2>Sources</h2>
+    <ol id="sources"></ol>
+    <div id="missing" hidden>
+      <h2>Missing aspects</h2>
+      <ul id="missing-list"></ul>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

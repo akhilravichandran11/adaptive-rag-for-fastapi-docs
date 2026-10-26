@@ -6,6 +6,54 @@ pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-10-26 — Hybrid retrieval: in-memory BM25 plus dense search, fused and reranked
+
+**Decision.** `retrieval/hybrid.py` searches one indexed variant two ways. BM25 runs in
+memory over the saved chunk file of stage 2's run `DEFAULT_CHUNKS_RUN`
+(`full_chunks_20261015`). Dense search runs on the variant's Qdrant collection. Each
+returns `CANDIDATES` (50) chunks. `DocumentJoiner` fuses the two lists by reciprocal
+rank, and `VoyageRanker` (`RERANK_MODEL`, `"rerank-2.5"`) reranks them to `TOP_K` (10).
+It is one small Haystack `Pipeline` of built-in components. CRAG uses it on the
+`markdown_ast` Voyage collection through `build_hybrid_pipeline` and `retrieve`.
+
+Each BM25 chunk gets the id stage 3 gave its Qdrant point,
+`strategy:embedder:source_path:chunk_index` (D34, an id of the ingestion plan; see
+`point_key` in `data_ingestion/stage3_index_chunks.py`). The key is built in
+`hybrid.py`, not imported from the stage (C007 in
+[`docs/conventions.md`](../docs/conventions.md)). A failed rerank raises; it is never
+skipped. A missing chunk file or a missing collection raises `ValueError` before any
+search.
+
+**Why.** BM25 matches exact words, such as API names, that dense search can rank low.
+Reciprocal rank fusion merges duplicates by document id. The saved chunk rows hold only
+text and metadata, so without the shared key Haystack would give a BM25 chunk a content
+hash that never matches its Qdrant copy. The collection is checked first because
+Haystack's Qdrant store creates a missing collection when it first connects, so a
+mistyped name would search a new, empty one. A skipped rerank would hand back the
+un-reranked lists with nothing in the result to show it.
+
+On the 2026-10-26 CRAG route check, 8 questions with known routes, dense retrieval
+gave 6 of 8 routes as expected and hybrid gave 7 of 8. Hybrid found the HTTP Basic
+auth page for a question that dense missed, and it changed no other route. On one
+correct question it found 6 relevant chunks where dense found 3.
+
+**The BM25 trade-offs.**
+
+- The BM25 index is rebuilt from the chunk file at every start: seconds for the 1,137
+  `markdown_ast` chunks.
+- The chunk file sits in git-ignored `data_ingestion/outputs/`, so the backend needs it
+  on disk wherever it runs.
+- Move sparse vectors into Qdrant only if the corpus grows a lot.
+
+**Alternatives considered.**
+
+- **Sparse vectors in Qdrant, or a local sparse model.** Local models were slow on the
+  laptop, and either needs a new hybrid collection and a paid re-index. In-memory BM25
+  needs no new code path in `data_ingestion/`.
+- **A hand-written reranker.** `VoyageRanker` ships with the installed Voyage package.
+
+---
+
 ## 2026-10-17 — Every variant retrieves 10 chunks and answers from them only
 
 **Decision.** `retrieval/baseline_rag.py` answers a question from one of the 14

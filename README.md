@@ -6,9 +6,10 @@ normalizes them into self-contained documents, runs an LLM-assisted curation
 pipeline to prepare candidate content for review, then chunks and indexes the
 corpus for retrieval.
 
-> Early development. Source collection, normalization, chunking, and indexing
-> work. Retrieval and evaluation are planned. See [ROADMAP.md](ROADMAP.md) for
-> the full status.
+> Early development. Source collection, normalization, chunking, indexing, and
+> hybrid retrieval work, and the CRAG pipeline answers questions from the command
+> line, over HTTP, and on a web page. Evaluation is planned. See
+> [ROADMAP.md](ROADMAP.md) for the full status.
 
 ## Pipeline
 
@@ -26,7 +27,7 @@ collect  →  normalize  →  curate  →  chunk  →  index  →  retrieve  →
 | curate    | Deferred    |
 | chunk     | Done        |
 | index     | In progress |
-| retrieve  | Planned     |
+| retrieve  | Done        |
 | evaluate  | Planned     |
 
 Chunking compares seven strategies on the same corpus (`naive_small`,
@@ -52,10 +53,12 @@ data_collection/    # Collect FastAPI docs + referenced code from a pinned commi
   data_normalization/ # Inline referenced code into self-contained documents
 data_curation/      # LLM-assisted quality pipeline (stage runner + stages)
 data_ingestion/     # Qdrant setup, chunking strategies, embedders, indexing
+retrieval/          # Dense baseline RAG, and hybrid BM25 + dense search, reranked
+crag/               # CRAG pipeline: grade chunks, pick a route, search the web, answer
 scripts/            # Model downloads, chunk-size report, CI helpers
 evaluation/         # Retrieval / answer evaluation           (planned)
-backend/            # API service                             (planned)
-frontend/           # UI                                      (planned)
+backend/            # FastAPI service: POST /query, GET /health, the page at /
+frontend/           # Static page for asking questions, served by the backend
 experiments/        # Ad-hoc experiments
 docs/               # Conventions and agent-workflow docs
 tests/              # Kept local for now, while the testing approach settles
@@ -141,6 +144,10 @@ uv run python data_ingestion/stage3_index_chunks.py --chunks-run <run_id> --stra
 
 Each collection is named `<prefix>__<strategy>__<embedder>`. Stage 3 refuses a
 chunk run made from a different corpus build.
+
+### 6. Ask (**paid**: Voyage, Gemini and Tavily)
+
+From the command line, over HTTP or on a web page: see [crag/RUNNING.md](crag/RUNNING.md).
 
 ## Tests and checks
 

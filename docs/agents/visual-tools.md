@@ -8,7 +8,7 @@ how to run it.
 
 | Job | Use | Skill or command |
 |---|---|---|
-| Explain a design | a diagram in chat, or a full page | inline visual; `visual-explainer` |
+| Explain a design | a diagram in chat, a full page, or a diagram file | inline visual; `visual-explainer`; `archify` or `diagram-design` |
 | Ask for decisions | one page with every open question and its recommendation | `grill-with-ui` |
 | Get record or doc edits approved | a proposal page in Plannotator's gate, then "yes" in chat | the proposal-page builder |
 | Get code reviewed | inline comments on the diff, a visual recap, or a diff review | `crit`, `visual-recap`, `plannotator review` |
@@ -60,7 +60,10 @@ To explain a design, a flow or the difference between options, start from a
 concrete example, then draw a small diagram in chat with your tool's inline
 visual. When your tool has none, or one diagram is not enough (an
 architecture, a walkthrough of a change, a comparison of several options),
-build a page with the `visual-explainer` skill.
+build a page with the `visual-explainer` skill. For a diagram that stands as
+its own file, pick by where it ends up: `archify` for an interactive diagram
+traced from this repo's code, `diagram-design` for a static SVG a README
+embeds, or for a chart.
 
 ## Decide
 

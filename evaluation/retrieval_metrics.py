@@ -13,17 +13,21 @@ def score_chunks(chunks: list[dict[str, Any]], gold_sources: list[str]) -> dict[
     gold = set(gold_sources)
     best_rank: dict[str, int] = {}
     for chunk in chunks:
-        meta = chunk["meta"]
+        rank, meta = chunk["rank"], chunk["meta"]
+        if not isinstance(rank, int) or rank < 1:
+            raise ValueError(
+                f"score_chunks: a chunk has rank {rank!r}; ranks are whole numbers from 1"
+            )
         if meta.get("source") == "web":
             continue
-        if "source_path" not in meta:
+        path = meta.get("source_path")
+        if not path:
             raise ValueError(
-                f"score_chunks: the chunk at rank {chunk['rank']} has no meta.source_path "
+                f"score_chunks: the chunk at rank {rank} has no meta.source_path "
                 "and is not a web chunk (meta.source == 'web')"
             )
-        path = meta["source_path"]
         if path in gold:
-            best_rank[path] = min(chunk["rank"], best_rank.get(path, chunk["rank"]))
+            best_rank[path] = min(rank, best_rank.get(path, rank))
 
     scores = {f"recall@{k}": sum(rank <= k for rank in best_rank.values()) / len(gold) for k in KS}
     scores["reciprocal_rank"] = 1 / min(best_rank.values()) if best_rank else 0.0

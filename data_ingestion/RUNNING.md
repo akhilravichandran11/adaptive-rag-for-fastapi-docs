@@ -16,7 +16,7 @@ Qdrant collections. Stage 1 is only a connection check and setup for the store.
 
 | Stage | Script | Cost | Needs in `.env` |
 | --- | --- | --- | --- |
-| 1 | `stage1_setup_qdrant.py` | free | `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION` |
+| 1 | `stage1_setup_qdrant.py` | free | `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION`, `EMBEDDING_DIMENSION` |
 | 2 | `stage2_chunk_corpus.py` | free, except `semantic` / `all` | `OPENROUTER_API_KEY` only for `semantic` |
 | 3 | `stage3_index_chunks.py` | **paid** | Qdrant keys, plus `OPENROUTER_API_KEY` (bge) or `VOYAGE_API_KEY` (voyage) |
 

@@ -81,7 +81,9 @@ cp .env.example .env
 
 Fill in the keys for the stages you run: `GOOGLE_API_KEY` and `OPENAI_API_KEY`
 for curation; `QDRANT_URL` and `QDRANT_API_KEY` for indexing; `VOYAGE_API_KEY`
-and/or `OPENROUTER_API_KEY` for embeddings.
+and/or `OPENROUTER_API_KEY` for embeddings; `GOOGLE_API_KEY`, `VOYAGE_API_KEY`
+and `TAVILY_API_KEY` for asking (step 6). `.env.example` already names the Gemini
+models.
 
 ## Running the pipeline
 

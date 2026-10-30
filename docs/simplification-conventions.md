@@ -39,4 +39,9 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 - *Applies to:* all Python. The 10 frozen dataclasses are revisited in their files' `SMP-` tickets.
 - *Decided:* 2026-10-20 (CRAG first-cut grill, Q06; repo-wide by Q12).
 
-<!-- Next: S007 from Q01 (lru_cache + deepcopy), and so on. -->
+**S007 — No `functools` caches (`lru_cache`, `cache`, `cached_property`) and no `copy.deepcopy`. Load an expensive object once, in the caller, a component's `warm_up()` or the app's `lifespan`, and pass it in.**
+- *Why:* a cache adds a key, a size and a staleness rule to explain, and a cached object shared by callers then needs a defensive copy. Loading once per batch costs little (BGE's tokenizer loads in about 13 ms), and the caller can see where it happens.
+- *Applies to:* all Python outside `tests/`, where copying a fixture with `deepcopy` is fine. Two places break it today: `data_ingestion/embedders.py` (`_tokenizer_from_file`, `bge_tokenizer`) and `data_ingestion/chunk_shape.py` (`_sentence_splitter`). They change in their files' `SMP-` tickets.
+- *Decided:* 2026-10-27 (Q01, after the `embedders.py` simplifier comparison run).
+
+<!-- Next: S008, from the next question decided. -->

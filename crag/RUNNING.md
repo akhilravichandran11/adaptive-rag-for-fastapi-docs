@@ -48,7 +48,9 @@ uv run python data_ingestion/stage3_index_chunks.py --chunks-run full_chunks_202
 ```
 
 If either is missing, the command line exits 1 naming it, and the server does not start.
-`--retriever dense` needs only the collection.
+`--retriever dense` needs only the collection. Where both already exist, skip the build:
+stage 2 refuses a run id whose folder exists, and stage 3 stops at an existing collection
+unless given `--recreate`.
 
 ## Check retrieval alone (cheaper)
 

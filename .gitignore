@@ -67,6 +67,7 @@ logs/
 
 # Harness local state (Claude Code, Kilo Code)
 .claude/settings.local.json
+.claude/launch.json
 .claude/worktrees/
 .kilo/
 
@@ -99,3 +100,5 @@ outputs/
 
 # Experiments are kept local for now
 /experiments/
+
+/docs/code-atlas/

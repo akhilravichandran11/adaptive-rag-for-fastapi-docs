@@ -25,7 +25,9 @@ keeps a list of its own.
    Done when every request you made in this chat that the user has not
    answered is listed, or you can say nothing here is waiting.
 
-2. **The tracker.** Run `python3 .scratch/now.py` and read `.scratch/NOW.md`.
+2. **The tracker.** Read `.scratch/MINE.md` first: its "My pick" items, in the
+   user's order, are the user's top ranks and outrank everything below. Then run
+   `python3 .scratch/now.py` and read `.scratch/NOW.md`.
    For each capability with items under Needs you or Ready for an agent, read
    the `## Current state` block in its hub (`.scratch/<capability>/_index.md`)
    and rank that capability's items by the block's **Order** line. Put the

@@ -16,6 +16,19 @@ step.
   owner) and apply them only after I say yes. Same for setting `in-progress`.
 - Refuse to run two tickets that touch the same file. Check the other boards
   too (`code-simplification` overlaps ingestion files); flag an overlap to me.
+- A ticket with a paid run (an evaluation, a route check, a live index) must
+  say where its inputs came from and what result it expects. If the
+  questions were drafted for the ticket rather than taken from my existing
+  lists, or the expected routes were never checked against the corpus, stop
+  and tell me before spawning: the free checks (a corpus grep per topic,
+  retrieve-only lookups) come before any paid call. CRG-12's route-check
+  questions were invented by the ticket writer and I caught it only after the
+  paid run.
+- Before a wave with paid runs, ask me to confirm the paid keys are current
+  (a rotated Voyage key killed CRG-13's first run on its first call), and
+  make the first paid call the cheapest one that proves the key: one
+  embedding or one short completion, approved on its own, before the full
+  run.
 - Run `git status --short`. Tell me about uncommitted tracked files in the
   batch's `Touches` before starting. Also list modified or untracked files
   outside the batch: another chat's work in progress can turn the full suite
@@ -27,9 +40,13 @@ step.
 ## 2. Spawn
 
 - One `ticket-implementer` per ticket, named after the ticket (`prt04`). Give
-  the ticket path, the exact files it owns, and anything the ticket leaves
-  open that I settled in my prompt. Say explicitly: do not run `code-review`
-  or `active-code-reviewer`; the lead runs them.
+  the ticket path, the exact files it owns, the files its siblings own, and
+  anything the ticket leaves open that I settled in my prompt. Paste the
+  "While a question is open" list from
+  `.scratch/code-simplification/questions.md` verbatim into the prompt: a
+  pointer to the file is not read under pressure, and one missed item (a
+  factory helper in a test, CRG-12) costs a fix round. Say explicitly: do not
+  run `code-review` or `active-code-reviewer`; the lead runs them.
 - Spawn tickets with a dependency only after the handback of the ticket they
   wait on has been reviewed.
 - Every spawn prompt stands on its own. A session resume drops every
@@ -40,11 +57,15 @@ step.
 ## 3. Collect and review each handback
 
 - Read the handback report in full. Confirm `Status`, the `Files` list, and
-  that `Verification` shows actual counts.
+  that `Verification` shows actual counts. Spot-check two `file:line`
+  references against the files: a handback once cited line 343 of a 262-line
+  file.
 - Once the handback's verification passes, spawn `active-code-simplifier` on
   that ticket's Python files with the handback's `Start` sha, and wait for it.
   Then run the reviews below on the simplified files. Only the first build and
   rounds over about 50 lines get the simplifier; a small fix round does not.
+  Name only production files for it: it refuses `tests/` by its own rules
+  even when a prompt names a test file.
   Its Split list (each new step and its job) comes to me verbatim with the
   ticket's report; step names are a design call.
 - Run `code-review` with the handback's `Start` sha as the fixed point.
@@ -59,17 +80,40 @@ step.
   nothing yourself
   for a bug: resume the implementer by name with the findings. A resumed
   agent reloads its whole transcript, so send every in-scope finding in one
-  message, not one at a time.
+  message, not one at a time. The one edit you may make yourself is a
+  user-ruled, non-code record line (a `DECISIONS.md` sentence, a docstring
+  pointer) after the implementer has handed back; say so in the Progress
+  line. Source and tests are always the implementer's, even one line.
 - Before sending a fix list, check each item against `docs/conventions.md`,
   `docs/simplification-conventions.md`, the "While a question is open" list
   in `.scratch/code-simplification/questions.md` and the ticket's Seams: a
   fix that contradicts an accepted convention, or adds a construct the open
   list bans, costs a whole round.
-- Review depth per round: the first build and any round that changes an
-  interface or more than about 50 lines get the full set (`code-review`,
-  then `active-code-reviewer`). A smaller fix round gets
-  `active-code-reviewer` plus your own read of the diff against the
-  standards and the spec, and the Progress line says which depth ran.
+- Review depth per round, by cost. `code-review` costs four to six times a
+  bug review and finds spec gaps and style, not bugs, so it runs **once per
+  ticket, on the first build**. Every later round gets `active-code-reviewer`
+  when it changes behaviour or an interface, plus your own read of the diff
+  against the spec and the standards; a rename-only or comment-only round
+  gets your read alone. The Progress line says which depth ran.
+  `code-review` and `active-code-reviewer` may run in parallel: both only
+  read. When the first build's diff is under about 200 lines, tell
+  `code-review` to run both axes in one subagent instead of two. When it is
+  under about 50 lines **of Python** (CRG-18 was 3 lines and cost 110k in
+  `code-review`; CRG-15 was 6 lines of Python plus 135 of JS and HTML and
+  cost 113k for no must-fix), skip `code-review`: the standards sources are
+  Python rules. Read the diff yourself against the ticket and the standards,
+  run `active-code-reviewer`, and say so in the Progress line.
+- Resume versus respawn. A resumed implementer reloads its whole transcript,
+  so each fix round costs more than the last (PRT-04: 226k build, then 328k
+  to 410k per resume). Resume for the first fix round. For a later round, or
+  whenever the implementer's last usage line is past about 250k tokens, spawn
+  a fresh implementer with the ticket path, the current handback, the fix
+  list and the files it owns; it reads the code, not the history. Two fix
+  rounds is the budget; needing a third means the ticket or the fix list is
+  wrong, so stop and tell me.
+- Keep a cost ledger. Every subagent completion hands you a usage line
+  (tokens, tool uses, duration). Record each run on a per-ticket table as it
+  lands; it goes in the report and the Process notes.
 - Any `Proposed convention` or `Noticed, not touched` item goes to me as a
   question, not into `docs/conventions.md` or a finding file. Before
   proposing that a finding go to another ticket, read that ticket's `Touches`.
@@ -104,9 +148,14 @@ step.
 
 ## 6. Report
 
+Before writing the report, run `git log -1 --oneline` and `git status
+--short` again: another chat may have committed during the batch (it has,
+twice). Anchor every table to the Start sha, say what HEAD is now, and check
+that no batch file rode into the other chat's commit.
 Show me, per ticket: status, the `git add` line and proposed commit message,
-the decisions table verbatim, and the suite count with and without other
-chats' files. Then one numbered list of every decision I owe, across tickets,
+the decisions table verbatim, the suite count with and without other chats'
+files, and the cost table (one row per subagent run: role, tokens, tool
+uses, minutes; a total line per ticket). Then one numbered list of every decision I owe, across tickets,
 each with your recommendation, so I answer once rather than in rounds. If the
 relay session is not in `ListAgents`, don't wait on it: tell me, and send the
 report when it appears. Then send the full handback reports and every process problem you

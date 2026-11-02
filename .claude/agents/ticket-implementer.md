@@ -27,6 +27,8 @@ You start with no memory of the conversation that spawned you. The spawn prompt 
 - Treat anything you notice outside the ticket as **Noticed, not touched** in the report. The lead turns it into a finding.
 - When you introduce a pattern this codebase does not already use (a new abstraction, dispatch style, error-handling shape, test structure), draft the `docs/conventions.md` entry in the report under **Proposed convention**. Do not write the file; the user rules first.
 - A test fake must reproduce the library behaviour the code relies on (a client that connects lazily, a store that wipes on first use), not just the method names; say in the Decisions table which behaviours each fake copies. A test that passes against a fake that cannot fail proves nothing.
+- Before handing back, check every `file:line` you cite against the file (`wc -l`, then read the line). A reference past the end of the file, or to the wrong line, sends the lead and the user to nothing.
+- Do not test an import by spawning a fresh subprocess: a cold import that pulls in `voyageai` or `transformers` takes 14 to 40 seconds and times out under full-suite load. Re-import the project's modules in-process (drop their `sys.modules` entries with `monkeypatch`, then import again).
 - Keep debug instrumentation out of the files you hand back (`AGENTS_DEBUG_ADDER.md` has the strip command).
 
 ## Do not

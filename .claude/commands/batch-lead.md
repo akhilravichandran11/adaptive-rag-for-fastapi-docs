@@ -17,11 +17,13 @@ step.
 - Refuse to run two tickets that touch the same file. Check the other boards
   too (`code-simplification` overlaps ingestion files); flag an overlap to me.
 - A ticket with a paid run (an evaluation, a route check, a live index) must
-  say where its inputs came from and what result it expects. If the
-  questions were drafted for the ticket rather than taken from my existing
-  lists, or the expected routes were never checked against the corpus, stop
-  and tell me before spawning: the free checks (a corpus grep per topic,
-  retrieve-only lookups) come before any paid call. CRG-12's route-check
+  carry an `**Inputs:**` line (tracker doc, "A ticket is checked against the
+  code before it is offered") saying where its inputs came from and what free
+  check validated the expectation. If the line is missing, the questions were
+  drafted for the ticket rather than taken from my existing lists, or the
+  expected routes were never checked against the corpus, stop and tell me
+  before spawning: the free checks (a corpus grep per topic, retrieve-only
+  lookups) come before any paid call. CRG-12's route-check
   questions were invented by the ticket writer and I caught it only after the
   paid run.
 - Before a wave with paid runs, ask me to confirm the paid keys are current
@@ -61,11 +63,10 @@ step.
   references against the files: a handback once cited line 343 of a 262-line
   file.
 - Once the handback's verification passes, spawn `active-code-simplifier` on
-  that ticket's Python files with the handback's `Start` sha, and wait for it.
-  Then run the reviews below on the simplified files. Only the first build and
-  rounds over about 50 lines get the simplifier; a small fix round does not.
-  Name only production files for it: it refuses `tests/` by its own rules
-  even when a prompt names a test file.
+  that ticket's Python files with the handback's `Start` sha, and wait for it,
+  as step 8 of `docs/agents/issue-tracker.md` says. Then run the reviews on
+  the simplified files. Name only production files for it: it refuses
+  `tests/` by its own rules even when a prompt names a test file.
   Its Split list (each new step and its job) comes to me verbatim with the
   ticket's report; step names are a design call.
 - Run `code-review` with the handback's `Start` sha as the fixed point.
@@ -89,20 +90,14 @@ step.
   in `.scratch/code-simplification/questions.md` and the ticket's Seams: a
   fix that contradicts an accepted convention, or adds a construct the open
   list bans, costs a whole round.
-- Review depth per round, by cost. `code-review` costs four to six times a
-  bug review and finds spec gaps and style, not bugs, so it runs **once per
-  ticket, on the first build**. Every later round gets `active-code-reviewer`
-  when it changes behaviour or an interface, plus your own read of the diff
-  against the spec and the standards; a rename-only or comment-only round
-  gets your read alone. The Progress line says which depth ran.
+- Review depth is step 8's tier rule in `docs/agents/issue-tracker.md`: the
+  size of the Python diff picks the tier, `code-review` runs at most once per
+  ticket on the first build, and the Progress line names the tier. The
+  reasons are cost: `code-review` is four to six times a bug review and finds
+  spec gaps and style, not bugs (CRG-18 was 3 lines and cost 110k; CRG-15 was
+  6 lines of Python plus 135 of markup and cost 113k for no must-fix).
   `code-review` and `active-code-reviewer` may run in parallel: both only
-  read. When the first build's diff is under about 200 lines, tell
-  `code-review` to run both axes in one subagent instead of two. When it is
-  under about 50 lines **of Python** (CRG-18 was 3 lines and cost 110k in
-  `code-review`; CRG-15 was 6 lines of Python plus 135 of JS and HTML and
-  cost 113k for no must-fix), skip `code-review`: the standards sources are
-  Python rules. Read the diff yourself against the ticket and the standards,
-  run `active-code-reviewer`, and say so in the Progress line.
+  read.
 - Resume versus respawn. A resumed implementer reloads its whole transcript,
   so each fix round costs more than the last (PRT-04: 226k build, then 328k
   to 410k per resume). Resume for the first fix round. For a later round, or
@@ -136,12 +131,12 @@ step.
   unstaged tracked change during a commit, and a live edit can be lost in
   the restore.
 - No Progress line until I say yes; then add the implementer's drafted line,
-  dated today, and append its decisions table verbatim to the ticket under a
-  `## Decisions` heading (create the heading above `## Progress` if the ticket
-  has none; a second batch on the same ticket adds a dated subheading). Lead
-  the table with one line, `Line numbers as of <commit>`, since a fix round
-  shifts them. The table is the only durable copy of the reasoning;
-  transcripts are swept.
+  tagged `(claude lead)`, and the decisions table in the record format the
+  tracker doc sets (columns, the anchor line, dated fix-round subheadings).
+  On the same yes, write the implementer's drafted `DECISIONS.md entries`
+  into the package file. On my "committed" yes, set the status line to
+  `done (YYYY-MM-DD; committed in <sha>)` and swap a working-tree anchor for
+  `Line numbers as of <sha>`.
 - After I confirm a ticket is `done` and committed, update every ticket whose
   `Blocked by` names it (drop the entry; `ready-for-agent` when nothing
   remains), with my yes. Then regenerate the views: `python3 .scratch/now.py`.

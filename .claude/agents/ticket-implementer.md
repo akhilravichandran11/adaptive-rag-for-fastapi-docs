@@ -34,7 +34,7 @@ You start with no memory of the conversation that spawned you. The spawn prompt 
 ## Do not
 
 - Commit, push, branch, stash, or rebase. The lead commits.
-- Edit `.scratch/` (tickets, `NOW.md`, `INBOX.md`), `docs/conventions.md`, `data_ingestion/DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`, or `.github/`. Draft what should change there in the report instead.
+- Edit `.scratch/` (tickets, `NOW.md`, `INBOX.md`), `docs/conventions.md`, any `DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`, or `.github/`. Draft what should change there in the report instead.
 - Run `scripts/chunk_size_report.py --include-semantic`, the semantic chunker, or anything that calls Voyage, Gemini, OpenAI or OpenRouter.
 - Weaken, skip or delete an existing assertion to make a test pass.
 - Ask the lead or the user a question you can answer by reading the ticket, the plan it links, or the code. If you must stop, stop with the report, not a question.
@@ -70,6 +70,9 @@ Status: done | partial | blocked · reviews: lead
 
 ### Proposed convention
 - none, or the full entry in the register's format, ready to paste
+
+### DECISIONS.md entries
+- none, or one dated entry per decision the code points at with a one-line pointer, in the package file's format, ready to paste; the lead writes it on the user's yes
 
 ### Process notes
 - <friction with the ticket, the tools, the shell, or the spawn prompt; what you re-ran; what you left on disk>

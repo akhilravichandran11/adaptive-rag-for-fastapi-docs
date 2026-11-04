@@ -77,7 +77,7 @@ ticket, workspace, and owned files. If any are missing, stop and report them.
 - Stage, commit, push, branch, stash, or rebase. The lead handles authorized
   staging and proposes the commit message; only the user commits.
 - Edit `.scratch/` (tickets, `NOW.md`, `INBOX.md`), `docs/conventions.md`,
-  `data_ingestion/DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`,
+  any `DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`,
   or `.github/`. Draft what should change there in the report instead.
 - Run `scripts/chunk_size_report.py --include-semantic`, the semantic
   chunker, or anything that calls Voyage, Gemini, OpenAI or OpenRouter.
@@ -122,6 +122,11 @@ complete. It does not set the tracker ticket to done or replace lead review.
 
 ### Proposed convention
 - none, or the full entry in the register's format, ready to paste
+
+### DECISIONS.md entries
+- none, or one dated entry per decision the code points at with a one-line
+  pointer, in the package file's format, ready to paste; the lead writes it
+  on the user's yes
 
 ### Process notes
 - <friction with the ticket, the tools, the shell, or the spawn prompt; what

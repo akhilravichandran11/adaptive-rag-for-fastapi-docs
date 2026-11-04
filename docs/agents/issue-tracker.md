@@ -144,13 +144,31 @@ budget.
 
 A ticket records progress under a `## Progress` heading at its end, one dated
 line per entry: `- YYYY-MM-DD (<tool>): <what changed>; <what was verified>;
-<what is next>`. An agent adds a line only after the user says yes.
+<what is next>`. `<tool>` is `claude` or `codex`, with ` lead` added when a
+batch lead writes the line for an implementer (`claude lead`); nothing else
+goes in the parentheses, and a chat or worktree name goes in the line's text
+when it matters. An agent adds a line only after the user says yes.
 
-A ticket implemented by an agent also keeps that agent's decisions table,
-verbatim, under a `## Decisions` heading placed above `## Progress`: one row
-per choice with the alternative rejected, why, and where in the code. It is
-added with the Progress line, on the same yes. The table is the durable copy;
-the agent's transcript is swept after the cleanup period.
+Every ticket, whichever path built it, keeps the implementer's decisions table,
+verbatim, under a `## Decisions` heading placed above `## Progress`, with the
+columns `Decision | Alternative rejected | Why | Where`. The table opens with
+one line that anchors its `Where` column: `Line numbers as of <sha>` when that
+commit holds the change, or `Reviewed working tree based on <sha>, recorded
+<date>` when the table is written before the commit; the lead replaces the
+second form with the first on the "committed" yes. A fix round or a later
+batch adds its rows under a dated `### <date> fix round` subheading rather
+than editing earlier rows. It is added with the Progress line, on the same
+yes. The table is the complete record and stays private with the ticket; the
+rows a code pointer cites also go to the package's `DECISIONS.md`, as the
+next paragraph says.
+
+A package's tracked `DECISIONS.md` (CLAUDE.md, S002) gets a dated entry for
+each decision the code points at with a one-line pointer, and nothing else: a
+guard, a default, a data shape whose reason is not in the code. The entry
+names the ticket and the files. The implementer drafts these entries in its
+handback under `DECISIONS.md entries`; the lead, or the solo chat, writes
+them on the same yes as the Progress line, because implementers do not edit
+`DECISIONS.md`. Everything else in the table stays in the ticket.
 
 Only an issue with `Status: ready-for-agent` or `Status: in-progress`
 authorizes implementation. Material under `findings/`, `roadmaps/`, and
@@ -245,6 +263,11 @@ and proposes fixes for records git has outrun.
 - `done`: every acceptance criterion is checked, its verification completed,
   and no convention it introduced is still `proposed` in
   [`../conventions.md`](../conventions.md).
+  The status line reads `done (YYYY-MM-DD; committed in <sha>)`, written on
+  the user's "committed" yes; a bare `done` is a record defect.
+  A ticket's Verification names the reviews as "reviews per step 8 for a diff
+  of this size", never as a list of agents; the Progress line records which
+  tier ran.
 
 Only the user sets `deferred` or `wont-do`; an agent may propose either.
 
@@ -309,19 +332,42 @@ within one ticket's scope and request user approval before expanding it. Mark th
    decisions under the target's `plans/<concern>/plan.md`, and iterate until
    the user approves it.
 6. Use `to-tickets` to create tracer-bullet issues from an approved finding or
-   plan, each with `Touches` and `Seams`; add each to the shared board with a
-   `<PREFIX>-NN` id.
-7. Start a fresh implementation session with one ready ticket, launched with
-   `/implement` (Codex: `$implement`). Write tests with `tdd`, only at the
-   ticket's `Seams`.
-8. Review the change with `code-review` (repo standards and the ticket), then
-   with the `active-code-reviewer` agent (bugs). Verify its acceptance
-   criteria, record any convention the work introduced in
-   `docs/conventions.md`, update its status, then select the next unblocked
-   ticket. Closing a ticket includes its dependents: once it is `done` and
-   committed, open every ticket whose **Blocked by** names it, remove the
-   entry, and set `ready-for-agent` when nothing remains. A ticket left
-   `blocked` on a finished blocker is stale state the next agent will trip on.
+   plan, each with `Touches` and `Seams`, and check each ticket against the
+   code before offering it (see the override below); add each to the shared
+   board with a `<PREFIX>-NN` id.
+7. Pick the path, then start. Two or more ready tickets with disjoint
+   `Touches` and no paid step run as one batch under `/batch-lead` (Codex:
+   its own `batch-lead` skill), one implementer per ticket. One ready ticket
+   runs as a batch of one when its Budget is two hours or more, or it adds a
+   module: a reviewer that did not write the code, and the handback record,
+   are worth a lead at that size. A smaller ticket, a paid or live run, or
+   sequential same-file work runs in a single supervised chat launched with
+   `/implement` (Codex: `$implement`), and that chat ends with a handback
+   (see the override below). Name the path and the reason in the ticket's
+   first Progress line. Write tests with `tdd`, only at the ticket's `Seams`.
+8. Review the change. This step is the one rule for every path: a single
+   `/implement` chat, a `/batch-lead` implementer, and Codex. Tickets point
+   here instead of listing reviews.
+   - If Python changed, run `active-code-simplifier` on the changed files
+     with the starting commit, before any review. Skip it for a fix round
+     under about 50 lines.
+   - Then by the size of the Python diff: under about 50 lines, read the diff
+     yourself against the ticket and the standards sources, then run the
+     `active-code-reviewer` agent; under about 200, run `code-review` with
+     both axes in one subagent, then `active-code-reviewer`; above that, run
+     `code-review` as it ships, then `active-code-reviewer`. Markup, JSON and
+     docs do not count toward the size; a docs-only ticket gets no reviews.
+   - A fix round that changes behaviour or an interface gets
+     `active-code-reviewer` again plus your own read; a rename-only or
+     comment-only round gets your read alone. The Progress line names the
+     tier that ran.
+   Verify the acceptance criteria, record any convention the work introduced
+   in `docs/conventions.md`, update the status, then select the next
+   unblocked ticket. Closing a ticket includes its dependents: once it is
+   `done` and committed, open every ticket whose **Blocked by** names it,
+   remove the entry, and set `ready-for-agent` when nothing remains. A ticket
+   left `blocked` on a finished blocker is stale state the next agent will
+   trip on.
 
 ### Skills and repo overrides
 
@@ -334,8 +380,17 @@ instructions conflict with this repo, this repo wins:
   changes uncommitted. End the report with the `git add <paths>` line (only the
   files this ticket changed) and a Conventional Commit message; the user runs
   both. For several logical commits, use `commit-planning` instead.
-- **Both reviews run.** `implement` runs `code-review`; the
-  `active-code-reviewer` agent required by `AGENTS.md` still runs after it.
+- **End with a handback.** Whichever path built it, the ticket's report uses
+  the implementer's headings (`.claude/agents/ticket-implementer.md`,
+  `.codex/agents/ticket-implementer.toml`): Status, rulings needed, Files,
+  Decisions table or "none", Changed mid-way, Verification with the counts
+  and the other-chats caveat, Noticed not touched, Proposed convention,
+  Process notes, and the drafted Progress line. The table goes into the
+  ticket on the same yes as the Progress line, and every Noticed item is
+  disposed of on that yes: a finding, an INBOX line, or "dropped, because".
+- **Reviews follow step 8.** `implement` runs `code-review` on everything;
+  here the tier in step 8 decides whether `code-review` runs at all, and the
+  `active-code-reviewer` agent required by `AGENTS.md` runs in every tier.
 - **`code-review` sees the working tree.** It diffs `<fixed point>...HEAD`,
   which is empty when nothing is committed. Give it the starting commit as
   the fixed point, have it review `git diff <start>` and read new untracked
@@ -354,6 +409,22 @@ instructions conflict with this repo, this repo wins:
   tickets or boards touch more than one file or add one, show them as a
   proposal page before anything is written; see
   [`visual-tools.md`](visual-tools.md).
+- **A ticket's edits are approved by the ticket.** Its `Touches`, Seams and
+  acceptance criteria were approved at `to-tickets`, so the per-edit approval
+  of `pre-edit-review` and `pre-edit-review-except-tests` is not used inside
+  ticket work, by the user or the agent, unless the ticket's Context asks for
+  it. The review points for ticket work are the handback and the reviews in
+  step 8. Record edits keep the proposal page; edits outside any ticket keep
+  the pre-edit skills.
+- **A ticket is checked against the code before it is offered.** Before a
+  ticket goes to the user for approval, open every file in its `Touches` and
+  confirm that each symbol, `file:line` and contract it names (field names,
+  return shapes, config keys) exists as stated; a ticket that asserts a
+  contract the code does not have is not ready. A ticket with a paid or live
+  run also carries an `**Inputs:**` line under `Touches`: where its inputs
+  came from (the user's own lists or a named file, never drafted for the
+  ticket) and the free check that validated its expectation (a corpus grep
+  per topic, retrieve-only lookups) before any paid call.
 - **Build a ticket in small steps** (adapted from Addy Osmani's
   `incremental-implementation`, MIT; see `THIRD_PARTY_NOTICES.md`). Inside one
   ticket:
@@ -486,10 +557,13 @@ one summary line into the agent's context) and after each reply. Run it by hand 
 A second hook runs `.scratch/progress_check.py` after each reply. When the chat
 itself has changed a file in an open ticket's `Touches` list since the ticket was
 last updated, and the user's messages name that ticket (or it is `in-progress`), it
-has the agent ask the user whether to add a `## Progress` line (and a
-`**Needs you:**` line if the chat waits on them). It asks once per ticket version:
-after an answer it stays quiet until the ticket changes, or the files change again
-and 30 minutes have passed. Its docstring lists the writes it cannot see.
+has the agent give its handback with a drafted `## Progress` line (and a
+`**Needs you:**` line if the chat waits on them), written only on the user's yes.
+It is the safety net behind "End with a handback", not a prompt between steps: it
+waits until the ticket's files have been quiet for 20 minutes, asks once per ticket
+version, and after an answer stays quiet until the ticket changes, or the files
+change again and 4 hours have passed. A chat that hands back within 20 minutes of
+its last write is never asked. Its docstring lists the writes it cannot see.
 
 **At the end of a chat** that touched `.scratch/` work or left something for the user:
 

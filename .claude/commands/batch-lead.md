@@ -16,21 +16,13 @@ step.
   owner) and apply them only after I say yes. Same for setting `in-progress`.
 - Refuse to run two tickets that touch the same file. Check the other boards
   too (`code-simplification` overlaps ingestion files); flag an overlap to me.
-- A ticket with a paid run (an evaluation, a route check, a live index) must
-  carry an `**Inputs:**` line (tracker doc, "A ticket is checked against the
-  code before it is offered") saying where its inputs came from and what free
-  check validated the expectation. If the line is missing, the questions were
-  drafted for the ticket rather than taken from my existing lists, or the
-  expected routes were never checked against the corpus, stop and tell me
-  before spawning: the free checks (a corpus grep per topic, retrieve-only
-  lookups) come before any paid call. CRG-12's route-check
-  questions were invented by the ticket writer and I caught it only after the
-  paid run.
-- Before a wave with paid runs, ask me to confirm the paid keys are current
-  (a rotated Voyage key killed CRG-13's first run on its first call), and
-  make the first paid call the cheapest one that proves the key: one
-  embedding or one short completion, approved on its own, before the full
-  run.
+- A ticket with a paid or live step (an evaluation, a route check, a live
+  index) is not batch work: step 7 of the tracker doc routes it to a
+  supervised chat. Say so and never spawn it from here. That chat checks the
+  ticket's `**Inputs:**` line (CRG-12's route questions were invented by the
+  ticket writer and caught only after the paid run) and confirms the keys
+  with the cheapest paid call first (a rotated Voyage key killed CRG-13's
+  first run on its first call).
 - Run `git status --short`. Tell me about uncommitted tracked files in the
   batch's `Touches` before starting. Also list modified or untracked files
   outside the batch: another chat's work in progress can turn the full suite
@@ -133,6 +125,9 @@ step.
 - No Progress line until I say yes; then add the implementer's drafted line,
   tagged `(claude lead)`, and the decisions table in the record format the
   tracker doc sets (columns, the anchor line, dated fix-round subheadings).
+  Record edits that touch more than one file or add one go through the
+  proposal page first (tracker doc, "Record edits go on a proposal page"):
+  page approval, then my yes in chat.
   On the same yes, write the implementer's drafted `DECISIONS.md entries`
   into the package file. On my "committed" yes, set the status line to
   `done (YYYY-MM-DD; committed in <sha>)` and swap a working-tree anchor for

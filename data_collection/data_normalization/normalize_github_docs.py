@@ -17,8 +17,6 @@ into the chunk text.
 Raw is left untouched (immutable provenance); this is a derived stage.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import re

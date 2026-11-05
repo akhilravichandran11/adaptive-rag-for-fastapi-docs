@@ -35,8 +35,6 @@ hold settings until they are run, and BGE's tokenizer is read from the cache fil
 by ``scripts/download_models.py`` (see ``model_cache.py``).
 """
 
-from __future__ import annotations
-
 import copy
 import logging
 import math

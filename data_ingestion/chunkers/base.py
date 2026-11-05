@@ -25,8 +25,6 @@ then a position inside that parent and never shifts because a neighbouring
 document changed.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass

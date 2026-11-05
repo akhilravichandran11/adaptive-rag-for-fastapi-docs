@@ -29,8 +29,6 @@ Usage::
     documents = load_documents(Path("data/fastapi/normalized/github-docs/v1/docs"))
 """
 
-from __future__ import annotations
-
 import logging
 from collections import Counter
 from pathlib import Path

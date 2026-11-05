@@ -35,8 +35,18 @@ For each ticket:
    files, including untracked and ignored files, before assigning them.
    Preserve other work and distinguish the starting state from this batch.
 4. Show any required status, blocker, or owner corrections and obtain approval
-   before saving them. Record the approved in-progress assignment before the
+   before saving them: record edits that touch more than one file or add one
+   go through the proposal page (tracker doc, "Record edits go on a proposal
+   page") and need page approval followed by yes in chat. Re-read the ticket's Status immediately before writing
+   the claim, then record the approved in-progress assignment before the
    worker edits files.
+5. Confirm the path per step 7 of docs/agents/issue-tracker.md: a batch needs
+   two or more ready tickets with disjoint Touches and no paid step, or one
+   ticket with a Budget of two hours or more or a new module. Anything else
+   runs as a single supervised chat; say so instead of leading it.
+6. A ticket with a paid or live step is not batch work (step 7): say so and
+   route it to a supervised chat, where the ticket's `**Inputs:**` line and
+   the separately approved key probe apply. Never dispatch it from here.
 
 Do not start a dependent ticket merely because its prerequisite worker has
 returned. The prerequisite must satisfy the tracker's completion and handoff
@@ -60,10 +70,16 @@ agree an alternative. Do not silently substitute another worker arrangement.
 Each assignment includes:
 
 - Canonical workspace and absolute ticket path.
-- Exact owned files and agreed test Seams.
+- Exact owned files and agreed test Seams, with tests written through `tdd`
+  at those Seams only (by hand in the same order if the skill is unavailable).
 - Relevant approved decisions and pre-existing changes.
 - Required checks and execution restrictions.
 - The implementer handback contract.
+- The "While a question is open" list from
+  .scratch/code-simplification/questions.md, pasted verbatim: a pointer is not
+  read under pressure, and one missed item costs a fix round.
+- The requirement that every `file:line` the handback cites was verified
+  against the file.
 - An explicit statement that other workers share the checkout: preserve their
   edits and do not revert unrelated work.
 - Confirmation that this lead owns reviews and tracker updates.
@@ -71,8 +87,15 @@ Each assignment includes:
 Use the existing model settings unless the user requests an override.
 Stay within the available concurrency limit.
 
-Record the returned agent or thread identity. On resume, inspect existing
-workers before replacing one. Confirm the former worker cannot still write
+Record the returned agent ID or canonical task name. Use `followup_task` on
+the existing worker for the first fix round (`send_message` delivers
+information during ongoing work but does not start an idle worker's next
+turn); for the second, dispatch a fresh `ticket-implementer` with
+`fork_turns="none"` and the complete assignment, original baseline, current
+handback and consolidated findings, then escalate to the user if another
+round is needed. Do not use a token threshold: these collaboration tools do
+not expose a worker's context size. On resume, inspect existing workers
+before replacing one. Confirm the former worker cannot still write
 before assigning a replacement to the same files. Do not assume names,
 conversation inheritance, or worker survival across sessions.
 
@@ -81,29 +104,41 @@ conversation inheritance, or worker survival across sessions.
 Read the complete handback, including actual verification results, decisions,
 and proposed scope changes.
 
-implementation-complete means ready for lead review, not ticket done.
-Resolve any proposed seam, return-contract, or file-scope change with the user
-before the worker implements it.
+The handback's Status line is `implementation-complete | partial | blocked -
+reviews: pending lead` (.codex/agents/ticket-implementer.toml);
+implementation-complete means the assigned implementation and worker checks
+are complete, not that the tracker ticket is done. Spot-check two `file:line`
+references. Resolve any proposed seam, return-contract, or file-scope change
+with the user before the worker implements it.
 
 Inspect the actual files against the starting state and approved ticket.
 Read complete untracked and ignored files; an ordinary Git diff omits them.
 
-Once the handback's verification passes, spawn the active-code-simplifier on
-that ticket's Python files with the handback's starting commit, and wait for
-it. Run the reviews below on the simplified files. Only the first build and
-revisions over about 50 lines get the simplifier. Report its Split list (each
-new step and its one-line job) to the user verbatim; step names are a design
-call.
+Reviews follow step 8 of docs/agents/issue-tracker.md, the one review rule
+for every path. After the worker's checks pass, spawn the
+active-code-simplifier with the ticket path, the starting commit and the
+changed production Python files only (never tests; without an explicit scope
+it falls back to checkout-wide changes), and wait for its handback before
+reviewing the resulting files. Skip it for a fix round under about 50 lines.
+Report its Split list (each new step and its one-line job) to the user
+verbatim; step names are a design call. Then apply step 8's tier by this
+ticket's Python diff size, including its exceptions: a docs-only ticket gets
+no reviews; a fix round that changes behaviour or an interface gets the
+active-code-reviewer plus the lead's read, a rename-only or comment-only
+round the lead's read alone. The Progress line names the tier that ran.
 
-Perform the repository's standards/spec review (the code-review skill where
-available) with the handback's starting commit as the fixed point. Nothing is
-committed, so a <start>...HEAD diff is empty: review `git diff <start>`, and
-read new untracked files in full against the standards and the ticket,
-disclosing that method. Standards sources: docs/conventions.md,
+When the tier calls for the standards/spec review (the code-review skill where
+available), the fixed point is the handback's starting commit. Nothing is
+committed, so a <start>...HEAD diff is empty: review
+`git diff <start> -- <ticket-owned paths>` and the ticket's new untracked or
+ignored files in full against the standards and the ticket, disclosing that
+method. The checkout is shared, so an unscoped diff pulls in sibling tickets
+and pre-existing edits; separate those with the recorded starting state and
+compute the tier from this ticket's changes only. Standards sources: docs/conventions.md,
 docs/simplification-conventions.md and
 .scratch/code-simplification/questions.md, whose open-question list bans
-constructs a smell-based review may suggest. Spec: the ticket file. Then run
-the active-code-reviewer for runtime bugs.
+constructs a smell-based review may suggest. Spec: the ticket file. The
+active-code-reviewer runs for runtime bugs on every tier that reviews.
 
 Check each finding against docs/conventions.md,
 docs/simplification-conventions.md and the open-question list first, then
@@ -131,36 +166,50 @@ outside scope or silently relax acceptance.
 Inspect scope and whitespace, including new and ignored files.
 Passing fixtures does not establish live-corpus, model, or retrieval quality.
 
-## 5. Approval-gated bookkeeping and staging
+## 5. Propose records and commits; never stage or commit
 
 After verification, present the proposed ticket/board transitions and the
-worker's Decisions and Progress for approval. Record them only after the user
-says yes. A worker handback alone never closes a ticket.
+worker's Decisions and Progress for approval: through the proposal page when
+they touch more than one file or add one, then yes in chat. The first
+Progress line names the path and the reason (step 7) alongside what changed,
+what was verified and what is next. Every "Noticed, not touched" item gets a
+proposed disposition in the same approval: a finding, an INBOX line, or
+"dropped, because". Record them only after the user says yes, and apply the
+approved dispositions on that yes. A worker handback alone never closes a
+ticket.
 
-Preserve the decisions table verbatim. For uncommitted changes, label line
-references as "Reviewed working tree based on <sha>, recorded <date>".
-Use "Line numbers as of <commit>" only if that commit contains the changes.
+On the yes, write the records in the format the tracker doc sets: the
+Progress line tagged `(codex lead)`, the decisions table verbatim with its
+columns and anchor line, a `### <date> fix round` subheading per round, and
+the worker's drafted `DECISIONS.md entries` into the package file. For
+uncommitted changes the anchor is "Reviewed working tree based on <sha>,
+recorded <date>"; use "Line numbers as of <commit>" only if that commit
+contains the changes. On the user's "committed" yes, set the status line to
+`done (YYYY-MM-DD; committed in <sha>)` and swap the anchor; a bare `done` is
+a defect. Then update every ticket whose Blocked by names it, with the user's
+yes, and regenerate the views with `python3 .scratch/now.py`.
 
-Follow the tracker rules for dependent tickets and regenerate action views
-after approved tracker updates.
-
-Leave changes unstaged unless the user authorizes staging. When authorized,
-stage only the agreed non-ignored files or changes. Never force-add tests or
-.scratch. Ask before staging an owned file that also contains unrelated edits.
-
-Propose a Conventional Commit message when requested. Never commit.
-Before recommending that the user commit, check that other agents or chats
-writing the same checkout are idle; do not assume only this batch matters.
+Never run `git commit`, and do not stage either: the index is shared by every
+chat on this checkout, another chat's commit would sweep a staged file in, and
+pre-commit stashes every unstaged tracked change during a commit. When a
+ticket's reviews are clean, give the user the exact `git add <paths>` line
+and one Conventional Commit message with a scope; the user runs both once
+every worker is idle. Before recommending a commit, check that other agents
+or chats writing the same checkout are idle.
 
 ## 6. Report and hand off
 
-Report per ticket:
+Report each ticket in the implementer's handback headings and order,
+keeping its decisions table and drafted records verbatim, and add:
 
-- Worker implementation status and canonical tracker status.
-- Files changed and review findings or their resolution.
-- Fresh verification results, separately from prior reported evidence.
-- Outstanding decisions, blockers, and scope limitations.
-- Staged files only if staging was authorized.
+- The lead's review results per tier, and the canonical tracker status next
+  to the worker's status.
+- Fresh combined verification, separately from worker-reported evidence: the
+  suite count with and without other chats' files in the checkout.
+- A consolidated list of every decision the user still owes across the batch.
+- A run log, one row per worker or reviewer run: ticket, role, agent
+  identity, build/fix/review round, outcome. State once that per-agent token
+  usage and cost are not available through this runtime.
 
 Combine questions for the user into one numbered list with recommendations.
 Keep reports in this chat unless the user authorizes another destination.

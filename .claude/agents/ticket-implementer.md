@@ -46,7 +46,7 @@ Use these headings in this order. Keep each line short; the lead pastes the deci
 ```
 ## PRT-NN handback
 Start: <sha>
-Status: done | partial | blocked · reviews: lead
+Status: implementation-complete | partial | blocked - reviews: pending lead
 
 ### Awaiting ruling
 - none, or each seam change: <what changed> · <why> · <who it affects>

@@ -16,8 +16,6 @@ variables are read from ``os.environ`` at call time; callers that keep them in
 of hardcoding them, and only looks files up in the cache, so it never downloads.
 """
 
-from __future__ import annotations
-
 import os
 from pathlib import Path
 

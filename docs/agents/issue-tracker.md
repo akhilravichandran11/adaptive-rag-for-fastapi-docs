@@ -382,7 +382,9 @@ instructions conflict with this repo, this repo wins:
   both. For several logical commits, use `commit-planning` instead.
 - **End with a handback.** Whichever path built it, the ticket's report uses
   the implementer's headings (`.claude/agents/ticket-implementer.md`,
-  `.codex/agents/ticket-implementer.toml`): Status, rulings needed, Files,
+  `.codex/agents/ticket-implementer.toml`): Status (`implementation-complete
+  | partial | blocked - reviews: pending lead`; the first means ready for the
+  lead's review, never the tracker's `done`), rulings needed, Files,
   Decisions table or "none", Changed mid-way, Verification with the counts
   and the other-chats caveat, Noticed not touched, Proposed convention,
   Process notes, and the drafted Progress line. The table goes into the

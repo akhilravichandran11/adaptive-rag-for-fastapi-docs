@@ -40,8 +40,6 @@ an input is missing or malformed, a collection exists without ``--recreate``, or
 collection ends partial.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging

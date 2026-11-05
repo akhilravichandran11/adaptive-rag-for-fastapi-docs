@@ -1,7 +1,5 @@
 """Read a pinned local FastAPI checkout into a fresh raw candidate."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import subprocess

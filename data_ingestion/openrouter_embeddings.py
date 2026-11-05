@@ -23,8 +23,6 @@ Environment (read when the first request is made; callers load ``.env`` first):
     OPENROUTER_TIMEOUT       seconds per request (default 120)
 """
 
-from __future__ import annotations
-
 import logging
 import os
 from dataclasses import replace

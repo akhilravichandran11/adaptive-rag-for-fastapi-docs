@@ -11,16 +11,13 @@ sources (e.g. the docs website) without special-casing this one.
       docs/<flattened>.md     per-document markdown, split from the ingest blob
 """
 
-from __future__ import annotations
-
 import json
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from gitingest import ingest
-
 
 # --- Source identity (shared per-source contract) -----------------------------
 SOURCE_ID = "github-docs"
@@ -146,7 +143,7 @@ def write_manifest(files: list[dict], breakdown: dict[str, dict[str, int]]) -> N
             "ref_url": SOURCE_URL,
         },
         "collection": {
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "fetched_at": datetime.now(UTC).isoformat(),
             "tool": "gitingest",
             "ingest_file": FULL_INGEST_FILE.relative_to(VERSION_DIR).as_posix(),
             "docs_dir": DOCS_DIR.relative_to(VERSION_DIR).as_posix(),

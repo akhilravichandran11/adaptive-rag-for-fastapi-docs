@@ -14,8 +14,6 @@ that was indexed as ``naive_small`` means the same thing in every run.
     uv run python -m data_ingestion.chunkers.naive    # demo, from the project root
 """
 
-from __future__ import annotations
-
 import logging
 
 from haystack import Document, component

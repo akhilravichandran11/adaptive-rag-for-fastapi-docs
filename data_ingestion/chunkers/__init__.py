@@ -27,8 +27,6 @@ Haystack 3.0 will not deserialize a class from a module outside its trusted
 allowlist without being told to trust this package explicitly.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 
 from data_ingestion.chunkers.base import (

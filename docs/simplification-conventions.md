@@ -44,4 +44,9 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 - *Applies to:* all Python outside `tests/`, where copying a fixture with `deepcopy` is fine. Two places break it today: `data_ingestion/embedders.py` (`_tokenizer_from_file`, `bge_tokenizer`) and `data_ingestion/chunk_shape.py` (`_sentence_splitter`). They change in their files' `SMP-` tickets.
 - *Decided:* 2026-10-27 (Q01, after the `embedders.py` simplifier comparison run).
 
-<!-- Next: S008, from the next question decided. -->
+**S008 — No `from __future__ import annotations`. A hint naming something not defined yet, such as a class naming itself, is quoted.**
+- *Why:* the repo requires Python 3.11, which handles every hint it uses (`list[str]`, `str | None`) without the line. Removing it made no real difference to the tests or import speed, and only one test hint had to gain quotes.
+- *Applies to:* all Python outside `sandbox/`, `.scratch/` and `experiments/`, tests included. `experiments/curated_corpus_ab_pilot.py` stays as it is because each run records its script's hash. Revisit when the minimum Python reaches 3.14, which no longer needs the quotes.
+- *Decided:* 2026-11-05 (Q07, after testing both options on scratch copies).
+
+<!-- Next: S009, from the next question decided. -->

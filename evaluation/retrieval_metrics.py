@@ -1,7 +1,5 @@
 """File-level retrieval metrics (recall@k and reciprocal rank) for saved results, with no API calls."""
 
-from __future__ import annotations
-
 from typing import Any
 
 KS = (1, 3, 5, 10)

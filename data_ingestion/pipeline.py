@@ -10,8 +10,6 @@ environment variable, then a fresh UTC timestamp. It must be a plain directory
 name, so a run can never write outside ``OUTPUTS_DIR``.
 """
 
-from __future__ import annotations
-
 import os
 import re
 from datetime import UTC, datetime

@@ -4,8 +4,6 @@ so one question from the command line and the study's run query a variant the sa
 way (C011). Embedding the question and answering it are PAID calls; see ``--help``.
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import os
@@ -114,13 +112,14 @@ def build_rag_pipeline(
 
 
 def ask(pipeline: Pipeline, question: str) -> dict[str, Any]:
-    """Run ``pipeline`` once for ``question`` and return its result record (D49)."""
+    """Run ``pipeline`` once for ``question`` and return its result record (D49, D65)."""
     answering = "llm" in pipeline.graph.nodes
     inputs = {"query_embedder": {"text": question}}
     if answering:
         inputs["prompt_builder"] = {"question": question}
     outputs = pipeline.run(inputs, include_outputs_from={"retriever"})
     answer = None
+    usage = None
     if answering:
         reply = outputs["llm"]["replies"][0]
         finish_reason = reply.meta.get("finish_reason")
@@ -131,6 +130,13 @@ def ask(pipeline: Pipeline, question: str) -> dict[str, Any]:
                 f"Gemini returned no complete answer; finish reason: {finish_reason}"
             )
         answer = reply.text
+        reply_usage = reply.meta["usage"]
+        usage = {
+            "prompt_tokens": reply_usage["prompt_tokens"],
+            "completion_tokens": reply_usage["completion_tokens"],
+            # The adapter leaves this key out when Gemini reports no thinking.
+            "thoughts_token_count": reply_usage.get("thoughts_token_count", 0),
+        }
     return {
         "question": question,
         "collection": pipeline.metadata["collection"],
@@ -140,6 +146,7 @@ def ask(pipeline: Pipeline, question: str) -> dict[str, Any]:
             for rank, doc in enumerate(outputs["retriever"]["documents"], start=1)
         ],
         "answer": answer,
+        "usage": usage,
     }
 
 

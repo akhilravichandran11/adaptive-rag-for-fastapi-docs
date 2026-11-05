@@ -24,8 +24,6 @@ document with no manifest or curation entry raises and names what is missing.
     logger.info("kept %d, dropped %d", len(result.documents), result.dropped_count)
 """
 
-from __future__ import annotations
-
 import dataclasses
 import json
 import logging

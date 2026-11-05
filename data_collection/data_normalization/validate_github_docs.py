@@ -1,7 +1,5 @@
 """Validate normalized GitHub documents and publish accepted snapshots."""
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import json

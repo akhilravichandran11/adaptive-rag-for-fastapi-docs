@@ -1,13 +1,10 @@
-from __future__ import annotations
-
 import json
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from gitingest import ingest
-
 
 # --- Source (pinned for reproducibility) --------------------------------------
 # `v1` is a fixed snapshot of the FastAPI docs at a specific commit. Re-running
@@ -126,7 +123,7 @@ def write_manifest(files: list[dict], breakdown: dict[str, dict[str, int]]) -> N
             "ref_url": SOURCE_URL,
         },
         "collection": {
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "fetched_at": datetime.now(UTC).isoformat(),
             "tool": "gitingest",
             "ingest_file": FULL_INGEST_FILE.relative_to(VERSION_DIR).as_posix(),
             "min_file_bytes": MIN_FILE_BYTES,

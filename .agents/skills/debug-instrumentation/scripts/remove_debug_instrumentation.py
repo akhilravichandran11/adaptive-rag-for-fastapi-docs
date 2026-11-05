@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """Remove well-formed AKR debug blocks into a separate output file."""
 
-from __future__ import annotations
-
 import argparse
 import re
 from pathlib import Path
-
 
 MARKER = re.compile(
     r"^\s*# AKR-DEBUG-(START|END): "
@@ -27,8 +24,7 @@ def remove_blocks(source: str) -> tuple[str, int]:
             if marker_type == "START":
                 if open_marker is not None:
                     raise ValueError(
-                        f"Nested marker at line {line_number}; "
-                        f"{open_marker!r} is still open"
+                        f"Nested marker at line {line_number}; {open_marker!r} is still open"
                     )
                 open_marker = marker_id
                 continue
@@ -55,9 +51,7 @@ def remove_blocks(source: str) -> tuple[str, int]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Remove marker-delimited AKR debug blocks and write a separate file."
-        )
+        description=("Remove marker-delimited AKR debug blocks and write a separate file.")
     )
     parser.add_argument("source", type=Path, help="Instrumented Python source")
     parser.add_argument(
@@ -82,9 +76,7 @@ def main() -> int:
         raise SystemExit(f"Output already exists: {output_path}")
 
     try:
-        cleaned, removed_count = remove_blocks(
-            source_path.read_text(encoding="utf-8")
-        )
+        cleaned, removed_count = remove_blocks(source_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError) as exc:
         raise SystemExit(f"Could not remove instrumentation: {exc}") from exc
 

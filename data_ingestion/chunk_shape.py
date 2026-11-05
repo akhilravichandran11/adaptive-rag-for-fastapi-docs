@@ -34,8 +34,6 @@ Nothing in this module calls an API. Counting sentences needs NLTK's
 the project model cache (``scripts/download_models.py``).
 """
 
-from __future__ import annotations
-
 import bisect
 import hashlib
 import json

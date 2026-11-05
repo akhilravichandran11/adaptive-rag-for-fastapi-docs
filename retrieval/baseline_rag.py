@@ -4,8 +4,6 @@ so one question from the command line and the study's run query a variant the sa
 way (C011). Embedding the question and answering it are PAID calls; see ``--help``.
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import os

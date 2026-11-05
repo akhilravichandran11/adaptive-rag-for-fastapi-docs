@@ -33,8 +33,6 @@ chunk, or a strategy makes no chunks. A run that fails once it has started chunk
 keeps its folder, even an empty one, so a retry needs a new run id.
 """
 
-from __future__ import annotations
-
 import argparse
 import dataclasses
 import json

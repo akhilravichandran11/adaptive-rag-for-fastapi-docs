@@ -35,8 +35,6 @@ Rule 5 — no token target: Voyage is the primary embedder, and BGE truncating a
 long chunk is reported, not designed around.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from dataclasses import dataclass

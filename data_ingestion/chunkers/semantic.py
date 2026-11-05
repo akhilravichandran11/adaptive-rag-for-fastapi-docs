@@ -27,8 +27,6 @@ NLTK's ``punkt_tab`` in the same cache (see :mod:`data_ingestion.chunkers.senten
 Run ``scripts/download_models.py`` once beforehand to fill the cache.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

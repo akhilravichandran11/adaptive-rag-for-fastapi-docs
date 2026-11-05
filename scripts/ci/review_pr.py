@@ -19,8 +19,6 @@ Optional:
   PR_REVIEW_MODEL  - OpenAI model to use (default: gpt-4o-mini)
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

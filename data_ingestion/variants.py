@@ -15,8 +15,6 @@ and specs, and nothing loads a model or opens a connection until a stage builds 
 A prefix given on a command line goes through ``check_prefix`` first.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 

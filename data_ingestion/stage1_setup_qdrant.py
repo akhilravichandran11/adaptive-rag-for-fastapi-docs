@@ -13,8 +13,6 @@ override. A run attaches to the collection and keeps its data; only an explicit
     python stage1_setup_qdrant.py --collection tmp_test 2>&1 | tee setup.log   # logs go to stderr
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import sys

@@ -18,8 +18,6 @@ Run the docs collector (`collect_data_from_fastapi_github.py`) first; this reads
 its manifest to stay pinned to the same snapshot.
 """
 
-from __future__ import annotations
-
 import json
 import re
 import urllib.error

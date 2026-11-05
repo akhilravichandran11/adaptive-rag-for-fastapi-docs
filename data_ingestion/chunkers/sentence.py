@@ -17,8 +17,6 @@ Haystack quietly downloads its own copy instead.
 Run ``scripts/download_models.py`` once beforehand to fill the cache.
 """
 
-from __future__ import annotations
-
 import logging
 
 from haystack import Document, component

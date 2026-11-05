@@ -7,8 +7,6 @@ builds one collection per embedder, so ``load_settings`` takes a vector size per
 collection and ``build_document_store`` takes the payload indexes to create.
 """
 
-from __future__ import annotations
-
 import os
 from dataclasses import dataclass
 from pathlib import Path

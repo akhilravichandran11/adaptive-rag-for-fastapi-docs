@@ -22,8 +22,6 @@ Needs BGE's tokenizer and NLTK's ``punkt_tab`` in the project model cache
 (``scripts/download_models.py``).
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import sys

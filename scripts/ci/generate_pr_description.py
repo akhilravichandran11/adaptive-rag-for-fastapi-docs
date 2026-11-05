@@ -22,8 +22,6 @@ Optional:
   GITHUB_STEP_SUMMARY - Actions-provided file for the run summary
 """
 
-from __future__ import annotations
-
 import json
 import os
 import re

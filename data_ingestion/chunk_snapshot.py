@@ -25,8 +25,6 @@ refuses the run once today's manifest differs. The corpus commit cannot tell bui
 apart (GDS-02 changed two documents without changing it), so the file hash does.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 from collections.abc import Iterable, Mapping

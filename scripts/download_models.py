@@ -19,8 +19,6 @@ Environment (optional; read from the shell or the project .env):
     NLTK_DATA              NLTK data folder (default: <project>/models/nltk)
 """
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import logging

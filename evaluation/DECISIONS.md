@@ -1,0 +1,48 @@
+# Evaluation decisions
+
+Why the evaluation side of this project is built the way it is. Each entry records
+what was decided, what else was considered, and what it costs. Entries are added as
+the harness grows; the newest sit at the top.
+
+---
+
+## 2026-11-09 — Questions name their answer pages by `source_path`, and ten are written by hand
+
+**Decision.** An evaluation question is an `EvalQuestion` (`data_curation/schemas.py`)
+with five required fields, `question_id`, `question`, `reference_answer`,
+`gold_sources` and `origin` (`handwritten` or `synthetic`), and one optional field,
+`paraphrase`. `gold_sources` lists the pages that answer the question by their
+manifest `source_path`, such as `advanced/additional-responses.md`, and holds at least
+one; a question lists two pages only where it takes two to answer it. The first set,
+`evaluation/questions/handwritten.json`, holds ten questions written by hand, `hw-01`
+to `hw-10`, whose gold pages between them reach all six buckets of the docs: tutorial,
+advanced, reference, how-to, deployment and the top-level pages. A test checks that
+every entry loads as an `EvalQuestion` with no unknown keys, that every gold page is in
+the manifest, and that every bucket is covered.
+
+**Why `source_path`.** Every indexed chunk carries its page's `source_path` in
+`meta.source_path`, so retrieval is scored by comparing strings: a retrieved chunk is a
+hit when its `source_path` is in the question's `gold_sources`. A page's normalized
+filename (`advanced__additional-responses.md`) is its other name, but no chunk field
+holds it, so scoring on it would need a lookup table.
+
+**Why no `bucket` or `difficulty`.** Nothing reads either one: results are reported by
+system and by question set. A stored bucket would be the first gold page's, an
+arbitrary pick for a two-page question, so a check that needs one looks it up in the
+manifest. A difficulty label had no honest source: the corpus analysis rated 112 of
+the 124 pages `intermediate`.
+
+**Why an optional `paraphrase`.** Where a question's author also wrote a second
+wording of it, `paraphrase` holds that wording; every other entry leaves it `null`, and
+generated questions never set it. Nothing reads it yet, but unlike a bucket it cannot
+be looked up later: only the person who wrote the question can supply it. It is kept so
+that a later run can ask both wordings and compare how retrieval does on each.
+
+**Why a handwritten set.** Questions generated from a page tend to reuse its headings
+and terms, which makes retrieval look easier than it is for a real user. Ten questions
+phrased the way a developer asks them, with answers drafted from the docs and then
+checked by hand, give a harder baseline beside the generated set, and they are the set
+rated by hand to calibrate the answer judges.
+
+**Cost.** Ten questions are a small sample: one question moves a recall figure by ten
+points, so the handwritten set shows direction, not small differences.

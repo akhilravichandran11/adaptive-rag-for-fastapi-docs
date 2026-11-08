@@ -1,0 +1,84 @@
+{
+  "questions": [
+    {
+      "question_id": "hw-01",
+      "question": "What is FastAPI?",
+      "reference_answer": "FastAPI is a Python web framework for building APIs from standard Python type hints. It is built on Starlette (the `FastAPI` class subclasses `Starlette`) for the web layer and on Pydantic for data validation. From your type declarations it gives you editor support, data validation, and interactive API docs (Swagger UI and ReDoc) generated from OpenAPI.",
+      "gold_sources": ["features.md"],
+      "origin": "handwritten",
+      "paraphrase": null
+    },
+    {
+      "question_id": "hw-02",
+      "question": "How do I configure FastAPI?",
+      "reference_answer": "Keep configuration such as secrets and database URLs in environment variables, and read them with a `Settings` class that subclasses `BaseSettings` from `pydantic-settings`; Pydantic converts and validates each value by its type and can also read a `.env` file. Provide the settings through a dependency (`get_settings`, wrapped in `lru_cache`) so they are created once and are easy to override in tests.",
+      "gold_sources": ["advanced/settings.md"],
+      "origin": "handwritten",
+      "paraphrase": null
+    },
+    {
+      "question_id": "hw-03",
+      "question": "What HTTP status codes does FastAPI return for validation errors?",
+      "reference_answer": "Invalid request data makes FastAPI raise a `RequestValidationError`, and its default handler returns HTTP 422 with a JSON body whose `detail` lists each error's location, message and type. You can change the status code or body by registering your own handler with `@app.exception_handler(RequestValidationError)`.",
+      "gold_sources": ["tutorial/handling-errors.md", "advanced/additional-responses.md"],
+      "origin": "handwritten",
+      "paraphrase": null
+    },
+    {
+      "question_id": "hw-04",
+      "question": "How do dependency overrides work in FastAPI tests with app lifespan, TestClient, and async dependencies?",
+      "reference_answer": "Put the replacement in `app.dependency_overrides`, a dict keyed by the original dependency function; FastAPI then calls the override wherever that dependency is used, `async def` dependencies included, and `app.dependency_overrides = {}` resets it. To run the lifespan in a test, use `TestClient` in a `with` block: startup runs on entering the block and shutdown on leaving it.",
+      "gold_sources": ["advanced/testing-dependencies.md", "advanced/testing-events.md"],
+      "origin": "handwritten",
+      "paraphrase": null
+    },
+    {
+      "question_id": "hw-05",
+      "question": "How does dependency injection work in FastAPI?",
+      "reference_answer": "A dependency is an ordinary function that takes the same kinds of parameters as a path operation, and you declare it on a path operation parameter with `Depends(the_function)`, usually inside `Annotated`, passing the function without calling it. On each request FastAPI calls the dependency and passes its return value into your function, which lets many endpoints share logic, database connections and security checks.",
+      "gold_sources": ["tutorial/dependencies/index.md"],
+      "origin": "handwritten",
+      "paraphrase": null
+    },
+    {
+      "question_id": "hw-06",
+      "question": "How do multiple processes in FastAPI use memory, and what are the constraints for it?",
+      "reference_answer": "Worker processes do not share memory: each one loads its own copy of whatever the app keeps in memory, such as a machine learning model or a large file, so the total is roughly that amount times the number of workers. A 1 GB model with 4 workers needs about 4 GB, so the server's RAM caps how many workers you can run; on a 3 GB machine, 4 workers would cause problems.",
+      "gold_sources": ["deployment/concepts.md"],
+      "origin": "handwritten",
+      "paraphrase": "How do multiple FastAPI worker processes use memory, and how does the available RAM limit how many workers I can run?"
+    },
+    {
+      "question_id": "hw-07",
+      "question": "How does the same Pydantic model schema work for request and response for OpenAPI?",
+      "reference_answer": "Since Pydantic v2, a model with default values can get two JSON Schemas in OpenAPI, `Item-Input` and `Item-Output`: as input a field with a default is optional, but in a response it is always present (possibly `null`), so the output schema marks it required. To get one shared schema, for example to keep existing generated client code working, create the app with `FastAPI(separate_input_output_schemas=False)`.",
+      "gold_sources": ["how-to/separate-openapi-schemas.md"],
+      "origin": "handwritten",
+      "paraphrase": "Why does FastAPI sometimes generate two OpenAPI schemas when I use the same Pydantic model for both the request and the response?"
+    },
+    {
+      "question_id": "hw-08",
+      "question": "What should I import to use OAuth2? Can we use Depends or can we do something else?",
+      "reference_answer": "For most authentication you can keep using `Depends()`, passing it a dependable built with one of the security tools, such as `OAuth2PasswordBearer`, which you import from `fastapi.security`. When an endpoint also needs to declare OAuth2 scopes, import `Security` from `fastapi` and use `Security()` in place of `Depends()`.",
+      "gold_sources": ["reference/dependencies.md", "reference/security/index.md"],
+      "origin": "handwritten",
+      "paraphrase": "I use Depends() for authentication. If my endpoint needs to declare OAuth2 scopes, what should I import and use?"
+    },
+    {
+      "question_id": "hw-09",
+      "question": "Why does my FastAPI endpoint work with curl but give me a CORS error when I call it from my frontend if both are on localhost but on different ports?",
+      "reference_answer": "A browser treats each combination of protocol, domain and port as a separate origin, so `http://localhost:8080` and `http://localhost:8000` are different origins even on the same machine. Before the frontend's JavaScript may call the backend, the browser checks, often with an `OPTIONS` preflight request, that the backend allows that origin; the check is the browser's, which is why curl is not affected. Add `CORSMiddleware` to the app with the frontend's origin in `allow_origins`, plus any methods, headers or credentials it needs.",
+      "gold_sources": ["tutorial/cors.md"],
+      "origin": "handwritten",
+      "paraphrase": null
+    },
+    {
+      "question_id": "hw-10",
+      "question": "How can we upload a file in FastAPI?",
+      "reference_answer": "Install `python-multipart`, because uploaded files arrive as form data, then declare a path operation parameter of type `UploadFile`, imported from `fastapi`. `UploadFile` keeps a large file on disk instead of all in memory, and gives you its `filename`, its `content_type` and async methods such as `read()`. For small files you can instead declare the parameter as `bytes` with `File()` and receive the whole contents in memory.",
+      "gold_sources": ["tutorial/request-files.md"],
+      "origin": "handwritten",
+      "paraphrase": "I'm building a RAG app. How do I let a user upload a PDF to my FastAPI endpoint?"
+    }
+  ]
+}

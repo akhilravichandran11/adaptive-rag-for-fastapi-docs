@@ -330,3 +330,13 @@ class DraftSynthesisPlan(BaseModel):
     synthesis_strategies: SynthesisStrategies
     quality_criteria: QualityCriteria
     success_metrics: SuccessMetrics
+
+
+# For the evaluation question sets; why these fields: evaluation/DECISIONS.md, 2026-11-09
+class EvalQuestion(BaseModel):
+    question_id: str
+    question: str
+    reference_answer: str
+    gold_sources: list[str] = Field(min_length=1)
+    origin: Literal["handwritten", "synthetic"]
+    paraphrase: str | None = None

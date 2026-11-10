@@ -26,7 +26,7 @@ from data_ingestion.chunk_snapshot import read_chunks  # noqa: E402  (needs the 
 from data_ingestion.chunkers import STRATEGIES  # noqa: E402
 from data_ingestion.embedders import (  # noqa: E402
     EMBEDDERS,
-    build_text_embedder,
+    build_query_embedder,
     cached_tokenizer_path,
 )
 from data_ingestion.pipeline import resolve_run_dir  # noqa: E402
@@ -97,7 +97,7 @@ def build_hybrid_pipeline(
     pipeline.add_component(
         "bm25", InMemoryBM25Retriever(document_store=chunk_store, top_k=candidates)
     )
-    pipeline.add_component("query_embedder", build_text_embedder(variant.embedder.name))
+    pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
     pipeline.add_component(
         "dense",
         QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=candidates),

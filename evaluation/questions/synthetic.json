@@ -1,0 +1,407 @@
+{
+  "source_run": "20260925_032632",
+  "model": "gpt-4o-mini",
+  "seed": 42,
+  "questions": [
+    {
+      "question_id": "syn-01",
+      "question": "How do I add additional response types in FastAPI?",
+      "reference_answer": "You can add additional response types in FastAPI by using the `responses` parameter in your path operation decorators, where you specify a dictionary with status codes as keys and additional response information as values, including a `model` key for Pydantic models. For example, to add a 404 response with a `Message` model, you would write `responses={404: {'model': Message}}`.",
+      "gold_sources": [
+        "advanced/additional-responses.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-02",
+      "question": "How do I return an HTML response in FastAPI?",
+      "reference_answer": "To return an HTML response in FastAPI, use the `HTMLResponse` class by importing it and passing it as the `response_class` parameter in your path operation decorator. For example:\n\n```python\nfrom fastapi import FastAPI\nfrom fastapi.responses import HTMLResponse\n\napp = FastAPI()\n\n@app.get(\"/items/\", response_class=HTMLResponse)\nasync def read_items():\n    return \"\"\"\n    <html>\n        <head>\n            <title>Some HTML in here</title>\n        </head>\n        <body>\n            <h1>Look ma! HTML!</h1>\n        </body>\n    </html>\n    \"\"\"\n```",
+      "gold_sources": [
+        "advanced/custom-response.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-03",
+      "question": "How do I implement callbacks in my FastAPI application?",
+      "reference_answer": "To implement callbacks in your FastAPI application, create an `APIRouter` for the callback routes and define a path operation that specifies the callback URL and the expected request body. Then, use the `callbacks` parameter in your main path operation decorator to include the routes from your callback router, which will document how the external API should respond.",
+      "gold_sources": [
+        "advanced/openapi-callbacks.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-04",
+      "question": "How do I define a webhook in FastAPI?",
+      "reference_answer": "To define a webhook in FastAPI, you can use the `webhooks` attribute of your FastAPI application, similar to defining path operations. For example, you can define a webhook with `@app.webhooks.post(\"new-subscription\")` where \"new-subscription\" is the identifier for the webhook.",
+      "gold_sources": [
+        "advanced/openapi-webhooks.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-05",
+      "question": "How can I change the response status code based on conditions in FastAPI?",
+      "reference_answer": "In FastAPI, you can change the response status code based on conditions by declaring a parameter of type `Response` in your path operation function. You can then set the `status_code` attribute of this `Response` object based on your conditions before returning the response.",
+      "gold_sources": [
+        "advanced/response-change-status-code.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-06",
+      "question": "How do I set cookies in a FastAPI response?",
+      "reference_answer": "You can set cookies in a FastAPI response by declaring a parameter of type `Response` in your path operation function and using the `set_cookie` method on that response object. Alternatively, you can create a response directly, such as a `JSONResponse`, and set cookies before returning it.",
+      "gold_sources": [
+        "advanced/response-cookies.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-07",
+      "question": "How do I set custom headers in a FastAPI response?",
+      "reference_answer": "You can set custom headers in a FastAPI response by declaring a `Response` parameter in your path operation function and modifying the `response.headers` dictionary, or by returning a `JSONResponse` directly with the headers specified as an additional parameter.",
+      "gold_sources": [
+        "advanced/response-headers.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-08",
+      "question": "How do I implement HTTP Basic Auth in FastAPI?",
+      "reference_answer": "To implement HTTP Basic Auth in FastAPI, import `HTTPBasic` and `HTTPBasicCredentials`, create a security scheme using `HTTPBasic`, and use it as a dependency in your path operation. This will allow you to retrieve the username and password from the request headers, which can then be validated as needed.",
+      "gold_sources": [
+        "advanced/security/http-basic-auth.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-09",
+      "question": "How do I implement OAuth2 scopes in my FastAPI application?",
+      "reference_answer": "To implement OAuth2 scopes in your FastAPI application, you can use the `OAuth2PasswordBearer` class to define your OAuth2 security scheme with specific scopes. Then, declare these scopes in your path operations using the `Security` dependency, which allows you to enforce scope requirements for accessing certain endpoints.",
+      "gold_sources": [
+        "advanced/security/oauth2-scopes.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-10",
+      "question": "How does FastAPI handle Content-Type headers for JSON requests?",
+      "reference_answer": "FastAPI requires that JSON requests include a valid `Content-Type` header (e.g., `application/json`) for the body to be parsed as JSON, providing strict checking by default. This behavior helps protect against certain Cross-Site Request Forgery (CSRF) attacks, particularly in local or internal network scenarios.",
+      "gold_sources": [
+        "advanced/strict-content-type.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-11",
+      "question": "How do I set up Jinja2 templates in FastAPI?",
+      "reference_answer": "To set up Jinja2 templates in FastAPI, first install the `jinja2` dependency. Then, import `Jinja2Templates`, create a `templates` object with the directory of your templates, and declare a `Request` parameter in your path operation to return a `TemplateResponse` using the `templates` object.",
+      "gold_sources": [
+        "advanced/templates.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-12",
+      "question": "What are the best practices for deploying a FastAPI application?",
+      "reference_answer": "Best practices for deploying a FastAPI application include ensuring security with HTTPS, configuring the application to run automatically on startup, implementing automatic restarts after crashes, utilizing multiple worker processes for handling concurrent requests, and managing memory usage effectively. Additionally, performing any necessary steps, such as database migrations, before starting the application is crucial.",
+      "gold_sources": [
+        "deployment/concepts.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-13",
+      "question": "How do I set up HTTPS for my FastAPI application?",
+      "reference_answer": "Put a TLS Termination Proxy such as Traefik, Caddy, Nginx or HAProxy in front of the FastAPI application: it receives the encrypted HTTPS requests, decrypts them, passes plain HTTP to the application, and encrypts the response with the HTTPS certificate. Let's Encrypt provides those certificates for free and automatically, and Traefik and Caddy can also renew them.",
+      "gold_sources": [
+        "deployment/https.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-14",
+      "question": "What does it mean to deploy a FastAPI application?",
+      "reference_answer": "To deploy a FastAPI application means to perform the necessary steps to make it available to users, typically by putting it on a remote machine with a server program that ensures good performance and stability.",
+      "gold_sources": [
+        "deployment/index.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-15",
+      "question": "How do I install the FastAPI Extension in VS Code?",
+      "reference_answer": "To install the FastAPI Extension in VS Code, open the Extensions panel, search for \"FastAPI\", and select the extension published by FastAPI Labs.",
+      "gold_sources": [
+        "editor-support.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-16",
+      "question": "What are common use cases for environment variables in FastAPI?",
+      "reference_answer": "FastAPI applications commonly use environment variables for configuration such as database URLs, email credentials and secret keys, which are kept outside the Python code in the operating system.",
+      "gold_sources": [
+        "environment-variables.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-17",
+      "question": "How can I change the authentication error status code in FastAPI?",
+      "reference_answer": "To change the authentication error status code in FastAPI, you can override the `make_not_authenticated_error` method in your security classes. For example, by creating a subclass of `HTTPBearer` that returns a `403 Forbidden` error instead of the default `401 Unauthorized` error.",
+      "gold_sources": [
+        "how-to/authentication-error-status-code.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-18",
+      "question": "How can I disable syntax highlighting in Swagger UI?",
+      "reference_answer": "To disable syntax highlighting in Swagger UI, you can set the `syntaxHighlight` parameter to `False` when creating the `FastAPI()` app object, like this: `app = FastAPI(swagger_ui_parameters={'syntaxHighlight': False})`.",
+      "gold_sources": [
+        "how-to/configure-swagger-ui.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-19",
+      "question": "How can I create a custom request class in FastAPI?",
+      "reference_answer": "To create a custom request class in FastAPI, you can subclass the `Request` class and override methods such as `body()`. For example, you can create a `GzipRequest` class that decompresses gzip-encoded request bodies by checking the `Content-Encoding` header.",
+      "gold_sources": [
+        "how-to/custom-request-and-route.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-20",
+      "question": "How can I optimize the performance of my FastAPI responses?",
+      "reference_answer": "To optimize performance when returning JSON data in FastAPI, use a return type or response model so that Pydantic can handle the serialization to JSON on the Rust side, bypassing Python. For more details, refer to the documentation on the Response Model - Return Type.",
+      "gold_sources": [
+        "how-to/general.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-21",
+      "question": "How do I import the FastAPI class in my application?",
+      "reference_answer": "You can import the `FastAPI` class directly from `fastapi` using the following line of code: `from fastapi import FastAPI`.",
+      "gold_sources": [
+        "reference/fastapi.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-22",
+      "question": "How do I access the raw request object in FastAPI?",
+      "reference_answer": "You can access the raw request object in FastAPI by declaring a parameter of type `Request` in your path operation function or dependency. You can import it directly from `fastapi` using `from fastapi import Request`.",
+      "gold_sources": [
+        "reference/request.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-23",
+      "question": "How do I set headers in a FastAPI response?",
+      "reference_answer": "You can set headers in a FastAPI response by declaring a parameter of type `Response` in your path operation function or dependency, and then using it to set the headers. Alternatively, you can create an instance of the `Response` class directly and return it from your path operations.",
+      "gold_sources": [
+        "reference/response.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-24",
+      "question": "How do I implement OAuth2 authentication in FastAPI?",
+      "reference_answer": "To implement OAuth2 authentication in FastAPI, you can use the `OAuth2` class along with `OAuth2AuthorizationCodeBearer` or `OAuth2PasswordBearer` from the `fastapi.security` module. You will also need to define the dependables that will handle the authentication logic and integrate them into your API endpoints.",
+      "gold_sources": [
+        "reference/security/index.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-25",
+      "question": "How do I structure a FastAPI application with multiple files?",
+      "reference_answer": "To structure a FastAPI application with multiple files, create a directory for your application that includes an `__init__.py` file to make it a Python package. Organize your code into modules, such as `main.py` for the main application logic, `dependencies.py` for shared dependencies, and subdirectories like `routers` for different route handlers, each containing their own `APIRouter` instances.",
+      "gold_sources": [
+        "tutorial/bigger-applications.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-26",
+      "question": "How do I add validation to my FastAPI models using Pydantic?",
+      "reference_answer": "You can add validation to your FastAPI models using Pydantic by declaring model attributes with `Field`, which allows you to specify validation rules and metadata such as default values, titles, and descriptions. For example, you can use `Field(gt=0)` to ensure a price attribute is greater than zero.",
+      "gold_sources": [
+        "tutorial/body-fields.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-27",
+      "question": "How do I update an item using PUT in FastAPI?",
+      "reference_answer": "To update an item using `PUT` in FastAPI, you define a route that accepts the item ID and the updated item data as parameters. You can use the `jsonable_encoder` to convert the input data into a format suitable for storage, replacing the existing item data with the new data provided in the request.",
+      "gold_sources": [
+        "tutorial/body-updates.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-28",
+      "question": "How do I declare a request body in FastAPI?",
+      "reference_answer": "To declare a request body in FastAPI, you use Pydantic models by creating a class that inherits from `BaseModel` and defining the attributes with standard Python types. Then, you declare this model as a parameter in your path operation function, specifying its type as the model you created.",
+      "gold_sources": [
+        "tutorial/body.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-29",
+      "question": "How do I declare cookie parameters using Pydantic in FastAPI?",
+      "reference_answer": "To declare cookie parameters using Pydantic in FastAPI, create a Pydantic model that defines the cookie fields, and then use the `Cookie` function to annotate the model in your endpoint. For example:\n\n```python\nclass Cookies(BaseModel):\n    session_id: str\n    fatebook_tracker: str | None = None\n    googall_tracker: str | None = None\n\n@app.get(\"/items/\")\nasync def read_items(cookies: Annotated[Cookies, Cookie()]):\n    return cookies\n```",
+      "gold_sources": [
+        "tutorial/cookie-param-models.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-30",
+      "question": "How do I define a cookie parameter in FastAPI?",
+      "reference_answer": "To define a cookie parameter in FastAPI, import `Cookie` and declare the parameter using the same structure as `Path` and `Query`, for example: `ads_id: Annotated[str | None, Cookie()] = None`.",
+      "gold_sources": [
+        "tutorial/cookie-params.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-31",
+      "question": "How can I apply a dependency to all routes in my FastAPI application?",
+      "reference_answer": "You can apply a dependency to all routes in your FastAPI application by adding it to the `dependencies` parameter when creating the `FastAPI` instance, as shown in the example where `Depends(verify_token)` and `Depends(verify_key)` are included in the `FastAPI` constructor.",
+      "gold_sources": [
+        "tutorial/dependencies/global-dependencies.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-32",
+      "question": "How do I create a dependency in FastAPI?",
+      "reference_answer": "To create a dependency in FastAPI, define a function that takes parameters like a path operation function and returns the desired value. Then, use the `Depends` function to declare this dependency in your path operation function's parameters.",
+      "gold_sources": [
+        "tutorial/dependencies/index.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-33",
+      "question": "How do I convert a Pydantic model to a JSON-compatible format?",
+      "reference_answer": "You can convert a Pydantic model to a JSON-compatible format using the `jsonable_encoder()` function provided by FastAPI. This function takes the Pydantic model as input and returns a dictionary that is compatible with JSON.",
+      "gold_sources": [
+        "tutorial/encoder.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-34",
+      "question": "How do I create a middleware in FastAPI?",
+      "reference_answer": "To create a middleware in FastAPI, you use the decorator `@app.middleware(\"http\")` on top of a function that takes the `request` and a `call_next` function as parameters. Inside this function, you can process the request, call `call_next(request)` to get the response, and then modify the response before returning it.",
+      "gold_sources": [
+        "tutorial/middleware.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-35",
+      "question": "How do I upload files using FastAPI?",
+      "reference_answer": "To upload files using FastAPI, you can define file parameters in your path operation function using `File` or `UploadFile`. For example, you can create an endpoint that accepts files by declaring a parameter with `File()` for raw bytes or `UploadFile` for a more efficient handling of larger files.",
+      "gold_sources": [
+        "tutorial/request-files.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-36",
+      "question": "How do I receive form data in FastAPI?",
+      "reference_answer": "To receive form data in FastAPI, you can use the `Form` class to declare form parameters in your endpoint function. Import `Form` from `fastapi` and define your parameters using `Annotated` to specify that they should be received as form fields.",
+      "gold_sources": [
+        "tutorial/request-forms.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-37",
+      "question": "How can I add examples to my Pydantic models in FastAPI?",
+      "reference_answer": "You can add examples to your Pydantic models in FastAPI by using the `model_config` attribute with a `json_schema_extra` dictionary that includes an `examples` key, or by using the `Field()` function with an `examples` argument for individual fields. This allows the examples to be included in the generated JSON Schema and displayed in the API documentation.",
+      "gold_sources": [
+        "tutorial/schema-extra-example.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-38",
+      "question": "How do I set up a FastAPI application with SQLModel?",
+      "reference_answer": "To set up a FastAPI application with SQLModel, first create a FastAPI instance and define your SQLModel models with `table=True` for table models. Then, create a database engine using `create_engine()`, define a function to create the database tables with `SQLModel.metadata.create_all(engine)`, and call this function during the FastAPI startup event to ensure the tables are created when the application starts.",
+      "gold_sources": [
+        "tutorial/sql-databases.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-39",
+      "question": "How do I serve static files in my FastAPI application?",
+      "reference_answer": "To serve static files in your FastAPI application, you can use `StaticFiles` by importing it and mounting an instance in a specific path, like this: `app.mount(\"/static\", StaticFiles(directory=\"static\"), name=\"static\")`. This will serve files from the \"static\" directory at the path \"/static\".",
+      "gold_sources": [
+        "tutorial/static-files.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    },
+    {
+      "question_id": "syn-40",
+      "question": "How do I set up tests for my FastAPI application?",
+      "reference_answer": "To set up tests for your FastAPI application, first install `httpx` and `pytest`. Then, create a `TestClient` by passing your FastAPI app to it, and write test functions prefixed with `test_`, using standard assert statements to check responses.",
+      "gold_sources": [
+        "tutorial/testing.md"
+      ],
+      "origin": "synthetic",
+      "paraphrase": null
+    }
+  ]
+}

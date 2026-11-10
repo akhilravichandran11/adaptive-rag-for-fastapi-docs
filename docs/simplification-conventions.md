@@ -51,7 +51,12 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 
 **S009 — A `@property` only for a value built from other fields that reads better than the expression it replaces, or holds logic of its own such as a guard. Never a bare wrapper around a field or `len()`.**
 - *Why:* `status.present` reads better than `not status.missing`, and a `label` built from `kind` and `name` cannot go stale, but `result.kept_count` only renames `len(result.documents)` and draws "why not just `len()`?". Python can turn an attribute into a property later without touching callers, so none is added in advance.
-- *Applies to:* all Python. Three pass today: `scripts/download_models.py` (`ModelStatus.present`, `ModelStatus.label`) and `data_ingestion/embedders.py` (`TruncationStats.percent_over_limit`). `data_ingestion/metadata.py`'s `EnrichmentResult.kept_count` and `dropped_count` break it; they change in its `SMP-` ticket, with their one caller in `stage2_chunk_corpus.py` and four test asserts. `@staticmethod`, the rest of Q03, is still open.
+- *Applies to:* all Python. Three pass today: `scripts/download_models.py` (`ModelStatus.present`, `ModelStatus.label`) and `data_ingestion/embedders.py` (`TruncationStats.percent_over_limit`). `data_ingestion/metadata.py`'s `EnrichmentResult.kept_count` and `dropped_count` break it; they change in its `SMP-` ticket, with their one caller in `stage2_chunk_corpus.py` and four test asserts. `@staticmethod`, the rest of Q03, is S010.
 - *Decided:* 2026-11-09 (Q03, `@property` half, after comparing `_no_property` copies of `metadata.py` and `download_models.py`).
 
-<!-- Next: S010, from the next question decided. -->
+**S010 — No `@staticmethod`. A helper that uses neither `self` nor `cls` is a module function, placed above the class that calls it.**
+- *Why:* a static method is a plain function kept inside a class, and it draws "why is this in the class at all?". A module function says the same thing, can be imported and tested on its own, and its calls drop the `self.`.
+- *Applies to:* all Python outside `sandbox/` and `.scratch/`. The one use, `_concept_comparison_key` in `data_curation/stage2_knowledge_domains.py`, stays as it is because `data_curation/` is being archived (DEF-20). `@classmethod` is not covered: Pydantic's before-validators need it.
+- *Decided:* 2026-11-10 (Q03, `@staticmethod` half, after comparing a `_no_staticmethod` copy of `stage2_knowledge_domains.py`).
+
+<!-- Next: S011, from the next question decided. -->

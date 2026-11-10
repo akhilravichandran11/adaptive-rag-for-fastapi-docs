@@ -340,3 +340,9 @@ class EvalQuestion(BaseModel):
     gold_sources: list[str] = Field(min_length=1)
     origin: Literal["handwritten", "synthetic"]
     paraphrase: str | None = None
+
+
+class SyntheticAnswer(BaseModel):
+    answer: str = Field(
+        description="one to three sentences that answer the question from the page alone"
+    )

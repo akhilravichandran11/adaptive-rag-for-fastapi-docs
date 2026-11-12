@@ -61,7 +61,7 @@ find that out.
 moved from fastembed to OpenRouter in IDX-12, and the fastembed backend was removed
 in IDX-14).
 Every dispatch keys off `spec.backend` and ends in `raise _unsupported_backend(spec)`
-— `build_document_embedder`, `build_text_embedder`, `cached_tokenizer_path`,
+— `build_document_embedder`, `build_query_embedder`, `cached_tokenizer_path`,
 `count_tokens`.
 
 **Clarified 2026-09-29 (IDX-10).** "Ends in" describes the rule, not the position:

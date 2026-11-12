@@ -24,7 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any di
 from data_ingestion.chunkers import STRATEGIES  # noqa: E402  (needs the path set above)
 from data_ingestion.embedders import (  # noqa: E402
     EMBEDDERS,
-    build_text_embedder,
+    build_query_embedder,
     cached_tokenizer_path,
 )
 from data_ingestion.qdrant_store import (  # noqa: E402
@@ -88,7 +88,7 @@ def build_rag_pipeline(
         )
 
     pipeline = Pipeline(metadata={"collection": settings.collection, "top_k": top_k})
-    pipeline.add_component("query_embedder", build_text_embedder(variant.embedder.name))
+    pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
     pipeline.add_component(
         "retriever",
         QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=top_k),

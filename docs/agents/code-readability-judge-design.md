@@ -36,13 +36,13 @@ Run on existing files, twice: once on the file as it is, once after `active-code
 
 ## Three-run comparison (2026-10-27)
 
-The first test of the judge as a before/after tool: `data_ingestion/embedders.py`, Codex judging every time with the same prompt. Each version acts on the previous run's findings, so the test is whether the judge registers its own findings being fixed. The simplifier comparison from "Intended first use" is still to do.
+The first test of the judge as a before/after tool: `data_ingestion/embedders.py`, Codex judging every time with the same prompt. Each version acts on the previous run's findings, so the test is whether the judge registers its own findings being fixed. The simplifier comparison from "Intended first use" is still to do: the judge has not read the simplifier's copy (see "Use on embedders.py" below).
 
 - **Run 1:** `embedders.py` as committed (the first run above).
 - **Run 2:** v1, acting on run 1. `_unsupported_backend` becomes `_unsupported_backend_error` and `build_text_embedder` becomes `build_query_embedder`. `cached_tokenizer_path` branches on the tokenizer source, not the backend. S007 removes `lru_cache` and `deepcopy`, folding `_tokenizer_from_file` into `_local_tokenizer`.
 - **Run 3:** v2, acting on run 2. The loader takes a registry name instead of a spec, because run 2 retraced spec → name → spec, and it becomes `_load_tokenizer`.
 
-v1 and v2 are untracked copies (`data_ingestion/embedders_judged.py`, `embedders_judged_v2.py`). `count_tokens` was flagged in every run and deliberately left alone. Runs 2 and 3 judged a copy with its comparison header stripped, since the header names the findings. The script only takes files inside the repo, so that copy sat at the git-ignored `data_ingestion/sandbox/embedders.py`, and every output has the stem `embedders`. Each run took 77–88 s and 25–26k tokens. Each log shows one shell command, a `cat` of the judged file. That includes run 1, so the first-run note about following calls into `model_cache.py` and `download_models.py` is not in its log.
+v1 and v2 were untracked copies (`data_ingestion/embedders_judged.py`, `embedders_judged_v2.py`), removed on 2026-11-13 after the adoption; the judge's reports stay under `.scratch/code-judge/`. `count_tokens` was flagged in every run and deliberately left alone. Runs 2 and 3 judged a copy with its comparison header stripped, since the header names the findings. The script only takes files inside the repo, so that copy sat at the git-ignored `data_ingestion/sandbox/embedders.py`, and every output has the stem `embedders`. Each run took 77–88 s and 25–26k tokens. Each log shows one shell command, a `cat` of the judged file. That includes run 1, so the first-run note about following calls into `model_cache.py` and `download_models.py` is not in its log.
 
 ### What changed between runs
 
@@ -85,6 +85,10 @@ The first run proposed an integer column so a comparison has a number to compare
 - One run per version cannot use it, because a real change and the drift are the same size (1–2).
 - To use it, run each version three or more times and compare medians, or count only moves of 3 or more. That triples the cost (about 75k tokens per version) for a signal these runs already got from the name test and the hardest-list reasons.
 - **Lean:** do not add the column. Compare the name test row by row and read the reasons in the hardest list; treat the counts as context.
+
+## Use on embedders.py (2026-11-10)
+
+The two judged versions and the `active-code-simplifier`'s copy were compared by hand, function by function, before one was adopted. The adopted file (`3402c93`) is the simplifier's copy plus the judge's `build_query_embedder` rename. v1's rewrite of `cached_tokenizer_path`, run 1's hardest row, was dropped: it broke convention C001 and four tests. The judge's name tests held up and its hardest list pointed at the right code, but a rewrite made from its findings still needs the convention check and the tests.
 
 ## Open
 

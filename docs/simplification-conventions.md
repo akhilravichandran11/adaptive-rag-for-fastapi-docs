@@ -59,4 +59,9 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 - *Applies to:* all Python outside `sandbox/` and `.scratch/`. The one use, `_concept_comparison_key` in `data_curation/stage2_knowledge_domains.py`, stays as it is because `data_curation/` is being archived (DEF-20). `@classmethod` is not covered: Pydantic's before-validators need it.
 - *Decided:* 2026-11-10 (Q03, `@staticmethod` half, after comparing a `_no_staticmethod` copy of `stage2_knowledge_domains.py`).
 
-<!-- Next: S011, from the next question decided. -->
+**S011 — Strategies that differ only in their numbers are one class. It takes the strategy name and looks its numbers up in a module table, and tests check what each strategy does, not how many classes there are.**
+- *Why:* `NaiveSmallChunker`, `NaiveMediumChunker` and `NaiveLargeChunker` were the same class three times with two numbers changed, which draws "why three classes?". One `NaiveChunker(strategy)` and a three-row size table say the same with one class to read. The only test that needed three classes counted them; a behaviour test now checks that each strategy cuts at its own size.
+- *Applies to:* all Python. Today that is `data_ingestion/chunkers/naive.py`, changed together with its three `build_naive_*` factories and `tests/data_ingestion/test_chunkers.py`. The argument is a plain `str` stored under its own name, because Haystack rebuilds a component from its init arguments and cannot serialize a dataclass. `NAIVE_SIZES` maps names to numbers, not to classes or factories; Q09 (registries) is still open and may revisit it.
+- *Decided:* 2026-11-10 (Q10, after comparing a one-class copy: the same 1,535 chunks on all 124 docs, and the pipeline still saves and reloads).
+
+<!-- Next: S012, from the next question decided. -->

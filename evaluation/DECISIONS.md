@@ -58,7 +58,16 @@ page's second question from the corpus analysis, with an answer written from the
 page. The limit: the corpus analysis wrote these questions while
 reading the page, so they tend to reuse its wording and may make retrieval look
 easier than it is for a real user. That is why the two sets are reported apart,
-never pooled.
+never pooled. The echo also favours keyword search: about nine in ten of a
+synthetic question's content words appear in its gold page, against about three
+in four for the handwritten ten, so a gap between hybrid and dense retrieval on
+this set is checked against the handwritten set. A second limit: the four
+reference questions, syn-21 to syn-24, point at short pages (560 to 1,779
+characters, against a median of 5,414), and other pages often answer those
+questions more fully, so a miss on one of the four can mean the retriever found
+a better page; those misses are read by hand. Listing that page as a second gold
+source would not help: recall divides by the number of gold pages, so either
+page alone would score half.
 
 **Cost.** Ten questions are a small sample: one question moves a recall figure by ten
 points, so the handwritten set shows direction, not small differences.

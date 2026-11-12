@@ -43,6 +43,8 @@ The Evidence and Merge Danger sections are adapted from Matt Pocock's `pr` skill
 **Door:** <one-way or two-way>
 **Blast radius:** <one word>
 <optional: one or two sentences on what could break>
+
+<optional: Refs DEF-N, one line per Linear issue>
 ```
 
 **Summary visual**: add one only when it makes the change clearer than prose, and pick the smallest that does: a call tree for control flow, a shallow file tree for a layout change, a `diff`-style sketch of the before/after shape, pseudocode for logic, or a Mermaid diagram for interactions between components. Most PRs need none.
@@ -50,6 +52,8 @@ The Evidence and Merge Danger sections are adapted from Matt Pocock's `pr` skill
 **Evidence**: show a before and after wherever one exists; a test that failed and now passes is the strongest kind. If nothing was verified yet, say so explicitly instead of omitting the section.
 
 **Merge Danger**: a two-way door is cheap to roll back; a one-way door is not (deleted data, migrated schemas, re-indexed collections, published artifacts). The blast radius names what the change could affect beyond its own files, such as downstream pipeline stages, stored artifacts, or the evaluation baseline.
+
+**Linear reference**: when the branch's work has a Linear issue, end the body with one `Refs DEF-N` line per issue, above any attribution line. Write `Refs`, never `Fixes` or `Closes`: the PR links to the issue without changing its status, and the maintainer closes issues by hand. Leave the line out when no issue applies.
 
 If your current environment has a standard AI-attribution convention for commits or PR descriptions (for example `Co-Authored-By: Warp <agent@warp.dev>` in Warp), append it as the last line of the body. Omit it if no such convention applies.
 

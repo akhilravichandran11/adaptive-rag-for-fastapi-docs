@@ -33,61 +33,24 @@ logger = logging.getLogger(__name__)
 # DocumentSplitter counts a "word" as a space-separated run of characters, so
 # newlines and indentation travel inside the words: each chunk is a verbatim
 # stretch of its source document, and consecutive chunks repeat only the overlap.
-NAIVE_SMALL = ChunkSettings(strategy="naive_small", size=200, overlap=25, unit=WORD_UNIT)
-NAIVE_MEDIUM = ChunkSettings(strategy="naive_medium", size=400, overlap=50, unit=WORD_UNIT)
-NAIVE_LARGE = ChunkSettings(strategy="naive_large", size=800, overlap=100, unit=WORD_UNIT)
-
-
-def _word_splitter(settings: ChunkSettings) -> DocumentSplitter:
-    """A Haystack word splitter configured from ``settings``."""
-    return DocumentSplitter(
-        split_by=WORD_UNIT,
-        split_length=settings.size,
-        split_overlap=settings.overlap,
-    )
+NAIVE_SIZES = {
+    "naive_small": (200, 25),
+    "naive_medium": (400, 50),
+    "naive_large": (800, 100),
+}
 
 
 @component
-class NaiveSmallChunker:
-    """Splits into 200-word chunks overlapping by 25 words."""
+class NaiveChunker:
+    """Splits into fixed-size word chunks; ``strategy`` picks the size from ``NAIVE_SIZES``."""
 
-    def __init__(self) -> None:
-        self.settings = NAIVE_SMALL
-        self._splitter = _word_splitter(self.settings)
-
-    def warm_up(self) -> None:
-        self._splitter.warm_up()
-
-    @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Chunk every document and return the chunks with the shared chunk fields."""
-        return {"documents": split_documents(documents, self._splitter, self.settings)}
-
-
-@component
-class NaiveMediumChunker:
-    """Splits into 400-word chunks overlapping by 50 words — the study's reference size."""
-
-    def __init__(self) -> None:
-        self.settings = NAIVE_MEDIUM
-        self._splitter = _word_splitter(self.settings)
-
-    def warm_up(self) -> None:
-        self._splitter.warm_up()
-
-    @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Chunk every document and return the chunks with the shared chunk fields."""
-        return {"documents": split_documents(documents, self._splitter, self.settings)}
-
-
-@component
-class NaiveLargeChunker:
-    """Splits into 800-word chunks overlapping by 100 words."""
-
-    def __init__(self) -> None:
-        self.settings = NAIVE_LARGE
-        self._splitter = _word_splitter(self.settings)
+    def __init__(self, strategy: str) -> None:
+        size, overlap = NAIVE_SIZES[strategy]
+        self.strategy = strategy  # Haystack serializes a component from its init arguments
+        self.settings = ChunkSettings(strategy=strategy, size=size, overlap=overlap, unit=WORD_UNIT)
+        self._splitter = DocumentSplitter(
+            split_by=WORD_UNIT, split_length=size, split_overlap=overlap
+        )
 
     def warm_up(self) -> None:
         self._splitter.warm_up()
@@ -101,5 +64,5 @@ class NaiveLargeChunker:
 if __name__ == "__main__":
     configure_demo_logging()
     sample = demo_document()
-    for chunker in (NaiveSmallChunker(), NaiveMediumChunker(), NaiveLargeChunker()):
-        log_chunk_summary(chunker.run([sample])["documents"], log=logger)
+    for strategy in NAIVE_SIZES:
+        log_chunk_summary(NaiveChunker(strategy).run([sample])["documents"], log=logger)

@@ -64,23 +64,23 @@ __all__ = [
 
 def build_naive_small() -> Chunker:
     """200-word chunks, 25 words of overlap."""
-    from data_ingestion.chunkers.naive import NaiveSmallChunker
+    from data_ingestion.chunkers.naive import NaiveChunker
 
-    return NaiveSmallChunker()
+    return NaiveChunker("naive_small")
 
 
 def build_naive_medium() -> Chunker:
     """400-word chunks, 50 words of overlap — the study's reference variant."""
-    from data_ingestion.chunkers.naive import NaiveMediumChunker
+    from data_ingestion.chunkers.naive import NaiveChunker
 
-    return NaiveMediumChunker()
+    return NaiveChunker("naive_medium")
 
 
 def build_naive_large() -> Chunker:
     """800-word chunks, 100 words of overlap."""
-    from data_ingestion.chunkers.naive import NaiveLargeChunker
+    from data_ingestion.chunkers.naive import NaiveChunker
 
-    return NaiveLargeChunker()
+    return NaiveChunker("naive_large")
 
 
 def build_sentence() -> Chunker:

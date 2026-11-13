@@ -86,7 +86,7 @@ All four stages are built and run in order from one orchestrator:
 - A chunk-size report checks every strategy's chunks against shared shape rules
   (sizes are checked and reported, not enforced).
 
-## 6. Indexing (Qdrant): In progress
+## 6. Indexing (Qdrant): Done
 
 - Qdrant collection setup and configuration (done).
 - Embedders (done): Voyage AI and BGE-large via OpenRouter, with a pinned local
@@ -98,13 +98,13 @@ All four stages are built and run in order from one orchestrator:
   the successful retry of Voyage's `markdown_ast` collection.
 - Choosing the pairs that go forward to retrieval (in progress).
 
-## 7. Retrieval and adaptive RAG: Planned
+## 7. Retrieval and adaptive RAG: Done
 
 - Retrieval over the indexed corpus.
 - Corrective/adaptive RAG control flow (relevance grading, query rewriting,
   fallback strategies).
 
-## 8. Evaluation: Planned
+## 8. Evaluation: In progress
 
 - Build a question and answer set over the corpus to evaluate retrieval and
   answers.

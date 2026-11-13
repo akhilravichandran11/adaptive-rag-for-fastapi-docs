@@ -8,7 +8,7 @@ corpus for retrieval.
 
 > Early development. Source collection, normalization, chunking, indexing, and
 > hybrid retrieval work, and the CRAG pipeline answers questions from the command
-> line, over HTTP, and on a web page. Evaluation is planned. See
+> line, over HTTP, and on a web page. Evaluation is in progress. See
 > [ROADMAP.md](ROADMAP.md) for the full status.
 
 ## Pipeline
@@ -26,9 +26,9 @@ collect  →  normalize  →  curate  →  chunk  →  index  →  retrieve  →
 | normalize | Done        |
 | curate    | Deferred    |
 | chunk     | Done        |
-| index     | In progress |
+| index     | Done        |
 | retrieve  | Done        |
-| evaluate  | Planned     |
+| evaluate  | In progress |
 
 Chunking compares seven strategies on the same corpus (`naive_small`,
 `naive_medium`, `naive_large`, `sentence`, `recursive`, `semantic`,
@@ -56,7 +56,7 @@ data_ingestion/     # Qdrant setup, chunking strategies, embedders, indexing
 retrieval/          # Dense baseline RAG, and hybrid BM25 + dense search, reranked
 crag/               # CRAG pipeline: grade chunks, pick a route, search the web, answer
 scripts/            # Model downloads, chunk-size report, CI helpers
-evaluation/         # Retrieval / answer evaluation           (planned)
+evaluation/         # Retrieval / answer evaluation           (in progress)
 backend/            # FastAPI service: POST /query, GET /health, the page at /
 frontend/           # Static page for asking questions, served by the backend
 experiments/        # Ad-hoc experiments

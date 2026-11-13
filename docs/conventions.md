@@ -18,7 +18,7 @@ set yet.
 
 > Code-shape rules live in [`simplification-conventions.md`](simplification-conventions.md).
 > Where an S-rule there conflicts with an entry here, the S-rule wins and the
-> entry is marked `superseded by S00N`. Open code-shape questions (C002 is Q09)
+> entry is marked `superseded by S00N`. Open code-shape questions
 > are tracked privately in `.scratch/code-simplification/questions.md`.
 
 ## Status
@@ -34,7 +34,7 @@ set yet.
 | ID | Convention | Introduced | Status |
 |---|---|---|---|
 | [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | accepted |
-| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | `Protocol` half superseded by S004; registry half accepted (open as Q09) |
+| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | superseded by S004 (`Protocol` half) and S012 (registry half) |
 | [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
 | [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | accepted |
@@ -90,7 +90,7 @@ five.
 
 ## C002: `Protocol`-based structural typing with a name → factory registry
 
-**Status:** `Protocol` half superseded by S004 (2026-10-20); registry half accepted, open as Q09 · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
+**Status:** superseded by S004 (`Protocol` half, 2026-10-20) and S012 (registry half, 2026-11-14) · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
 
 **Ruled before IDX-06 and IDX-07.** Both add a strategy to this package, so both
 copy this shape: a `@component` class satisfying `Chunker` structurally, a

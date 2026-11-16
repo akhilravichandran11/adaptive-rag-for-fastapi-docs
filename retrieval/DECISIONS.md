@@ -6,6 +6,43 @@ pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-11-16 — Hybrid retrieval in baseline_rag: rerank scores, and index_run from the dense side
+
+**Decision.** `build_rag_pipeline` in `retrieval/baseline_rag.py` takes `retrieval="dense"`
+(the default, unchanged) or `"hybrid"`. Hybrid starts from `build_hybrid_pipeline` in
+`retrieval/hybrid.py` and feeds its `ranker` into the same prompt and Gemini step, so a hybrid
+answer differs from a dense one in retrieval only. `ask` returns the same record for both, plus
+`index_run`. Both command lines take `--retrieval dense|hybrid`, and both refuse a hybrid run
+without `VOYAGE_API_KEY` (exit 1) before any paid call, because the ranker reads its key only
+when it first runs, after the paid query embedding. In `evaluation/generate_results.py`, hybrid
+lines are named `hybrid__<strategy>__<embedder>`, and `run_meta.json`'s settings record
+`retrieval` and `hybrid: {chunks_run, candidates, rerank_model}` (`null` under dense; a run
+saved before this entry is read as dense).
+
+**Under hybrid, `score` is the Voyage rerank score, not a cosine similarity.** The chunks are
+the ranker's, in rerank order, ranked from 1. The scorer reads only `rank` and
+`meta.source_path`, so recall and MRR are unaffected, but two results files' `score` values
+are not comparable across retrievals.
+
+**Why `index_run` comes from the dense branch.** The index report gate needs the indexing run
+that built the collection. Chunks found only by BM25 come from the saved chunk file, whose
+metadata has no `index_run` or `chunks_run`. Haystack's reciprocal-rank joiner keeps one copy of
+a chunk both sides return, and it may be the BM25 copy, so the final chunks can all lack it in a
+valid run. `ask` therefore reads `index_run` from the dense retriever's own output (`null` when it
+returned nothing), and the gate stops on `null`. Under hybrid the gate also stops when the index
+report's `chunks_run` differs from the chunk run BM25 searches, since fused lists from two
+chunkings would mix.
+
+**Where the gate takes `chunks_run`.** Under dense it still takes it from the first chunk's
+`meta`, as before: every dense chunk is a Qdrant point that carries it. Under hybrid it takes it
+from the index report entry, because which copy of a chunk the joiner keeps can change between
+attempts, and a chunk's missing `chunks_run` would then read as a rebuilt collection on resume.
+
+**Cost.** One more field in every record. A hybrid pipeline loads its chunk file into memory
+when built. A resume refuses a run whose hybrid settings no longer match `hybrid.py`.
+
+---
+
 ## 2026-10-26 — Hybrid retrieval: in-memory BM25 plus dense search, fused and reranked
 
 **Decision.** `retrieval/hybrid.py` searches one indexed variant two ways. BM25 runs in

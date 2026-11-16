@@ -8,17 +8,22 @@ import asyncio
 import json
 import logging
 import random
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 from openai_llm_utils import chat_structured, configure_logging, resolve_model
 from pipeline import CONTENT_ANALYSIS_FILE, resolve_run_dir
-from schemas import EvalQuestion, SyntheticAnswer
-
-logger = logging.getLogger(__name__)
+from schemas import SyntheticAnswer
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
+
+from evaluation.schemas import EvalQuestion  # noqa: E402  (needs the path set above)
+
+logger = logging.getLogger(__name__)
+
 MANIFEST_PATH = PROJECT_ROOT / "data/fastapi/normalized/github-docs/v1/manifest.json"
 OUTPUT_FILE = "synthetic_qa.json"
 

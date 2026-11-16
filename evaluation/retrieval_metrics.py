@@ -13,7 +13,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
 
-from data_curation.schemas import EvalQuestion  # noqa: E402  (needs the path set above)
+from evaluation.schemas import EvalQuestion  # noqa: E402  (needs the path set above)
 
 logger = logging.getLogger(__name__)
 

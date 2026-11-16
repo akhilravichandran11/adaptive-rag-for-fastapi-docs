@@ -1,0 +1,60 @@
+{
+  "stage": "generate_results",
+  "run_id": "20261116_055637",
+  "started_at": "2026-11-16T05:56:37+00:00",
+  "settings": {
+    "retrieval": "hybrid",
+    "hybrid": {
+      "chunks_run": "full_chunks_20261015",
+      "candidates": 50,
+      "rerank_model": "rerank-2.5"
+    },
+    "strategies": [
+      "markdown_ast"
+    ],
+    "embedders": [
+      "voyage"
+    ],
+    "collection_prefix": "fastapi_docs",
+    "retrieve_only": false,
+    "limit": null,
+    "top_k": 10,
+    "answer_model": "gemini-pro-latest"
+  },
+  "question_files": [
+    {
+      "path": "evaluation/questions/handwritten.json",
+      "sha256": "39287160cfac741e53e828273cd9b8e2dc75b3a66e66cb776172756d7c3abe89",
+      "count": 10
+    },
+    {
+      "path": "evaluation/questions/synthetic.json",
+      "sha256": "11d549408bf3792fa83bb079e7abb4dd19f7af5205bba5428e954a3e8b4ccee5",
+      "count": 40
+    }
+  ],
+  "embedders": {
+    "voyage": {
+      "model": "voyage-4-lite",
+      "backend": "voyage",
+      "api_model": null,
+      "dimension": 2048,
+      "query_prefix": "",
+      "input_type": "query"
+    }
+  },
+  "collections": {
+    "fastapi_docs__markdown_ast__voyage": {
+      "index_run": "20261107_145200",
+      "chunks_run": "full_chunks_20261015",
+      "index_status": "complete"
+    }
+  },
+  "failed": [],
+  "model_versions": [
+    {
+      "at": "2026-11-16T05:56:41+00:00",
+      "model_version": "gemini-3.1-pro-preview"
+    }
+  ]
+}

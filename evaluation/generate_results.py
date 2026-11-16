@@ -1,7 +1,8 @@
 """
 Ask every evaluation question of every indexed variant and save each record as one line
 of ``evaluation/outputs/<run_id>/results.jsonl``, the file the scorer reads. Embedding a
-question and answering it are PAID calls, hundreds per run; see ``--help``.
+question, reranking it (hybrid) and answering it are PAID calls, hundreds per run; see
+``--help``.
 """
 
 import argparse
@@ -23,8 +24,7 @@ from google import genai
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
 
-from data_curation.schemas import EvalQuestion  # noqa: E402  (needs the path set above)
-from data_ingestion.chunkers import STRATEGIES  # noqa: E402
+from data_ingestion.chunkers import STRATEGIES  # noqa: E402  (needs the path set above)
 from data_ingestion.embedders import EMBEDDERS, cached_tokenizer_path  # noqa: E402
 from data_ingestion.pipeline import (  # noqa: E402
     INDEX_REPORT_FILE,
@@ -33,7 +33,9 @@ from data_ingestion.pipeline import (  # noqa: E402
     resolve_run_dir,
 )
 from data_ingestion.variants import DEFAULT_PREFIX, check_prefix, select_variants  # noqa: E402
-from retrieval.baseline_rag import TOP_K, ask, build_rag_pipeline  # noqa: E402
+from evaluation.schemas import EvalQuestion  # noqa: E402
+from retrieval.baseline_rag import RETRIEVALS, TOP_K, ask, build_rag_pipeline  # noqa: E402
+from retrieval.hybrid import CANDIDATES, DEFAULT_CHUNKS_RUN, RERANK_MODEL  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,12 @@ QUESTION_FILES = (
     PROJECT_ROOT / "evaluation" / "questions" / "handwritten.json",
     PROJECT_ROOT / "evaluation" / "questions" / "synthetic.json",
 )
+# Saved in run_meta.json, so a resume can refuse a run that hybrid.py has since changed.
+HYBRID_SETTINGS = {
+    "chunks_run": DEFAULT_CHUNKS_RUN,
+    "candidates": CANDIDATES,
+    "rerank_model": RERANK_MODEL,
+}
 
 
 def load_questions(paths: Iterable[Path]) -> list[EvalQuestion]:
@@ -72,24 +80,26 @@ def load_questions(paths: Iterable[Path]) -> list[EvalQuestion]:
     return questions
 
 
-def check_index_report(record: dict[str, Any]) -> dict[str, Any]:
-    """The stage 3 run that built ``record``'s collection, once its report says ``complete``.
+def check_index_report(record: dict[str, Any], bm25_chunks_run: str | None) -> dict[str, Any]:
+    """The stage 3 run that built ``record``'s collection, once its report says ``complete``
+    and, under hybrid, that it was indexed from ``bm25_chunks_run``.
 
     Raises ``ValueError`` when that report is missing, unreadable or says anything else.
-    Why the chunks name the run: evaluation/DECISIONS.md, 2026-11-14 (index report gate).
+    Why the record's ``index_run`` names the run: evaluation/DECISIONS.md, 2026-11-14 (index
+    report gate), and retrieval/DECISIONS.md, 2026-11-16 (hybrid in baseline_rag).
     """
     collection = record["collection"]
-    meta = record["chunks"][0]["meta"] if record["chunks"] else {}
-    if "index_run" not in meta:
+    index_run = record["index_run"]
+    if index_run is None:
         raise ValueError(
-            f"{collection}: its first record names no index_run, so its index report "
-            "cannot be found"
+            f"{collection}: its first record names no index_run (its dense search returned "
+            "no chunk that carries one), so its index report cannot be found"
         )
-    index_run = meta["index_run"]
     try:
         report_path = resolve_run_dir(index_run) / INDEX_REPORT_FILE
         report = json.loads(report_path.read_text(encoding="utf-8"))
         statuses = {entry["collection"]: entry["status"] for entry in report}
+        chunks_runs = {entry["collection"]: entry.get("chunks_run") for entry in report}
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ValueError(
             f"{collection}: cannot read the index report of run {index_run}: "
@@ -100,9 +110,19 @@ def check_index_report(record: dict[str, Any]) -> dict[str, Any]:
             f"{collection}: {report_path} records it as {statuses.get(collection)!r}, "
             "not 'complete'"
         )
+    if bm25_chunks_run is None:
+        chunks_run = record["chunks"][0]["meta"].get("chunks_run")
+    else:
+        # Fused lists from two chunkings would mix; a BM25 chunk carries no chunks_run.
+        chunks_run = chunks_runs[collection]
+        if chunks_run != bm25_chunks_run:
+            raise ValueError(
+                f"{collection}: {report_path} records it as indexed from chunk run "
+                f"{chunks_run!r}, and hybrid retrieval's BM25 searches {bm25_chunks_run!r}"
+            )
     return {
         "index_run": index_run,
-        "chunks_run": meta.get("chunks_run"),
+        "chunks_run": chunks_run,
         "index_status": statuses[collection],
     }
 
@@ -119,7 +139,9 @@ def read_resumed_run(
     # Other tools also make timestamp folders under evaluation/outputs/.
     if not isinstance(run_meta, dict) or run_meta.get("stage") != STAGE:
         raise ValueError(f"its {RUN_META_FILE} does not record a {STAGE} run")
-    settings = run_meta["settings"]
+    # A run started before hybrid retrieval existed saved neither key, and was dense.
+    settings = {"retrieval": "dense", "hybrid": None, **run_meta["settings"]}
+    run_meta["settings"] = settings
     changed = [entry["path"] for entry in question_files if entry not in run_meta["question_files"]]
     if changed:
         raise ValueError(f"{', '.join(changed)} changed since it started (the sha256 differs)")
@@ -128,6 +150,12 @@ def read_resumed_run(
         raise ValueError(
             f"it answers with GEMINI_MODEL={settings['answer_model']}, and GEMINI_MODEL is "
             f"now {os.getenv('GEMINI_MODEL')}"
+        )
+    # build_rag_pipeline takes these from retrieval/hybrid.py, not from the saved settings.
+    if settings["hybrid"] not in (None, HYBRID_SETTINGS):
+        raise ValueError(
+            f"its hybrid retrieval used {settings['hybrid']}, and retrieval/hybrid.py now "
+            f"gives {HYBRID_SETTINGS}"
         )
 
     results_path = run_dir / RESULTS_FILE
@@ -172,6 +200,8 @@ def new_run_meta(
             "limit": args.limit,
             "top_k": TOP_K,
             "answer_model": None if args.retrieve_only else os.getenv("GEMINI_MODEL"),
+            "retrieval": args.retrieval,
+            "hybrid": HYBRID_SETTINGS if args.retrieval == "hybrid" else None,
         },
         "question_files": question_files,
         "embedders": {},
@@ -183,6 +213,7 @@ def new_run_meta(
 
 def build_pipelines(run_meta: dict[str, Any]) -> dict[str, Any]:
     settings = run_meta["settings"]
+    kind = "hybrid" if settings["retrieval"] == "hybrid" else "baseline"
     pipelines = {}
     try:
         for strategy in settings["strategies"]:
@@ -193,8 +224,9 @@ def build_pipelines(run_meta: dict[str, Any]) -> dict[str, Any]:
                     prefix=settings["collection_prefix"],
                     top_k=settings["top_k"],
                     retrieve_only=settings["retrieve_only"],
+                    retrieval=settings["retrieval"],
                 )
-                pipelines[f"baseline__{strategy}__{name}"] = pipeline
+                pipelines[f"{kind}__{strategy}__{name}"] = pipeline
                 spec = variant.embedder
                 embedder = {
                     "model": spec.model,
@@ -222,7 +254,7 @@ def build_pipelines(run_meta: dict[str, Any]) -> dict[str, Any]:
                         "One run cannot mix two query embedders; start a new run"
                     )
                 run_meta["embedders"][name] = embedder
-    except ValueError as exc:  # missing collection, Qdrant or Gemini config; changed embedder
+    except ValueError as exc:  # missing collection, chunk file or config; changed embedder
         logger.error("%s", exc)
         raise SystemExit(1) from None
     return pipelines
@@ -263,6 +295,9 @@ def ask_pairs(
     pipelines: dict[str, Any],
     pairs: list[tuple[str, EvalQuestion]],
 ) -> None:
+    settings = run_meta["settings"]
+    hybrid = settings["retrieval"] == "hybrid"
+    bm25_chunks_run = settings["hybrid"]["chunks_run"] if hybrid else None
     gated_collections: set[str] = set()
     with (run_dir / RESULTS_FILE).open("a", encoding="utf-8") as results:
         for number, (system, question) in enumerate(pairs, start=1):
@@ -284,7 +319,7 @@ def ask_pairs(
             collection = record["collection"]
             if collection not in gated_collections:
                 try:
-                    build = check_index_report(record)
+                    build = check_index_report(record, bm25_chunks_run)
                 except ValueError as exc:
                     logger.error(
                         "%s. The run stops here and this record is not saved. Fix the "
@@ -336,7 +371,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ask every evaluation question of every selected strategy × embedder "
         "collection and save the records in a new folder under evaluation/outputs/. "
-        "Embedding each question and answering it are PAID API calls.",
+        "Embedding each question, reranking it (hybrid) and answering it are PAID API calls.",
         # An option left off the command line is left out of the result, not set to a
         # default, so --resume can tell that it came alone.
         argument_default=argparse.SUPPRESS,
@@ -360,6 +395,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "GEMINI_MODEL or Google key is needed",
     )
     parser.add_argument(
+        "--retrieval",
+        choices=RETRIEVALS,
+        help="dense searches each collection alone, in systems named baseline__…; hybrid adds "
+        "BM25 over the saved chunk run and reranks with Voyage, in systems named hybrid__… "
+        "(default: dense)",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         metavar="N",
@@ -378,6 +420,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "embedder": "all",
             "collection_prefix": DEFAULT_PREFIX,
             "retrieve_only": False,
+            "retrieval": "dense",
             "limit": None,
             "resume": None,
             **given,
@@ -465,6 +508,9 @@ def main(argv: list[str] | None = None) -> None:
                 "%s is not set; %s needs it to embed each question (.env)", keys[name], name
             )
             raise SystemExit(1)
+    if settings["retrieval"] == "hybrid" and not os.getenv("VOYAGE_API_KEY"):
+        logger.error("VOYAGE_API_KEY is not set; hybrid retrieval needs it to rerank (.env)")
+        raise SystemExit(1)
 
     # Every pipeline is built before the run folder exists: each costs one free Qdrant
     # call, so a missing collection or key stops the run with nothing written (D60).

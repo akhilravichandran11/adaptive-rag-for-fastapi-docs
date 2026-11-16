@@ -10,7 +10,8 @@ truncate. The same report, with per-chunk detail and the sha256 of the corpus
 Nothing is changed: the report describes chunks, it never fixes them. See
 ``data_ingestion/chunk_shape.py`` for the rules.
 
-The five size-based strategies and ``markdown_ast`` run offline and cost nothing.
+The five size-based strategies and the three markdown ones (``markdown_ast``,
+``markdown_sections``, ``markdown_headers``) run offline and cost nothing.
 ``semantic`` finds its boundaries with BGE on OpenRouter — a paid call (cents per
 corpus) that needs ``OPENROUTER_API_KEY`` — so it runs only with ``--include-semantic``.
 
@@ -85,7 +86,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--strategy",
         action="append",
         choices=FREE_STRATEGIES,
-        help="An offline (free) strategy to report on; repeat for several (default: all six)",
+        help="An offline (free) strategy to report on; repeat for several (default: all eight)",
     )
     parser.add_argument(
         "--include-semantic",

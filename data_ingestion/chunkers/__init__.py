@@ -19,7 +19,9 @@ its own with ``python -m``.
 
 Five strategies split by size (words, sentences, or characters); ``semantic``
 cuts where BGE embeddings say the topic changes; ``markdown_ast`` follows the
-document's own headings and never cuts inside a code fence or a function.
+document's own headings and never cuts inside a code fence or a function;
+``markdown_sections`` makes one chunk per heading section and never cuts a code
+block; ``markdown_headers`` is Haystack's own markdown splitter, unextended.
 
 Build indexing pipelines in code rather than loading them from a saved
 dictionary or YAML: a pipeline holding one of these components serializes, but
@@ -61,6 +63,8 @@ STRATEGIES = (
     "recursive",
     "semantic",
     "markdown_ast",
+    "markdown_sections",
+    "markdown_headers",
 )
 
 
@@ -95,6 +99,14 @@ def get_chunker(name: str) -> Chunker:
         from data_ingestion.chunkers.markdown_ast import MarkdownAstChunker
 
         return MarkdownAstChunker()
+    if name == "markdown_sections":
+        from data_ingestion.chunkers.markdown_sections import MarkdownSectionsChunker
+
+        return MarkdownSectionsChunker()
+    if name == "markdown_headers":
+        from data_ingestion.chunkers.markdown_headers import MarkdownHeadersChunker
+
+        return MarkdownHeadersChunker()
     raise ValueError(
         f"Unknown chunking strategy {name!r}; available strategies: {', '.join(STRATEGIES)}"
     )

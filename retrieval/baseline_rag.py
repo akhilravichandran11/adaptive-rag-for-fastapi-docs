@@ -1,7 +1,8 @@
 """
-Ask one indexed variant a question. Step 6 imports ``build_rag_pipeline`` and ``ask``,
-so one question from the command line and the study's run query a variant the same
-way (C011). Embedding the question and answering it are PAID calls; see ``--help``.
+Ask one indexed variant a question, by dense or hybrid retrieval. Step 6 imports
+``build_rag_pipeline`` and ``ask``, so one question from the command line and the study's
+run query a variant the same way (C011). Embedding the question, reranking it (hybrid)
+and answering it are PAID calls; see ``--help``.
 """
 
 import argparse
@@ -38,12 +39,14 @@ from data_ingestion.variants import (  # noqa: E402
     check_prefix,
     select_variants,
 )
+from retrieval.hybrid import build_hybrid_pipeline  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 # Fixed here, not read from RETRIEVAL_TOP_K: the variants are only comparable if each
 # retrieves the same number of chunks, so a stray .env edit must not change it (D43).
 TOP_K = 10
+RETRIEVALS = ("dense", "hybrid")
 
 # The excerpts are numbered, untrusted data, and a "not covered" answer makes a bad
 # retrieval visible (D48). An excerpt holding "</excerpt>" is not escaped.
@@ -70,30 +73,41 @@ def build_rag_pipeline(
     prefix: str = DEFAULT_PREFIX,
     top_k: int = TOP_K,
     retrieve_only: bool = False,
+    retrieval: str = "dense",
 ) -> Pipeline:
-    """Build the pipeline that asks ``variant``'s collection a question.
+    """Build the pipeline that asks ``variant``'s collection a question by ``retrieval``.
 
-    Makes one free Qdrant call and no paid one. Raises ``ValueError`` naming the
-    collection when it does not exist, or naming missing config.
+    Makes one free Qdrant call and no paid one; ``hybrid`` also loads a saved chunk run for
+    BM25. Raises ``ValueError`` naming a missing collection, chunk file or config, or an
+    unknown ``retrieval``.
     """
-    settings = load_settings(
-        collection_override=variant.collection(prefix),
-        dimension_override=variant.embedder.dimension,
-    )
-    # The Haystack store creates a missing collection when it first connects, so a
-    # mistyped prefix would otherwise search a new, empty collection.
-    if not collection_exists(settings):
+    if retrieval not in RETRIEVALS:
         raise ValueError(
-            f"Collection {settings.collection} does not exist; index it with stage 3 first"
+            f"Unknown retrieval {retrieval!r}; expected one of: {', '.join(RETRIEVALS)}"
         )
+    if retrieval == "hybrid":
+        pipeline = build_hybrid_pipeline(variant, prefix=prefix, top_k=top_k)
+        documents = "ranker.documents"
+    else:
+        settings = load_settings(
+            collection_override=variant.collection(prefix),
+            dimension_override=variant.embedder.dimension,
+        )
+        # The Haystack store creates a missing collection when it first connects, so a
+        # mistyped prefix would otherwise search a new, empty collection.
+        if not collection_exists(settings):
+            raise ValueError(
+                f"Collection {settings.collection} does not exist; index it with stage 3 first"
+            )
 
-    pipeline = Pipeline(metadata={"collection": settings.collection, "top_k": top_k})
-    pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
-    pipeline.add_component(
-        "retriever",
-        QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=top_k),
-    )
-    pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
+        pipeline = Pipeline(metadata={"collection": settings.collection, "top_k": top_k})
+        pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
+        pipeline.add_component(
+            "retriever",
+            QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=top_k),
+        )
+        pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
+        documents = "retriever.documents"
     if retrieve_only:
         return pipeline
 
@@ -106,18 +120,27 @@ def build_rag_pipeline(
         "llm",
         GoogleGenAIChatGenerator(model=model, generation_kwargs={"temperature": 0.0}),
     )
-    pipeline.connect("retriever.documents", "prompt_builder.documents")
+    pipeline.connect(documents, "prompt_builder.documents")
     pipeline.connect("prompt_builder.prompt", "llm.messages")
     return pipeline
 
 
 def ask(pipeline: Pipeline, question: str) -> dict[str, Any]:
-    """Run ``pipeline`` once for ``question`` and return its result record (D49, D65)."""
+    """Run ``pipeline`` once for ``question`` and return its result record (D49, D65).
+
+    Why ``index_run`` is the dense search's, and ``score`` under hybrid the rerank score:
+    retrieval/DECISIONS.md, 2026-11-16 (hybrid in baseline_rag).
+    """
     answering = "llm" in pipeline.graph.nodes
+    dense = ranked = "retriever"
     inputs = {"query_embedder": {"text": question}}
+    if "ranker" in pipeline.graph.nodes:  # hybrid
+        dense, ranked = "dense", "ranker"
+        inputs["bm25"] = {"query": question}
+        inputs["ranker"] = {"query": question}
     if answering:
         inputs["prompt_builder"] = {"question": question}
-    outputs = pipeline.run(inputs, include_outputs_from={"retriever"})
+    outputs = pipeline.run(inputs, include_outputs_from={dense, ranked})
     answer = None
     usage = None
     if answering:
@@ -137,13 +160,15 @@ def ask(pipeline: Pipeline, question: str) -> dict[str, Any]:
             # The adapter leaves this key out when Gemini reports no thinking.
             "thoughts_token_count": reply_usage.get("thoughts_token_count", 0),
         }
+    dense_documents = outputs[dense]["documents"]
     return {
         "question": question,
         "collection": pipeline.metadata["collection"],
         "top_k": pipeline.metadata["top_k"],
+        "index_run": dense_documents[0].meta.get("index_run") if dense_documents else None,
         "chunks": [
             {"rank": rank, "score": doc.score, "content": doc.content, "meta": doc.meta}
-            for rank, doc in enumerate(outputs["retriever"]["documents"], start=1)
+            for rank, doc in enumerate(outputs[ranked]["documents"], start=1)
         ],
         "answer": answer,
         "usage": usage,
@@ -153,7 +178,7 @@ def ask(pipeline: Pipeline, question: str) -> dict[str, Any]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ask one indexed strategy × embedder collection a question. Embedding "
-        "the question and answering it are PAID API calls.",
+        "the question, reranking it (hybrid) and answering it are PAID API calls.",
     )
     parser.add_argument("--strategy", required=True, help=f"One of: {', '.join(STRATEGIES)}")
     parser.add_argument(
@@ -179,6 +204,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Retrieve the chunks without asking Gemini (needs no GEMINI_MODEL or Google key)",
+    )
+    parser.add_argument(
+        "--retrieval",
+        choices=RETRIEVALS,
+        default="dense",
+        help="dense searches the collection alone; hybrid adds BM25 over the saved chunk run "
+        "and reranks with Voyage, which needs VOYAGE_API_KEY (default: %(default)s)",
     )
     args = parser.parse_args(argv)
     if "all" in (args.strategy, args.embedder):
@@ -214,6 +246,10 @@ def main(argv: list[str] | None = None) -> None:
             "Run 'uv run python scripts/download_models.py' from the project root first."
         )
         raise SystemExit(1)
+    # The ranker reads its key only when it first runs, after the paid query embedding.
+    if args.retrieval == "hybrid" and not os.getenv("VOYAGE_API_KEY"):
+        logger.error("VOYAGE_API_KEY is not set; hybrid retrieval needs it to rerank (.env)")
+        raise SystemExit(1)
 
     [variant] = select_variants(args.strategy, args.embedder)
     try:
@@ -222,8 +258,9 @@ def main(argv: list[str] | None = None) -> None:
             prefix=args.collection_prefix,
             top_k=args.top_k,
             retrieve_only=args.retrieve_only,
+            retrieval=args.retrieval,
         )
-    except ValueError as exc:  # a missing collection, or missing Qdrant or Gemini config
+    except ValueError as exc:  # a missing collection or chunk file, or missing config
         logger.error("%s", exc)
         raise SystemExit(1) from None
 

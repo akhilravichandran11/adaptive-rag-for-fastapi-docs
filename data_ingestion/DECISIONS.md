@@ -6,6 +6,92 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-11-16 — Two simpler heading-based strategies run beside `markdown_ast`
+
+**Decision.** Two strategies join the study after `markdown_ast`, so it compares nine
+strategies in 18 collections. `markdown_ast` stays registered and indexed, and stays
+the default for CRAG and the backend.
+
+`markdown_sections` (`data_ingestion/chunkers/markdown_sections.py`) has five rules:
+
+1. Split at every heading with Haystack's `MarkdownHeaderSplitter`.
+2. A section under 400 characters joins the next one (a short last one joins the one
+   before), only when the two fit in 2,000 characters. The joined chunk is labelled
+   with the headings both share.
+3. A section over 2,000 characters is cut between paragraphs; a fenced code block is
+   never cut, whatever its size.
+4. The heading path (`Tutorial > Body > Nested Models`) is the `heading_path`
+   metadata field only, as in `markdown_ast`, so the two differ only in where they
+   cut.
+5. When a long section is cut, a paragraph directly followed by a code block is
+   packed with it, so the sentence that introduces code stays in its chunk. A code
+   block after a heading or another code block is packed on its own.
+
+`markdown_headers` (`data_ingestion/chunkers/markdown_headers.py`) is Haystack's
+splitter with settings and no code of ours:
+`MarkdownHeaderSplitter(keep_headers=True, header_split_levels=[1, 2],
+secondary_split="word", split_length=300, split_overlap=0)`, run through
+`split_documents` in `data_ingestion/chunkers/base.py`. It splits at `#` and `##`
+headings (deeper headings stay inside their `##` section), cuts a section every 300
+words (about 2,000 characters on this corpus), and keeps the heading in the first
+piece's text. Both are registered in `data_ingestion/chunkers/__init__.py`, checked in
+`data_ingestion/chunk_shape.py`, and reported, free, by `scripts/chunk_size_report.py`.
+
+**Why.** Two of `markdown_ast`'s ideas are well-founded: split at headings, and never
+cut a code block (`recursive`, which ignores fences, leaves 198 of its 602 chunks with
+an unclosed fence). The rest is hard to defend. Its Python syntax-tree split runs on
+20 of the corpus's 784 fenced code blocks, the Python ones over 2,000 characters. Its
+name promises a Markdown parse it never does: headings come from
+`MarkdownHeaderSplitter`'s line scan and paragraphs from a line scanner. And nothing
+joins short sections, so 176 of its 1,137 chunks are under 300 characters, such as a
+heading with one sentence under it. `markdown_sections` keeps the two sound ideas,
+drops the syntax tree, and adds the join (rule 2) and the lead-in rule (rule 5).
+`markdown_headers` is the framework baseline: it shows what those extra rules buy
+over Haystack's splitter configured and not extended.
+
+Neither builds a code syntax tree. The corpus is Markdown only, with no standalone
+code files, and its largest fenced code block, 5,567 characters, fits Voyage's
+32,000-token input whole. BGE's 512-token truncation is reported for every strategy,
+not designed around (see the 2026-09-20 entry).
+
+Measured on the full corpus (124 documents, offline, 2026-11-16):
+
+| | `markdown_ast` | `markdown_sections` | `markdown_headers` |
+|---|---|---|---|
+| Chunks | 1,137 | 927 | 885 |
+| Under 300 characters | 176 | 37 | 122 |
+| Over its declared maximum | 29 | 27 | 0 |
+| Chunks with an unclosed code fence | 0 | 0 | 125 |
+| Chunks that open on a code block | 78 | 0 (46 before rule 5) | — |
+
+For 45 of `markdown_ast`'s 78, the chunk before, from the same file, ends on prose,
+which is the sentence the code belonged with. `markdown_headers` has no row there:
+its cuts fall every 300 words, inside code blocks rather than before them.
+
+**The choice waits for the retrieval results.** Chunk counts do not say which
+strategy retrieves better. Which of `markdown_ast` and `markdown_sections` stays, and
+whether `markdown_headers` stays as a baseline row, is decided from the recall and
+MRR of all 18 collections in one scored results run. Until then `markdown_ast` stays
+the default in `crag/run.py` and `backend/app/main.py`.
+
+**Known limitations**, each kept as built on 2026-11-15:
+
+- **`markdown_sections` has 27 chunks over 2,000 characters, by design.** 23 are one
+  code block over 2,000 with its lead-in paragraph, 3 are one such block after an
+  admonition's bare closing `///` line (rule 5 treats that line as a lead-in), and 1
+  is a 2,142-character table with no blank line in it. The largest is 5,802
+  characters.
+- **4 `markdown_sections` chunks hold only a heading.** The paragraph under the
+  heading moved forward with the code block over 2,000 that it introduces.
+- **Unusual fences are missed.** `markdown_sections` does not see indented code
+  fences, closing fences longer than the opening one, or inline triple backticks at
+  the start of a line, and neither does Haystack's splitter. The corpus has none.
+- **`markdown_headers` breaks code blocks.** 125 of its 885 chunks end inside an
+  open fence. No shape rule checks fence balance, so the chunk-size report shows it
+  breaking no rule.
+
+---
+
 ## 2026-10-17 — Each embedder is queried the way its maker recommends
 
 **Decision.** A question sent to BGE-large is prefixed with the model's own query

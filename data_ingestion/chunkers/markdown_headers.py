@@ -1,12 +1,10 @@
 """
 markdown_headers chunker: Haystack's own markdown splitter, configured and not extended.
-
-Splits at ``#`` and ``##`` headings; deeper headings stay inside their ``##``
-section. A section over 300 words is cut every 300 words. The heading stays in
-the first piece's text. This is the off-the-shelf baseline for the
-``markdown_sections`` strategy: what the framework does with no code of ours.
+Splits at ``#`` and ``##`` headings, then every 300 words within a section.
 
     uv run python -m data_ingestion.chunkers.markdown_headers    # demo, from the project root
+
+Why: data_ingestion/DECISIONS.md, 2026-11-16.
 """
 
 import logging

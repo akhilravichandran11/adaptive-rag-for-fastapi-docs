@@ -30,10 +30,10 @@ collect  →  normalize  →  curate  →  chunk  →  index  →  retrieve  →
 | retrieve  | Done        |
 | evaluate  | In progress |
 
-Chunking compares seven strategies on the same corpus (`naive_small`,
+Chunking compares nine strategies on the same corpus (`naive_small`,
 `naive_medium`, `naive_large`, `sentence`, `recursive`, `semantic`,
-`markdown_ast`). Indexing writes one Qdrant collection per strategy × embedder
-pair.
+`markdown_ast`, `markdown_sections`, `markdown_headers`). Indexing writes one
+Qdrant collection per strategy × embedder pair.
 
 ## Tech stack
 

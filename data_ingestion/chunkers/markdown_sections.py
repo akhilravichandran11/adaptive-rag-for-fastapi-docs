@@ -1,21 +1,11 @@
 """
 markdown_sections chunker: one chunk per heading section, with its heading path in metadata.
-
-Five rules:
-
-1. Split at every heading (Haystack's ``MarkdownHeaderSplitter``).
-2. A section under 400 characters is joined to the one after it (the one before,
-   if it is last) when the two fit in 2,000 characters, so a heading with one
-   sentence under it is not a chunk of its own.
-3. A section over 2,000 characters is cut between paragraphs. A fenced code
-   block is never cut, whatever its size.
-4. The heading path (``Tutorial > Body > Nested Models``) is the ``heading_path``
-   metadata field only, as in ``markdown_ast``; the chunk text is the section's own.
-5. When a section over 2,000 characters is cut, a paragraph directly followed by a
-   code block stays with it, so the text that introduces the code is in its chunk.
-   A code block after a heading or another code block is packed on its own.
+Short sections join a neighbour; long ones are cut between paragraphs, never inside a code
+block, and a paragraph stays with the code block after it.
 
     uv run python -m data_ingestion.chunkers.markdown_sections    # demo, from the project root
+
+Why: data_ingestion/DECISIONS.md, 2026-11-16.
 """
 
 import logging

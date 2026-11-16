@@ -74,8 +74,8 @@ class Splitter(Protocol):
 class Chunker(Protocol):
     """What every strategy in this package offers its caller.
 
-    ``STRATEGIES`` is typed with this, so a chunker fetched by name has a known
-    shape without the registry importing any strategy module.
+    ``get_chunker`` returns this, so a chunker fetched by name has a known shape
+    without the package importing any strategy module.
     """
 
     settings: ChunkSettings

@@ -18,7 +18,7 @@ set yet.
 
 > Code-shape rules live in [`simplification-conventions.md`](simplification-conventions.md).
 > Where an S-rule there conflicts with an entry here, the S-rule wins and the
-> entry is marked `superseded by S00N`. Open code-shape questions (C002 is Q09)
+> entry is marked `superseded by S00N`. Open code-shape questions
 > are tracked privately in `.scratch/code-simplification/questions.md`.
 
 ## Status
@@ -34,7 +34,7 @@ set yet.
 | ID | Convention | Introduced | Status |
 |---|---|---|---|
 | [C001](#c001-a-backend-field-discriminates-registry-entries-not-the-key-string) | A `backend` field discriminates registry entries, not the key string | IDX-04 | accepted |
-| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | `Protocol` half superseded by S004; registry half accepted (open as Q09) |
+| [C002](#c002-protocol-based-structural-typing-with-a-name--factory-registry) | `Protocol`-based structural typing with a name → factory registry | IDX-05 | superseded by S004 (`Protocol` half) and S012 (registry half) |
 | [C003](#c003-structure-checking-test-parsers-are-stateless-by-design) | Structure-checking test parsers are stateless by design | IDX-02 | accepted |
 | [C004](#c004-a-documented-limitation-instead-of-a-global-side-effect) | A documented limitation instead of a global side effect | IDX-05 | accepted |
 | [C005](#c005-model-source-ids-are-separate-from-persisted-source-paths) | Model source IDs are separate from persisted source paths | Ticket 14 | accepted |
@@ -45,6 +45,7 @@ set yet.
 | [C010](#c010-a-stage-refuses-an-existing-run-folder-and-creates-it-exclusively-before-its-first-write) | A stage refuses an existing run folder and creates it exclusively before its first write | PRT-09 | accepted |
 | [C011](#c011-a-module-may-carry-a-guarded-command-line-and-still-be-imported-by-a-stage) | A module may carry a guarded command line and still be imported by a stage | PRT-11 | accepted |
 | [C012](#c012-crag-adapters-are-required-constructor-arguments-the-caller-builds-them-once-at-startup) | CRAG adapters are required constructor arguments; the caller builds them once at startup | CRG-07 | accepted |
+| [C013](#c013-a-run-of-hundreds-of-paid-calls-writes-its-settings-first-and-may-be-resumed-into-its-own-folder) | A run of hundreds of paid calls writes its settings first and may be resumed into its own folder | PRT-17 | accepted |
 
 ---
 
@@ -90,7 +91,7 @@ five.
 
 ## C002: `Protocol`-based structural typing with a name → factory registry
 
-**Status:** `Protocol` half superseded by S004 (2026-10-20); registry half accepted, open as Q09 · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
+**Status:** superseded by S004 (`Protocol` half, 2026-10-20) and S012 (registry half, 2026-11-14) · **Introduced:** 2026-09-20, IDX-05 · **Where:** `data_ingestion/chunkers/`
 
 **Ruled before IDX-06 and IDX-07.** Both add a strategy to this package, so both
 copy this shape: a `@component` class satisfying `Chunker` structurally, a
@@ -494,3 +495,27 @@ opens clients); a factory function that builds the real
 orchestrator from settings (adds a factory while Q09 is open, and the caller still
 needs one for fakes); a `ConditionalRouter` pipeline with the adapters as
 components (rejected by D8 and D9).
+
+---
+
+## C013: A run of hundreds of paid calls writes its settings first and may be resumed into its own folder
+
+**Status:** accepted (user, 2026-11-10) · **Introduced:** 2026-11-14, PRT-17 (plan D61, D66) · **Where:** `evaluation/generate_results.py` (`main`, `read_resumed_run`, `build_pipelines`, `ask_pairs`)
+
+**The convention, stated.** A run whose job is hundreds of paid calls, each saved as it completes, creates its folder exclusively as C010 says. It then writes `run_meta.json` with its settings right away, appends and flushes each result as it completes, and rewrites `run_meta.json` in a `finally` at the end of each attempt. It may be resumed into its own folder with `--resume <run_id>` alone. The settings come from the saved `run_meta.json`, a half-written last line is cut off, and the attempt asks only the pairs its results file does not hold. Every other stage keeps C009 (`run_meta.json` written last) and C010 (refuse an existing folder). The two exceptions apply only when both hold: the run's calls are paid, and each result is saved on its own, so a stopped run leaves paid work on disk worth keeping.
+
+**Why.** The full answer run is about 700 paid calls, $15–30 and three hours. Without resume, a kill at hour two pays again for what was saved, and a failed pair cannot be filled in alone; with it, a resume is also the retry. The settings go first because a run killed before its end must still have them to resume from.
+
+**What it replaces.** For this script only, C009's "run_meta.json last" and C010's refusal of an existing folder. A fresh run still keeps both halves of C010: the early check, and the exclusive create.
+
+**Cost.** A reader meets two exceptions to the run-folder rules, and a resume has to guard against mixing what two attempts saw:
+- **Checked before any paid call:** it refuses a `run_meta.json` that is not this script's, a question file whose sha256 changed, a different `GEMINI_MODEL`, and a query embedder whose recorded settings differ from the saved entry (model, backend, api_model, dimension, query_prefix, input_type).
+- **Checked at a collection's first record:** it stops when the collection's chunks now carry a different `index_run` or `chunks_run` than an earlier attempt recorded, before that record is saved.
+- **Not guarded:** two resumes of one folder at once would duplicate lines (one process per folder is assumed, not enforced). A kill during the final rewrite can leave `run_meta.json` unreadable, so no crash safety is claimed for it. The model behind the alias may move between attempts: the probe records it and warns, but does not stop.
+
+**Blast radius.** `evaluation/generate_results.py` and its tests. Rejecting it means a stopped run starts again from nothing in a new folder, and failed pairs need a full rerun.
+
+**Alternatives.**
+- No resume: pays again for a killed run.
+- Resuming into a new folder that reads the old one: two files to score as one run.
+- Writing settings last, as C009 does: a killed run would leave nothing to resume from.

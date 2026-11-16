@@ -76,6 +76,8 @@ SHAPE_STRATEGIES = (
     "recursive",
     "semantic",
     "markdown_ast",
+    "markdown_sections",
+    "markdown_headers",
 )
 # ``semantic`` finds its boundaries with BGE on OpenRouter: a paid call.
 PAID_STRATEGIES = ("semantic",)
@@ -699,7 +701,7 @@ def log_report(report: Mapping[str, Any], *, log: logging.Logger | None = None) 
     """Log the per-strategy counts as a table, one line per strategy."""
     log = log or logger
     header = (
-        f"{'strategy':<13} {'chunks':>6} {'over max':>8} {'under min':>9} {'empty':>5} "
+        f"{'strategy':<17} {'chunks':>6} {'over max':>8} {'under min':>9} {'empty':>5} "
         f"{'lost docs':>9} {'order':>5} {'low-prose':>9} {'unbroken':>8} "
         f"{'largest':>14} {'BGE > limit':>12} {'BGE dropped':>11} {'Voyage > (est)':>14}"
     )
@@ -710,7 +712,7 @@ def log_report(report: Mapping[str, Any], *, log: logging.Logger | None = None) 
         voyage = truncation.get("voyage", {})
         largest = f"{row['largest']} {row['unit'] or ''}".strip()
         log.info(
-            "%-13s %6d %8d %9d %5d %9d %5d %9d %8d %14s %12s %11s %14s",
+            "%-17s %6d %8d %9d %5d %9d %5d %9d %8d %14s %12s %11s %14s",
             strategy,
             row["chunks"],
             row["over_max"],

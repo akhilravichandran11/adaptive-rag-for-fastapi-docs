@@ -6,6 +6,52 @@ the harness grows; the newest sit at the top.
 
 ---
 
+## 2026-11-14 — Results file: one line per question and system, and the only `*.jsonl` in its run folder
+
+**Decision.** `evaluation/generate_results.py` asks every evaluation question of every selected strategy × embedder collection. It saves each result as one line of `evaluation/outputs/<run_id>/results.jsonl`. A line is the record that `ask` in `retrieval/baseline_rag.py` returns: the question, the collection, `top_k`, the ranked chunks with their metadata, the answer and its token `usage`. `system` (`baseline__<strategy>__<embedder>`) and `question_id` are put in front. Questions are asked question first: question 1 of every system, then question 2. Beside the file sits `run_meta.json`, which holds the run's settings and what each attempt saw. Nothing else in the folder ends in `.jsonl`.
+
+**Why one file, and the only `*.jsonl`.** The scorer (`evaluation/retrieval_metrics.py`) and the review app group lines by `system`, so one file per system would be fourteen files read as one. A tool can read every `*.jsonl` in the folder without meeting an error log or a second shape of line. A question that fails is listed in `run_meta.json`'s `failed`; it is never written as a line.
+
+**Why each line is written as it completes.** Embedding a question and answering it are paid calls, hundreds per run. Each line is flushed as soon as `ask` returns, so a stopped run keeps every result it paid for. `--resume RUN_ID` then asks only the pairs the file does not hold yet (`docs/conventions.md`, C013). A half-written last line, the only kind a kill can leave, is cut off and its pair asked again.
+
+**Why question first.** A run stopped part way has asked every system the same questions, give or take one. Every collection is queried within the first fourteen lines, which is when its index report is checked (the index report gate entry).
+
+**Cost.** Each line repeats the question and the chunks' metadata, so the file is larger than a table of answers. Answers are not claimed to repeat: another run on another date, with the same settings, may get different answers from the same model alias.
+
+---
+
+## 2026-11-14 — Index report gate: each collection's build is checked at its first result
+
+**Decision.** When an attempt gets a collection's first result back, `generate_results.py` takes the `index_run` its chunks carry in `meta.index_run`. It reads that indexing run's `index_report.json` and goes on only if the report lists the collection as `complete`. It then records `{index_run, chunks_run, index_status}` under the collection in `run_meta.json`'s `collections`, and writes `run_meta.json` before the collection's first line. The run stops with exit 1, without saving that result, when:
+- the report is missing, unreadable, or says anything but `complete`;
+- the first result has no chunks, or its chunks name no `index_run`;
+- on a resume, the collection's chunks now carry a different `index_run` or `chunks_run` than an earlier attempt recorded. The collection was rebuilt, and one run's lines for a system must come from one build.
+
+**Why the chunks name the report.** Every indexed point carries the id of the indexing run that wrote it. Sorting run folders to find the latest report picks the wrong one when a collection was indexed twice, as `markdown_ast` × Voyage was: one run left it `partial` and a later one completed it. The first result gives the id at no cost. A Qdrant scroll before the first question would need new code to learn the same thing.
+
+**Why stop instead of only recording.** A half-indexed collection would be scored as a weak chunking strategy. A rebuilt collection can hold different chunks under the same name, so a results file that mixed its two builds would score neither.
+
+**Cost.** The check runs at a collection's first result, not before the run. In an answering run, up to thirteen other collections' answers, plus the bad collection's own, are paid for before it is found. The retrieve-only smoke run comes first and makes no answer calls, so it finds a bad collection for free. A rebuilt collection cannot be resumed: the run starts again in a new folder.
+
+---
+
+## 2026-11-14 — Model probe: each answering attempt records the version the alias pointed to
+
+**Decision.** Answers come from the model named by `GEMINI_MODEL`, an alias such as `gemini-pro-latest` that Google may point at a newer model at any time.
+- **The call:** at the start of each attempt that answers, `generate_results.py` makes one short call of its own with that alias and reads the response's `model_version`.
+- **What it records:** it appends `{at, model_version}` to `run_meta.json`'s `model_versions`, with `null` when the response names no version.
+- **When it warns:** when a resume gets a different version from the run's last attempt.
+- **When it stops:** if the call fails, the attempt stops with exit 1, before its run folder is made and before any question is asked.
+- **When it is skipped:** a retrieve-only run, and an attempt with nothing left to ask, make no call.
+
+**Why a call of its own.** The answer pipeline's generator reports only the alias, so recording a version per answer would mean replacing that generator. One extra call costs under a cent. It lets a reader line this run up against the model versions recorded by the project's CRAG pipeline (`crag/llm.py`).
+
+**What it does not show.** The probe identifies its own response only. It records the version the alias pointed to when each attempt started. A move of the alias during an attempt is not seen, and the answers themselves carry no version. Answers are not claimed to repeat across dates.
+
+**Cost.** One more paid call per answering attempt, and one more thing a missing or refused `GOOGLE_API_KEY` stops before any question is asked.
+
+---
+
 ## 2026-11-14 — Retrieval is scored at file level, from saved results
 
 **Decision.** `evaluation/retrieval_metrics.py` scores retrieval from the results files

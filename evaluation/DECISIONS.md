@@ -97,7 +97,7 @@ question. Each of these means a file is damaged or was scored against the wrong
 questions, and a table printed anyway would look valid.
 
 **Why questions are read through `EvalQuestion`.** Each question file is validated with
-`EvalQuestion` (`data_curation/schemas.py`), the model the question sets were written
+`EvalQuestion` (`evaluation/schemas.py`), the model the question sets were written
 with, so the question fields are defined in one place. Reading `question_id`,
 `gold_sources` and `origin` as plain JSON was rejected: it would be a second place that
 knows the question fields.
@@ -120,7 +120,7 @@ corrective system may also save are not scored yet.
 
 ## 2026-11-09 — Questions name their answer pages by `source_path`; ten are written by hand and forty generated
 
-**Decision.** An evaluation question is an `EvalQuestion` (`data_curation/schemas.py`)
+**Decision.** An evaluation question is an `EvalQuestion` (`evaluation/schemas.py`)
 with five required fields, `question_id`, `question`, `reference_answer`,
 `gold_sources` and `origin` (`handwritten` or `synthetic`), and one optional field,
 `paraphrase`. `gold_sources` lists the pages that answer the question by their

@@ -173,6 +173,10 @@ uvx pre-commit run --all-files         # ruff check + ruff format
 - [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md): instructions for the
   coding agents that work in this repo.
 
+IDs such as PRT-11, D34 or F008 in comments refer to private planning records;
+the reasons behind them are in each package's `DECISIONS.md` and in
+`docs/conventions.md`.
+
 ## AI assistance and authorship
 
 This project was developed with assistance from OpenAI Codex and Anthropic
@@ -184,7 +188,13 @@ the suite.
 Third-party sources for the agent workflow (skills and agents it builds on) are
 listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-I defined the project scope and architecture, approved implementation changes, ran the pipeline, verified its structural contracts, reviewed its generated outputs and limitations, and remain responsible for the final engineering decisions and published content.
+**Where the code comes from.** The code is of three kinds. *Original:* written
+for this project. *Cohort-derived and rewritten:* the corrective-RAG design and
+some early pipeline stages began as exercises in an AI engineering cohort and
+were rewritten here; files that still resemble that material say so in a
+header. *Written by coding agents under my direction:* most of the code in both
+groups was drafted by OpenAI Codex and Claude Code from tickets I approved. I
+ran it, reviewed it, and am responsible for it.
 
 ## License
 

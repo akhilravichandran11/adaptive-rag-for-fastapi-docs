@@ -38,24 +38,17 @@ import dataclasses
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.chunk_snapshot import (  # noqa: E402  (needs the path set above)
-    manifest_sha256,
-    write_chunks,
-)
-from data_ingestion.chunkers import STRATEGIES, get_chunker  # noqa: E402
-from data_ingestion.embedders import EMBEDDERS, cached_tokenizer_path  # noqa: E402
-from data_ingestion.loading import load_documents  # noqa: E402
-from data_ingestion.metadata import (  # noqa: E402
+from data_ingestion.chunk_snapshot import manifest_sha256, write_chunks
+from data_ingestion.chunkers import STRATEGIES, get_chunker
+from data_ingestion.embedders import EMBEDDERS, cached_tokenizer_path
+from data_ingestion.loading import load_documents
+from data_ingestion.metadata import (
     CORPUS_ROOT,
     CURATION_OUTPUTS_ROOT,
     MANIFEST_PATH,
@@ -64,7 +57,9 @@ from data_ingestion.metadata import (  # noqa: E402
     load_curation_run,
     load_manifest,
 )
-from data_ingestion.pipeline import RUN_META_FILE, resolve_run_dir, resolve_run_id  # noqa: E402
+from data_ingestion.pipeline import RUN_META_FILE, resolve_run_dir, resolve_run_id
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

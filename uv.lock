@@ -19,7 +19,7 @@ resolution-markers = [
 [[package]]
 name = "adaptive-rag-for-fastapi-docs"
 version = "0.0.1"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "datasketch" },
     { name = "deepeval" },

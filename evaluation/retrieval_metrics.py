@@ -6,14 +6,12 @@ Why: evaluation/DECISIONS.md, "2026-11-14 — Retrieval is scored at file level,
 import argparse
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
+from evaluation.schemas import EvalQuestion
 
-from evaluation.schemas import EvalQuestion  # noqa: E402  (needs the path set above)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

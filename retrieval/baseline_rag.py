@@ -8,7 +8,6 @@ and answering it are PAID calls; see ``--help``.
 import argparse
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -19,27 +18,26 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.chunkers import STRATEGIES  # noqa: E402  (needs the path set above)
-from data_ingestion.embedders import (  # noqa: E402
+from data_ingestion.chunkers import STRATEGIES
+from data_ingestion.embedders import (
     EMBEDDERS,
     build_query_embedder,
     cached_tokenizer_path,
 )
-from data_ingestion.qdrant_store import (  # noqa: E402
+from data_ingestion.qdrant_store import (
     build_document_store,
     collection_exists,
     load_settings,
 )
-from data_ingestion.variants import (  # noqa: E402
+from data_ingestion.variants import (
     DEFAULT_PREFIX,
     Variant,
     check_prefix,
     select_variants,
 )
-from retrieval.hybrid import build_hybrid_pipeline  # noqa: E402
+from retrieval.hybrid import build_hybrid_pipeline
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

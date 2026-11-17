@@ -2,6 +2,13 @@
 
 ```mermaid
 flowchart TD
+    subgraph prep["Before a question arrives"]
+        chunk["Stage 2 · Chunk the documents"] --> saved[("Saved chunks")]
+        saved -->|At API startup| memory["Load chunks into the in-memory BM25 store"]
+        saved -->|During indexing| index["Stage 3 · Embed chunks with Voyage (paid)"]
+        index -->|Write chunks and vectors| qdrant[("Qdrant collection")]
+    end
+
     api["FastAPI · POST /query"] --> crag["CragOrchestrator.run(question)"]
 
     subgraph hybrid["Hybrid retrieval"]
@@ -11,6 +18,8 @@ flowchart TD
         fuse --> rank["Rerank chunks · Voyage (paid)"]
     end
 
+    memory -.-> bm25
+    qdrant -.-> dense
     crag --> bm25
     crag --> embed
     rank -->|Up to 10 chunks| grade{"DocumentGrader · Gemini (paid)<br/>Any relevant chunks? If so, do they cover the question?"}

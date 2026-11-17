@@ -24,6 +24,7 @@ from starlette.exceptions import HTTPException
 from tavily import TavilyClient
 
 from backend.app.models import QueryRequest, QueryResponse
+from backend.app.telemetry import crag_telemetry
 from crag.decomposer import QueryDecomposer
 from crag.generator import AnswerGenerator
 from crag.grader import DocumentGrader
@@ -52,7 +53,7 @@ REQUIRED_SETTINGS = (
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[dict]:
     # Same wiring as crag/run.py's main, on purpose while Q09 (factory functions) is open.
     load_dotenv(PROJECT_ROOT / ".env")
     missing = [name for name in REQUIRED_SETTINGS if not os.getenv(name)]
@@ -83,7 +84,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     run_logger.propagate = False
     run_logger.addHandler(handler)
     try:
-        yield
+        with crag_telemetry() as telemetry:
+            yield {"crag_telemetry": telemetry}
     finally:
         run_logger.removeHandler(handler)
         handler.close()
@@ -110,15 +112,22 @@ def query(
 ) -> QueryResponse | Response:
     request_id = str(uuid4())
     response.headers["X-Request-ID"] = request_id
-    fields = {"message": "crag_run", "request_id": request_id}
+    fields = {"message": "crag_run"}
     follow_id = request.headers.get("X-CRAG-Follow-ID", "")
     if re.fullmatch(r"crg-[0-9a-f]{32}", follow_id):
         fields["follow_id"] = follow_id
 
     def emit(stage: str, outcome: str) -> None:
-        run_logger.info(
-            json.dumps({**fields, "event_time": utc_now_iso(), "stage": stage, "outcome": outcome})
-        )
+        event = {
+            "event_time": utc_now_iso(),
+            "request_id": request_id,
+            "stage": stage,
+            "outcome": outcome,
+        }
+        run_logger.info(json.dumps({**fields, **event}))
+        telemetry = getattr(request.state, "crag_telemetry", None)
+        if telemetry is not None:
+            telemetry(event)
 
     def start_stage(name: str) -> None:
         nonlocal stage

@@ -10,7 +10,6 @@ import hashlib
 import json
 import logging
 import os
-import sys
 import time
 from collections import Counter
 from collections.abc import Iterable
@@ -21,21 +20,20 @@ from typing import Any
 from dotenv import load_dotenv
 from google import genai
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.chunkers import STRATEGIES  # noqa: E402  (needs the path set above)
-from data_ingestion.embedders import EMBEDDERS, cached_tokenizer_path  # noqa: E402
-from data_ingestion.pipeline import (  # noqa: E402
+from data_ingestion.chunkers import STRATEGIES
+from data_ingestion.embedders import EMBEDDERS, cached_tokenizer_path
+from data_ingestion.pipeline import (
     INDEX_REPORT_FILE,
     RUN_META_FILE,
     generate_run_id,
     resolve_run_dir,
 )
-from data_ingestion.variants import DEFAULT_PREFIX, check_prefix, select_variants  # noqa: E402
-from evaluation.schemas import EvalQuestion  # noqa: E402
-from retrieval.baseline_rag import RETRIEVALS, TOP_K, ask, build_rag_pipeline  # noqa: E402
-from retrieval.hybrid import CANDIDATES, DEFAULT_CHUNKS_RUN, RERANK_MODEL  # noqa: E402
+from data_ingestion.variants import DEFAULT_PREFIX, check_prefix, select_variants
+from evaluation.schemas import EvalQuestion
+from retrieval.baseline_rag import RETRIEVALS, TOP_K, ask, build_rag_pipeline
+from retrieval.hybrid import CANDIDATES, DEFAULT_CHUNKS_RUN, RERANK_MODEL
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

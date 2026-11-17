@@ -8,7 +8,6 @@ import dataclasses
 import json
 import logging
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -17,19 +16,18 @@ from google import genai
 from haystack import Document
 from tavily import TavilyClient
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
+from crag.decomposer import QueryDecomposer
+from crag.generator import AnswerGenerator
+from crag.grader import DocumentGrader
+from crag.llm import FALLBACK_MODEL, StructuredLLM
+from crag.orchestrator import CragOrchestrator
+from crag.refinement import KnowledgeRefinement
+from crag.web_search import WebSearch
+from data_ingestion.variants import select_variants
+from retrieval import hybrid
+from retrieval.baseline_rag import build_rag_pipeline
 
-from crag.decomposer import QueryDecomposer  # noqa: E402  (needs the path set above)
-from crag.generator import AnswerGenerator  # noqa: E402
-from crag.grader import DocumentGrader  # noqa: E402
-from crag.llm import FALLBACK_MODEL, StructuredLLM  # noqa: E402
-from crag.orchestrator import CragOrchestrator  # noqa: E402
-from crag.refinement import KnowledgeRefinement  # noqa: E402
-from crag.web_search import WebSearch  # noqa: E402
-from data_ingestion.variants import select_variants  # noqa: E402
-from retrieval import hybrid  # noqa: E402
-from retrieval.baseline_rag import build_rag_pipeline  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

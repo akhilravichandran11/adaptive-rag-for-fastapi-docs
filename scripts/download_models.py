@@ -22,7 +22,6 @@ Environment (optional; read from the shell or the project .env):
 import argparse
 import hashlib
 import logging
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -30,19 +29,15 @@ import nltk
 from dotenv import load_dotenv
 from huggingface_hub import hf_hub_download, try_to_load_from_cache
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.embedders import (  # noqa: E402  (needs the path set above)
-    EMBEDDERS,
-    EmbedderSpec,
-)
-from data_ingestion.model_cache import (  # noqa: E402
+from data_ingestion.embedders import EMBEDDERS, EmbedderSpec
+from data_ingestion.model_cache import (
     FASTEMBED_ENV_VAR,
     NLTK_ENV_VAR,
     fastembed_cache_dir,
     register_nltk_data_dir,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

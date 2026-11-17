@@ -425,20 +425,18 @@ the chunker modules keep demo `__main__` blocks that take no arguments, and
 `data_collection/collect_referenced_code.py` has a `main()` while
 `data_collection/pinned_snapshot/collect.py` imports it.
 
-**Cost.** The module carries the `sys.path` line a script needs (Q08 is open), so
-importing it also puts the project root on `sys.path`: the import-time, process-wide
-side effect C004 rules out, harmless here because any importer has that root on its
-path already. Its command line is one more thing an importer loads and never runs.
+**Cost.** Its command line is one more thing an importer loads and never runs. The
+`sys.path` line it used to carry, an import-time side effect C004 rules out, went with
+S014.
 
-**Blast radius.** `retrieval/baseline_rag.py` (`parse_args`, `main`, the `sys.path`
-line) and its `main` tests; step 6 is to import `build_rag_pipeline` and `ask`.
+**Blast radius.** `retrieval/baseline_rag.py` (`parse_args`, `main`) and its `main`
+tests; step 6 is to import `build_rag_pipeline` and `ask`.
 Rejecting it means moving `parse_args` and `main` into a separate script beside the
 module, which imports both functions.
 
 **Alternatives.** A separate thin script (two files for one step, and a script that
 is not a stage but looks like one); no command line, asking questions only through
-step 6 or a REPL (no quick way to try one question against one variant); running it
-as `python -m retrieval.baseline_rag` (waits on Q08).
+step 6 or a REPL (no quick way to try one question against one variant).
 
 ---
 

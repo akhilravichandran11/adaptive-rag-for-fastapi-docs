@@ -25,15 +25,11 @@ Needs BGE's tokenizer and NLTK's ``punkt_tab`` in the project model cache
 
 import argparse
 import logging
-import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.chunk_shape import (  # noqa: E402  (needs the path set above)
+from data_ingestion.chunk_shape import (
     DEFAULT_INJECTED_RUN_LENGTH,
     DEFAULT_LOW_PROSE_SHARE,
     DEFAULT_MESSY_COUNT,
@@ -48,9 +44,11 @@ from data_ingestion.chunk_shape import (  # noqa: E402  (needs the path set abov
     make_messy_copies,
     write_report,
 )
-from data_ingestion.chunkers import get_chunker  # noqa: E402
-from data_ingestion.loading import load_documents  # noqa: E402
-from data_ingestion.metadata import CORPUS_ROOT  # noqa: E402
+from data_ingestion.chunkers import get_chunker
+from data_ingestion.loading import load_documents
+from data_ingestion.metadata import CORPUS_ROOT
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

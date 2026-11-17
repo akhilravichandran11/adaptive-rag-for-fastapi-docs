@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 
 import ragas
@@ -23,10 +22,9 @@ from ragas.testset.graph import KnowledgeGraph, NodeType
 from ragas.testset.synthesizers.testset_schema import Testset
 from ragas.utils import num_tokens_from_string
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
+from data_ingestion.pipeline import generate_run_id
 
-from data_ingestion.pipeline import generate_run_id  # noqa: E402  (needs the path set above)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

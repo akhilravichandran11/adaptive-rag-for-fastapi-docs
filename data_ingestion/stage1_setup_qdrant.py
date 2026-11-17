@@ -19,6 +19,7 @@ import sys
 import uuid
 from pathlib import Path
 
+from haystack.dataclasses import Document
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -41,8 +42,6 @@ def smoke_test(store: QdrantDocumentStore) -> int:
     Writes one probe document, checks the count rose by one, deletes the probe by
     id, and checks the count is back where it started. Returns that count.
     """
-    from haystack.dataclasses import Document
-
     collection = store.index
     start = store.count_documents()
     logger.info("Documents currently in collection: %d", start)

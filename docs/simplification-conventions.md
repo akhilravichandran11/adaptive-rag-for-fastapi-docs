@@ -56,7 +56,7 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 
 **S010 — No `@staticmethod`. A helper that uses neither `self` nor `cls` is a module function, placed above the class that calls it.**
 - *Why:* a static method is a plain function kept inside a class, and it draws "why is this in the class at all?". A module function says the same thing, can be imported and tested on its own, and its calls drop the `self.`.
-- *Applies to:* all Python outside `sandbox/` and `.scratch/`. The one use, `_concept_comparison_key` in `data_curation/stage2_knowledge_domains.py`, stays as it is because `data_curation/` is being archived (DEF-20). `@classmethod` is not covered: Pydantic's before-validators need it.
+- *Applies to:* all Python outside `sandbox/` and `.scratch/`. The one use, `_concept_comparison_key` in `data_curation/stage2_knowledge_domains.py`, stays as it is because that guide stage is deferred and not being edited. `@classmethod` is not covered: Pydantic's before-validators need it.
 - *Decided:* 2026-11-10 (Q03, `@staticmethod` half, after comparing a `_no_staticmethod` copy of `stage2_knowledge_domains.py`).
 
 **S011 — Strategies that differ only in their numbers are one class. It takes the strategy name and looks its numbers up in a module table, and tests check what each strategy does, not how many classes there are.**

@@ -161,6 +161,7 @@ uvx pre-commit run --all-files         # ruff check + ruff format
 ## Documentation
 
 - [ROADMAP.md](ROADMAP.md): status of each capability and what comes next.
+- [Query architecture](docs/architecture.md) shows how a question moves from retrieval to answer.
 - [data_ingestion/DECISIONS.md](data_ingestion/DECISIONS.md): ingestion design
   decisions, newest first.
 - [docs/conventions.md](docs/conventions.md): code conventions and their

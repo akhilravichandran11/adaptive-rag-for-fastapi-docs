@@ -12,16 +12,11 @@ import importlib
 import re
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_ingestion.chunkers import STRATEGIES, get_chunker  # noqa: E402
+from data_ingestion.chunkers import STRATEGIES, get_chunker
 
 SOURCE = "docs/tutorial__body.md"
 PARENT_META = {"source_path": SOURCE, "bucket": "tutorial"}

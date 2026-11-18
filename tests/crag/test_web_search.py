@@ -5,16 +5,11 @@ fake Tavily client. The fake copies the SDK's keyword call, its always-present `
 """
 
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 from tavily.errors import UsageLimitExceededError
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag.web_search import WebSearch  # noqa: E402  (needs the path set above)
+from crag.web_search import WebSearch
 
 
 @pytest.fixture(autouse=True)

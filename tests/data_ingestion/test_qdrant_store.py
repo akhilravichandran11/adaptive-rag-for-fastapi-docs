@@ -26,16 +26,11 @@ Run offline::
 """
 
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion import qdrant_store  # noqa: E402  (needs the path set above)
-from data_ingestion.qdrant_store import (  # noqa: E402
+from data_ingestion import qdrant_store
+from data_ingestion.qdrant_store import (
     HNSW_TUNING,
     QdrantSettings,
     build_document_store,

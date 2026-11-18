@@ -145,7 +145,7 @@ desync.
 **What it replaces.** A stateful fence-tracking parser.
 
 **Cost, stated plainly.** The parser counts a `#` comment inside a code fence as a
-heading. Tests assert on that deliberately (`test_loading.py:174`, `:248`). Anyone
+heading. Tests assert on that deliberately (`test_loading.py:66`, `:250`). Anyone
 reading those assertions cold will think they are wrong.
 
 **Blast radius.** `tests/data_ingestion/test_loading.py` only. Generalizes to any future
@@ -230,7 +230,7 @@ policy. Fuzzy path correction and automatic retries are outside this design.
 
 ## C006: Tests never make a paid API call
 
-**Status:** accepted (user, 2026-09-29) · **Introduced:** 2026-09-20, IDX-04 · **Where:** `tests/data_ingestion/test_embedders.py:50-59`; copied (non-autouse, plus client patches) in `tests/data_curation/test_stage3_source_identity.py:144-146`
+**Status:** accepted (user, 2026-09-29) · **Introduced:** 2026-09-20, IDX-04 · **Where:** `tests/data_ingestion/test_embedders.py:50-59`; copied (non-autouse, plus client patches) in `tests/data_curation/test_stage3_source_identity.py:136-140`
 
 **The convention, stated.** No test may reach a paid API: Voyage
 (`api.voyageai.com`), Gemini (`generativelanguage.googleapis.com`), OpenAI

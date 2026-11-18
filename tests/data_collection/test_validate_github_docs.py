@@ -2,17 +2,13 @@
 
 import hashlib
 import json
-import sys
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_collection.data_normalization import validate_github_docs as validator  # noqa: E402
+from data_collection.data_normalization import validate_github_docs as validator
 
 
 @pytest.mark.parametrize("omitted", ["all", "raw-dir", "normalized-dir", "output-dir"])

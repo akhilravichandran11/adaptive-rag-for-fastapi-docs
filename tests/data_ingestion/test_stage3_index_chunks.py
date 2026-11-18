@@ -33,7 +33,6 @@ own tokenizer from the project model cache; that one test skips when it is absen
 import json
 import logging
 import socket
-import sys
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -43,25 +42,22 @@ import qdrant_client
 from haystack import Document
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion import (  # noqa: E402  (needs the path set above)
+from data_ingestion import (
     embedders,
     pipeline,
     qdrant_store,
 )
-from data_ingestion import stage3_index_chunks as stage3  # noqa: E402
-from data_ingestion.chunk_snapshot import manifest_sha256, write_chunks  # noqa: E402
-from data_ingestion.embedders import (  # noqa: E402
+from data_ingestion import stage3_index_chunks as stage3
+from data_ingestion.chunk_snapshot import manifest_sha256, write_chunks
+from data_ingestion.embedders import (
     EMBEDDERS,
     bge_tokenizer,
     build_document_embedder,
     cached_tokenizer_path,
     count_tokens,
 )
-from data_ingestion.openrouter_embeddings import truncate_to_bge_limit  # noqa: E402
-from data_ingestion.variants import Variant  # noqa: E402
+from data_ingestion.openrouter_embeddings import truncate_to_bge_limit
+from data_ingestion.variants import Variant
 
 # A filesystem probe, as in test_embedders.py: it runs at collection time, before the
 # network guard exists, so it must not load the tokenizer.

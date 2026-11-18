@@ -24,16 +24,11 @@ Run offline::
 """
 
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion.embedders import EMBEDDERS  # noqa: E402  (needs the path set above)
-from data_ingestion.variants import (  # noqa: E402
+from data_ingestion.embedders import EMBEDDERS
+from data_ingestion.variants import (
     DEFAULT_PREFIX,
     Variant,
     check_prefix,

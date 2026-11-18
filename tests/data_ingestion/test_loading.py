@@ -21,23 +21,19 @@ Run offline::
 """
 
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion.loading import (  # noqa: E402  (needs the path set above)
+from data_ingestion.loading import (
     FILENAME_META_KEY,
     build_cleaner,
     build_converter,
     find_doc_files,
     load_documents,
 )
-from data_ingestion.metadata import (  # noqa: E402  (as above)
+from data_ingestion.metadata import (
     CORPUS_ROOT,
     MANIFEST_PATH,
     load_manifest,
@@ -91,7 +87,7 @@ A paragraph after the block, separated by a blank line.
 SAMPLE_FILENAME = "sample__page.md"
 
 
-@dataclass(frozen=True)
+@dataclass
 class MarkdownStructure:
     """The three things loading must not change, pulled out of a markdown document."""
 

@@ -27,22 +27,18 @@ import hashlib
 import json
 import logging
 import socket
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion import pipeline  # noqa: E402  (needs the path set above)
-from data_ingestion import stage2_chunk_corpus as stage2  # noqa: E402
-from data_ingestion.chunk_snapshot import check_same_corpus, read_chunks  # noqa: E402
-from data_ingestion.chunkers import ChunkSettings  # noqa: E402
-from data_ingestion.embedders import EMBEDDERS  # noqa: E402
-from data_ingestion.metadata import CONTENT_ANALYSIS_FILENAME  # noqa: E402
+from data_ingestion import pipeline
+from data_ingestion import stage2_chunk_corpus as stage2
+from data_ingestion.chunk_snapshot import check_same_corpus, read_chunks
+from data_ingestion.chunkers import ChunkSettings
+from data_ingestion.embedders import EMBEDDERS
+from data_ingestion.metadata import CONTENT_ANALYSIS_FILENAME
 
 CURATION_RUN = "20260101_000000"
 CORPUS_COMMIT = "abc1234"

@@ -26,7 +26,6 @@ import hashlib
 import json
 import random
 import socket
-import sys
 import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
@@ -34,12 +33,8 @@ from types import SimpleNamespace
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_ingestion import openrouter_embeddings  # noqa: E402
-from data_ingestion.chunk_shape import (  # noqa: E402
+from data_ingestion import openrouter_embeddings
+from data_ingestion.chunk_shape import (
     EMPTY,
     FREE_STRATEGIES,
     GLUE_DOCUMENTS,
@@ -57,12 +52,13 @@ from data_ingestion.chunk_shape import (  # noqa: E402
     make_messy_copies,
     write_report,
 )
-from data_ingestion.chunkers import ChunkSettings, build_chunks, get_chunker  # noqa: E402
-from data_ingestion.embedders import cached_tokenizer_path  # noqa: E402
-from data_ingestion.loading import load_documents  # noqa: E402
-from data_ingestion.model_cache import register_nltk_data_dir  # noqa: E402
-from scripts import chunk_size_report  # noqa: E402
+from data_ingestion.chunkers import ChunkSettings, build_chunks, get_chunker
+from data_ingestion.embedders import cached_tokenizer_path
+from data_ingestion.loading import load_documents
+from data_ingestion.model_cache import register_nltk_data_dir
+from scripts import chunk_size_report
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_DIR = PROJECT_ROOT / "data" / "fastapi" / "normalized" / "github-docs" / "v1" / "docs"
 
 TOY = ChunkSettings(strategy="toy", size=10, overlap=0, unit="char")

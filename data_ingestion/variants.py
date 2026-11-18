@@ -27,7 +27,7 @@ DEFAULT_PREFIX = "fastapi_docs"
 _PREFIX_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
 
 
-@dataclass(frozen=True)
+@dataclass
 class Variant:
     """One strategy × embedder pair."""
 

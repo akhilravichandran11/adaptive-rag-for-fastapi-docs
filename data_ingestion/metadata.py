@@ -13,7 +13,7 @@ document's ``output_filename``:
 The curation run is always named by the caller; there is no "newest run" default,
 so a study can always say which analysis its index was built from. Documents the
 run flagged as a suspected prompt injection are dropped here, each one logged, and
-the drop count comes back to the caller.
+their file names come back to the caller.
 
 Gaps are errors, never silent: a missing run folder, a missing file, or a loaded
 document with no manifest or curation entry raises and names what is missing.
@@ -21,7 +21,7 @@ document with no manifest or curation entry raises and names what is missing.
     from data_ingestion.metadata import enrich_documents
 
     result = enrich_documents(documents, curation_run="20260914_140559")
-    logger.info("kept %d, dropped %d", len(result.documents), result.dropped_count)
+    logger.info("kept %d, dropped %d", len(result.documents), len(result.dropped_filenames))
 """
 
 import dataclasses
@@ -51,19 +51,7 @@ CONTENT_ANALYSIS_FILENAME = "content_analysis.json"
 FILENAME_KEY = "output_filename"
 
 
-class MetadataError(Exception):
-    """Base error for anything that would leave a document's metadata incomplete."""
-
-
-class MissingInputError(MetadataError):
-    """A manifest or curation file is absent, unreadable, malformed, or missing a needed field."""
-
-
-class UnmatchedDocumentError(MetadataError):
-    """A loaded document has no entry in the manifest or in the curation run."""
-
-
-@dataclass(frozen=True)
+@dataclass
 class ManifestEntry:
     """Where one corpus file came from."""
 
@@ -72,7 +60,7 @@ class ManifestEntry:
     url: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class Manifest:
     """The corpus manifest: the commit it was built from, and one entry per file."""
 
@@ -80,7 +68,7 @@ class Manifest:
     entries: Mapping[str, ManifestEntry]
 
 
-@dataclass(frozen=True)
+@dataclass
 class CurationEntry:
     """What the curation run concluded about one corpus file."""
 
@@ -89,7 +77,7 @@ class CurationEntry:
     suspected_prompt_injection: bool
 
 
-@dataclass(frozen=True)
+@dataclass
 class CurationRun:
     """One curation run's per-file analysis, keyed by ``output_filename``."""
 
@@ -104,34 +92,28 @@ class EnrichmentResult:
     documents: list[Document]
     dropped_filenames: list[str]
 
-    @property
-    def kept_count(self) -> int:
-        return len(self.documents)
-
-    @property
-    def dropped_count(self) -> int:
-        return len(self.dropped_filenames)
-
 
 def _read_json(path: Path, label: str) -> Any:
-    """Read a JSON file, turning an absent file or bad JSON into ``MissingInputError``."""
+    """Read a JSON file, turning an absent, unreadable or malformed one into an error naming it."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        raise MissingInputError(f"{label} not found: {path}") from None
+        raise FileNotFoundError(f"{label} not found: {path}") from None
     except OSError as exc:
-        raise MissingInputError(f"{label} could not be read: {path} ({exc})") from None
+        raise OSError(f"{label} could not be read: {path} ({exc})") from None
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{label} is not valid UTF-8: {path} ({exc})") from None
 
     try:
         return json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise MissingInputError(f"{label} is not valid JSON: {path} ({exc})") from None
+    except ValueError as exc:  # JSONDecodeError, or an integer past Python's digit limit
+        raise ValueError(f"{label} is not valid JSON: {path} ({exc})") from None
 
 
 def _require(container: Mapping[str, Any], key: str, where: str) -> Any:
     """Return ``container[key]``, or raise naming both the field and where it was expected."""
     if not isinstance(container, Mapping) or key not in container:
-        raise MissingInputError(f"missing '{key}' in {where}")
+        raise ValueError(f"missing '{key}' in {where}")
     return container[key]
 
 
@@ -139,23 +121,23 @@ def _require_filename(record: Any, where: str, seen: Mapping[str, Any], source: 
     """Return a record's ``output_filename``, refusing a non-string or repeated one."""
     filename = _require(record, FILENAME_KEY, where)
     if not isinstance(filename, str):
-        raise MissingInputError(f"'{FILENAME_KEY}' must be a string in {where}")
+        raise ValueError(f"'{FILENAME_KEY}' must be a string in {where}")
     if filename in seen:
-        raise MissingInputError(f"duplicate '{FILENAME_KEY}' '{filename}' in {source}")
+        raise ValueError(f"duplicate '{FILENAME_KEY}' '{filename}' in {source}")
     return filename
 
 
 def _check_run_id(run_id: str) -> None:
     """Refuse a run id that is not a single folder name, before it is joined as a path."""
     if not isinstance(run_id, str) or run_id in ("", ".", "..") or "/" in run_id or "\\" in run_id:
-        raise MissingInputError(f"curation run id must be a single folder name, got {run_id!r}")
+        raise ValueError(f"curation run id must be a single folder name, got {run_id!r}")
 
 
 def load_manifest(manifest_path: Path | None = None) -> Manifest:
     """Read the corpus manifest into a per-filename index.
 
-    Raises ``MissingInputError`` if the file is absent or unreadable, or if the
-    corpus commit, the file list, or any field this project needs is missing.
+    Raises ``OSError`` (``FileNotFoundError`` if the file is absent) for input it cannot
+    read, and ``ValueError`` for content it cannot use.
     """
     path = Path(manifest_path) if manifest_path is not None else MANIFEST_PATH
     payload = _read_json(path, "Manifest")
@@ -164,7 +146,7 @@ def load_manifest(manifest_path: Path | None = None) -> Manifest:
     corpus_commit = _require(source, "ref", f"manifest source in {path}")
     files = _require(payload, "files", f"manifest {path}")
     if not isinstance(files, list):
-        raise MissingInputError(f"'files' in manifest {path} must be a list of entries")
+        raise ValueError(f"'files' in manifest {path} must be a list of entries")
 
     entries: dict[str, ManifestEntry] = {}
     for position, record in enumerate(files):
@@ -189,8 +171,8 @@ def load_curation_run(
     ``run_id`` is always explicit: a run folder is named, never guessed, so the
     metadata a document carries can be traced back to one analysis.
 
-    Raises ``MissingInputError`` if the run folder or the analysis file is absent,
-    or if an entry is missing a field this project needs.
+    Raises ``OSError`` (``FileNotFoundError`` if the run folder or file is absent) for
+    input it cannot read, and ``ValueError`` for an unsafe run id or content it cannot use.
     """
     _check_run_id(run_id)
     root = (
@@ -198,14 +180,12 @@ def load_curation_run(
     )
     run_folder = root / run_id
     if not run_folder.is_dir():
-        raise MissingInputError(f"Curation run folder not found: {run_folder}")
+        raise FileNotFoundError(f"Curation run folder not found: {run_folder}")
 
     path = run_folder / CONTENT_ANALYSIS_FILENAME
     payload = _read_json(path, f"Curation analysis for run '{run_id}'")
     if not isinstance(payload, list):
-        raise MissingInputError(
-            f"Curation analysis for run '{run_id}' must be a list of entries: {path}"
-        )
+        raise ValueError(f"Curation analysis for run '{run_id}' must be a list of entries: {path}")
 
     entries: dict[str, CurationEntry] = {}
     for position, record in enumerate(payload):
@@ -223,15 +203,13 @@ def load_curation_run(
         except OverflowError:  # a JSON integer too large to convert to float
             finite = False
         if not finite:
-            raise MissingInputError(f"'overall_quality' must be a number in analysis of {named}")
+            raise ValueError(f"'overall_quality' must be a number in analysis of {named}")
         knowledge_domain = _require(record, "knowledge_domain", named)
         if not isinstance(knowledge_domain, str) or not knowledge_domain.strip():
-            raise MissingInputError(f"'knowledge_domain' must be a non-empty string in {named}")
+            raise ValueError(f"'knowledge_domain' must be a non-empty string in {named}")
         flagged = _require(record, "suspected_prompt_injection", named)
         if not isinstance(flagged, bool):
-            raise MissingInputError(
-                f"'suspected_prompt_injection' must be true or false in {named}"
-            )
+            raise ValueError(f"'suspected_prompt_injection' must be true or false in {named}")
 
         entries[filename] = CurationEntry(
             quality_score=quality_score,
@@ -258,9 +236,7 @@ def document_filename(document: Document) -> str:
     if file_path:
         return Path(str(file_path)).name
 
-    raise UnmatchedDocumentError(
-        f"document {document.id} has no '{FILENAME_KEY}' (or 'file_path') to join on"
-    )
+    raise ValueError(f"document {document.id} has no '{FILENAME_KEY}' (or 'file_path') to join on")
 
 
 def attach_metadata(
@@ -280,8 +256,8 @@ def attach_metadata(
     original ids: Haystack derives an id when a document is built, so enrichment
     does not renumber documents that were already loaded.
 
-    Raises ``UnmatchedDocumentError`` for a document with no file name to join on,
-    or with no entry in the manifest or in the run.
+    Raises ``ValueError`` for a document with no file name to join on, or with no
+    entry in the manifest or in the run.
     """
     kept: list[Document] = []
     dropped: list[str] = []
@@ -291,11 +267,11 @@ def attach_metadata(
 
         manifest_entry = manifest.entries.get(filename)
         if manifest_entry is None:
-            raise UnmatchedDocumentError(f"no manifest entry for document '{filename}'")
+            raise ValueError(f"no manifest entry for document '{filename}'")
 
         curation_entry = curation.entries.get(filename)
         if curation_entry is None:
-            raise UnmatchedDocumentError(
+            raise ValueError(
                 f"no entry for document '{filename}' in curation run '{curation.run_id}'"
             )
 

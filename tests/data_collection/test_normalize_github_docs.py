@@ -8,12 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from data_collection.data_normalization import normalize_github_docs as normalizer
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 NORMALIZER = PROJECT_ROOT / "data_collection" / "data_normalization" / "normalize_github_docs.py"
-
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_collection.data_normalization import normalize_github_docs as normalizer  # noqa: E402
 
 
 def test_paths_resolve_from_project_root_outside_working_directory(

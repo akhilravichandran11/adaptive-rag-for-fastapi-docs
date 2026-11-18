@@ -19,15 +19,14 @@ from haystack_integrations.components.rankers.voyage import VoyageRanker
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
+from data_ingestion import qdrant_store
+from data_ingestion.chunk_snapshot import write_chunks
+from data_ingestion.embedders import EMBEDDERS, build_query_embedder
+from data_ingestion.stage3_index_chunks import point_key
+from data_ingestion.variants import Variant
+from retrieval import hybrid
 
-from data_ingestion import qdrant_store  # noqa: E402  (needs the path set above)
-from data_ingestion.chunk_snapshot import write_chunks  # noqa: E402
-from data_ingestion.embedders import EMBEDDERS, build_query_embedder  # noqa: E402
-from data_ingestion.stage3_index_chunks import point_key  # noqa: E402
-from data_ingestion.variants import Variant  # noqa: E402
-from retrieval import hybrid  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 VARIANT = Variant("markdown_ast", EMBEDDERS["voyage"])
 COLLECTION = "fastapi_docs__markdown_ast__voyage"
@@ -477,7 +476,6 @@ def test_importing_the_module_parses_no_arguments_and_opens_no_connection(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(sys, "argv", ["hybrid.py", "--no-such-flag"])
-    monkeypatch.setattr(sys, "path", list(sys.path))  # the module adds the project root
     spec = importlib.util.spec_from_file_location(
         "hybrid_fresh", PROJECT_ROOT / "retrieval" / "hybrid.py"
     )

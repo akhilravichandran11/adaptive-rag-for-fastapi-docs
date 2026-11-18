@@ -6,21 +6,19 @@ current directory elsewhere, so a path that silently followed the cwd would fail
 """
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # same convention as scripts/download_models.py
-
-from data_ingestion.model_cache import (  # noqa: E402  (needs the path set above)
+from data_ingestion.model_cache import (
     FASTEMBED_ENV_VAR,
     MODELS_ROOT,
     NLTK_ENV_VAR,
     fastembed_cache_dir,
     nltk_data_dir,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(autouse=True)

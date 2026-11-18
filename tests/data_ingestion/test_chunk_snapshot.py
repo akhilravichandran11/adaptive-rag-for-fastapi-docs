@@ -16,21 +16,17 @@ Run offline::
 
 import hashlib
 import json
-import sys
 from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion.chunk_snapshot import (  # noqa: E402  (needs the path set above)
+from data_ingestion.chunk_snapshot import (
     check_same_corpus,
     read_chunks,
     write_chunks,
 )
-from data_ingestion.chunkers import get_chunker  # noqa: E402
+from data_ingestion.chunkers import get_chunker
 
 # The metadata corpus loading and enrichment put on a parent document.
 PARENT_META = {

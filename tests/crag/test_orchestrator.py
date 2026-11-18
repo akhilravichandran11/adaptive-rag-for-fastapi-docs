@@ -6,18 +6,13 @@ call log so call order across adapters is checked. No network (C006, the no-netw
 import dataclasses
 import json
 import socket
-import sys
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag import orchestrator  # noqa: E402  (needs the path set above)
-from crag.orchestrator import CragOrchestrator  # noqa: E402
+from crag import orchestrator
+from crag.orchestrator import CragOrchestrator
 
 QUESTION = "How do I declare a path parameter?"
 

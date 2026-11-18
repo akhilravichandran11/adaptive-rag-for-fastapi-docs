@@ -6,17 +6,12 @@ fakes. The real ``.env`` is not loaded. No network (C006, the no-network form).
 
 import logging
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag import run  # noqa: E402  (needs the path set above)
-from crag.orchestrator import CragResult  # noqa: E402
+from crag import run
+from crag.orchestrator import CragResult
 
 REQUIRED = (
     "GOOGLE_API_KEY",

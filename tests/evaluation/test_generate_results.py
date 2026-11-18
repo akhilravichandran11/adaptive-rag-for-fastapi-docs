@@ -8,7 +8,6 @@ import json
 import logging
 import os
 import socket
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,15 +16,14 @@ import pytest
 from google.genai import errors
 from haystack.core.errors import PipelineRuntimeError
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
+from data_ingestion import pipeline as ingestion_pipeline
+from data_ingestion.chunkers import STRATEGIES
+from data_ingestion.embedders import EMBEDDERS
+from data_ingestion.variants import select_variants
+from evaluation import generate_results
+from evaluation.schemas import EvalQuestion
 
-from data_ingestion import pipeline as ingestion_pipeline  # noqa: E402  (needs the path set above)
-from data_ingestion.chunkers import STRATEGIES  # noqa: E402
-from data_ingestion.embedders import EMBEDDERS  # noqa: E402
-from data_ingestion.variants import select_variants  # noqa: E402
-from evaluation import generate_results  # noqa: E402
-from evaluation.schemas import EvalQuestion  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # The module's own question files, read before the ``isolated`` fixture replaces them.
 REAL_QUESTION_FILES = generate_results.QUESTION_FILES

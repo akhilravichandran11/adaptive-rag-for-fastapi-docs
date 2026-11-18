@@ -5,17 +5,12 @@ is given, returns ``(parsed, model)``, and raises what it is scripted to raise.
 """
 
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 from haystack import Document
 from pydantic import BaseModel
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag.decomposer import QueryDecomposer  # noqa: E402  (needs the path set above)
+from crag.decomposer import QueryDecomposer
 
 QUESTION = "How do I return a custom status code and set a cookie?"
 MODEL = "gemini-flash-latest"

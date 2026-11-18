@@ -8,10 +8,7 @@ dependencies = [
     "haystack-ai>=3.2.0",
     # Haystack Integrations
     "qdrant-haystack>=9.2.0",
-    "fastembed-haystack>=1.5.0",
     "google-genai-haystack>=2.1.1",
-    # Embeddings
-    "fastembed>=0.7.1",
     # LLM Providers
     "google-genai>=1.31.0",
     "openai>=1.99.9",
@@ -19,42 +16,28 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "tqdm>=4.67.1",
     "pydantic>=2.11.7",
-    "pydantic-settings>=2.10.1",
-    "mdit-plain>=1.0.1",
-    "datasketch>=1.9.0",
-    "langchain-text-splitters>=1.1.0",
-    "langchain-huggingface>=1.2.0",
-    "langchain-experimental>=0.4.1",
-    "tree-sitter>=0.25.2",
-    "tree-sitter-python>=0.25.0",
-    "tree-sitter-javascript>=0.25.0",
-    "tree-sitter-typescript>=0.23.2",
     "nltk>=3.9.2",
-    "sentence-transformers>=5.2.0",
-    "ollama-haystack>=6.0.0",
-    "streamlit>=1.53.1",
+    "huggingface-hub>=1.16.1",
+    "tokenizers>=0.22.2",
+    "qdrant-client>=1.19.0",
     "voyage-embedders-haystack>=1.8.0",
     "ragas>=0.4.3",
-    "langchain-openai>=1.1.9",
+    "langchain-core>=1.5.3",
     "langchain-community==0.4.1",  # 0.4.2 removed chat_models.vertexai, which ragas 0.4.3 imports
-    "rapidfuzz>=3.14.3",
-    "deepeval>=3.8.4",
-    "matplotlib>=3.10.8",
+    "rapidfuzz>=3.14.3",  # ragas 0.4.3's default test-set transforms import it but do not declare it
     # Backend
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "redis[hiredis]>=5.0.0",
-    "opik>=0.1.0",
     "gitingest>=0.3.1",
     "tavily-python>=0.7.22",
-    "mcp>=1.26.0",
     "tenacity>=9.1.4",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
-    "black>=23.0.0",
+    "httpx2>=2.10.0",  # Starlette's TestClient uses it; without it, it falls back to httpx and warns
+    "mdit-plain>=1.0.1",  # a loading test runs MarkdownToDocument, which needs it, to show what it drops
     "ruff>=0.1.0",
 ]
 

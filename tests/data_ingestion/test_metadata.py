@@ -18,21 +18,12 @@ Run offline::
 """
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion.metadata import (  # noqa: E402  (needs the path set above)
-    CONTENT_ANALYSIS_FILENAME,
-    MissingInputError,
-    UnmatchedDocumentError,
-    enrich_documents,
-)
+from data_ingestion.metadata import CONTENT_ANALYSIS_FILENAME, enrich_documents
 
 RUN_ID = "20260101_000000"
 CORPUS_COMMIT = "abc1234"
@@ -104,8 +95,8 @@ def test_a_matched_document_gains_every_field_and_keeps_its_own(tmp_path) -> Non
     original = loaded(CLEAN)
     result = enrich(tmp_path, [original])
 
-    assert result.kept_count == 1
-    assert result.dropped_count == 0
+    assert len(result.documents) == 1
+    assert len(result.dropped_filenames) == 0
     enriched = result.documents[0]
     assert set(ENRICHED_FIELDS) <= set(enriched.meta)
     assert enriched.meta["source_path"] == "docs/en/docs/tutorial/first-steps.md"
@@ -129,8 +120,8 @@ def test_a_flagged_document_is_dropped_logged_and_counted(tmp_path, caplog) -> N
 
     assert [document.meta["output_filename"] for document in result.documents] == [CLEAN]
     assert result.dropped_filenames == [FLAGGED]
-    assert result.dropped_count == 1
-    assert result.kept_count == 1
+    assert len(result.dropped_filenames) == 1
+    assert len(result.documents) == 1
     warnings = [
         record.getMessage()
         for record in caplog.records
@@ -146,7 +137,7 @@ def test_a_missing_run_folder_raises_naming_the_run(tmp_path) -> None:
 
     # Match the folder wording: without the folder check, the missing analysis file
     # would raise instead, and its message names the run too.
-    with pytest.raises(MissingInputError, match=rf"run folder not found.*{RUN_ID}"):
+    with pytest.raises(FileNotFoundError, match=rf"run folder not found.*{RUN_ID}"):
         enrich_documents(
             [loaded(CLEAN)],
             curation_run=RUN_ID,
@@ -159,7 +150,10 @@ def test_a_run_without_its_analysis_file_raises_naming_the_file(tmp_path) -> Non
     manifest_path = write_manifest(tmp_path, [manifest_record(CLEAN)])
     (tmp_path / "outputs" / RUN_ID).mkdir(parents=True)
 
-    with pytest.raises(MissingInputError, match=CONTENT_ANALYSIS_FILENAME):
+    with pytest.raises(
+        FileNotFoundError,
+        match=rf"Curation analysis for run '{RUN_ID}' not found: .*{CONTENT_ANALYSIS_FILENAME}",
+    ):
         enrich_documents(
             [loaded(CLEAN)],
             curation_run=RUN_ID,
@@ -172,7 +166,7 @@ def test_a_missing_manifest_raises_naming_the_path(tmp_path) -> None:
     root = write_run(tmp_path, [curation_record(CLEAN)])
     missing = tmp_path / "no-such-manifest.json"
 
-    with pytest.raises(MissingInputError, match="no-such-manifest.json"):
+    with pytest.raises(FileNotFoundError, match=r"Manifest not found: .*no-such-manifest\.json"):
         enrich_documents(
             [loaded(CLEAN)],
             curation_run=RUN_ID,
@@ -181,11 +175,48 @@ def test_a_missing_manifest_raises_naming_the_path(tmp_path) -> None:
         )
 
 
+def test_an_unreadable_manifest_raises_naming_the_path(tmp_path) -> None:
+    # A folder where the file should be: present, so not FileNotFoundError, but unreadable.
+    unreadable = tmp_path / "manifest.json"
+    unreadable.mkdir()
+
+    with pytest.raises(OSError, match=r"Manifest could not be read: .*manifest\.json"):
+        enrich_documents(
+            [loaded(CLEAN)],
+            curation_run=RUN_ID,
+            manifest_path=unreadable,
+            curation_outputs_root=write_run(tmp_path, [curation_record(CLEAN)]),
+        )
+
+
+@pytest.mark.parametrize(
+    ("content", "problem"),
+    [
+        (b"\xff not utf-8", "not valid UTF-8"),
+        (b"{not json", "not valid JSON"),
+        (b"1" * 5000, "not valid JSON"),  # json.loads raises a plain ValueError for this
+    ],
+)
+def test_a_manifest_that_is_not_utf8_json_raises_naming_the_path(
+    tmp_path, content, problem
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_bytes(content)
+
+    with pytest.raises(ValueError, match=rf"Manifest is {problem}: .*manifest\.json"):
+        enrich_documents(
+            [loaded(CLEAN)],
+            curation_run=RUN_ID,
+            manifest_path=manifest_path,
+            curation_outputs_root=write_run(tmp_path, [curation_record(CLEAN)]),
+        )
+
+
 def test_a_manifest_entry_missing_a_field_raises_naming_it(tmp_path) -> None:
     record = manifest_record(CLEAN)
     del record["url"]
 
-    with pytest.raises(MissingInputError, match=rf"'url'.*{CLEAN}"):
+    with pytest.raises(ValueError, match=rf"'url'.*{CLEAN}"):
         enrich_documents(
             [loaded(CLEAN)],
             curation_run=RUN_ID,
@@ -199,7 +230,7 @@ def test_a_curation_entry_missing_the_injection_flag_raises_naming_it(tmp_path) 
     record = curation_record(CLEAN)
     del record["suspected_prompt_injection"]
 
-    with pytest.raises(MissingInputError, match=rf"'suspected_prompt_injection'.*{CLEAN}"):
+    with pytest.raises(ValueError, match=rf"'suspected_prompt_injection'.*{CLEAN}"):
         enrich_documents(
             [loaded(CLEAN)],
             curation_run=RUN_ID,
@@ -209,7 +240,7 @@ def test_a_curation_entry_missing_the_injection_flag_raises_naming_it(tmp_path) 
 
 
 def test_a_document_absent_from_the_manifest_raises_naming_it(tmp_path) -> None:
-    with pytest.raises(UnmatchedDocumentError, match=FLAGGED):
+    with pytest.raises(ValueError, match=rf"no manifest entry for document '{FLAGGED}'"):
         enrich_documents(
             [loaded(CLEAN), loaded(FLAGGED)],
             curation_run=RUN_ID,
@@ -221,7 +252,9 @@ def test_a_document_absent_from_the_manifest_raises_naming_it(tmp_path) -> None:
 
 
 def test_a_document_absent_from_the_run_raises_naming_it_and_the_run(tmp_path) -> None:
-    with pytest.raises(UnmatchedDocumentError, match=rf"{FLAGGED}.*{RUN_ID}"):
+    with pytest.raises(
+        ValueError, match=rf"no entry for document '{FLAGGED}' in curation run '{RUN_ID}'"
+    ):
         enrich_documents(
             [loaded(CLEAN), loaded(FLAGGED)],
             curation_run=RUN_ID,
@@ -233,7 +266,7 @@ def test_a_document_absent_from_the_run_raises_naming_it_and_the_run(tmp_path) -
 
 
 def test_a_document_with_nothing_to_join_on_raises(tmp_path) -> None:
-    with pytest.raises(UnmatchedDocumentError, match="output_filename"):
+    with pytest.raises(ValueError, match="has no 'output_filename'"):
         enrich_documents(
             [Document(content="built in memory, never loaded from disk")],
             curation_run=RUN_ID,
@@ -271,7 +304,7 @@ def test_a_non_boolean_injection_flag_raises_naming_it(tmp_path, flag) -> None:
     record["suspected_prompt_injection"] = flag
 
     with pytest.raises(
-        MissingInputError, match=rf"'suspected_prompt_injection' must be true or false.*{CLEAN}"
+        ValueError, match=rf"'suspected_prompt_injection' must be true or false.*{CLEAN}"
     ):
         enrich_from(tmp_path, good_manifest(), [record])
 
@@ -279,16 +312,12 @@ def test_a_non_boolean_injection_flag_raises_naming_it(tmp_path, flag) -> None:
 def test_a_repeated_filename_in_the_manifest_raises_naming_it(tmp_path) -> None:
     manifest = good_manifest(manifest_record(CLEAN), manifest_record(CLEAN))
 
-    with pytest.raises(
-        MissingInputError, match=rf"duplicate 'output_filename' '{CLEAN}' in manifest"
-    ):
+    with pytest.raises(ValueError, match=rf"duplicate 'output_filename' '{CLEAN}' in manifest"):
         enrich_from(tmp_path, manifest, [curation_record(CLEAN)])
 
 
 def test_a_repeated_filename_in_the_run_raises_naming_it_and_the_run(tmp_path) -> None:
-    with pytest.raises(
-        MissingInputError, match=rf"duplicate .*'{CLEAN}' in curation run '{RUN_ID}'"
-    ):
+    with pytest.raises(ValueError, match=rf"duplicate .*'{CLEAN}' in curation run '{RUN_ID}'"):
         enrich_from(tmp_path, good_manifest(), [curation_record(CLEAN), curation_record(CLEAN)])
 
 
@@ -299,7 +328,7 @@ def test_a_non_numeric_quality_score_raises_naming_it(tmp_path, score) -> None:
     record = curation_record(CLEAN)
     record["analysis"]["overall_quality"] = score
 
-    with pytest.raises(MissingInputError, match=rf"'overall_quality' must be a number.*{CLEAN}"):
+    with pytest.raises(ValueError, match=rf"'overall_quality' must be a number.*{CLEAN}"):
         enrich_from(tmp_path, good_manifest(), [record])
 
 
@@ -309,7 +338,7 @@ def test_a_blank_or_non_string_domain_raises_naming_it(tmp_path, domain) -> None
     record["knowledge_domain"] = domain
 
     with pytest.raises(
-        MissingInputError, match=rf"'knowledge_domain' must be a non-empty string.*{CLEAN}"
+        ValueError, match=rf"'knowledge_domain' must be a non-empty string.*{CLEAN}"
     ):
         enrich_from(tmp_path, good_manifest(), [record])
 
@@ -318,7 +347,7 @@ def test_a_blank_or_non_string_domain_raises_naming_it(tmp_path, domain) -> None
 def test_manifest_files_that_are_not_a_list_raise(tmp_path, files) -> None:
     manifest = {"source": {"ref": CORPUS_COMMIT}, "files": files}
 
-    with pytest.raises(MissingInputError, match=r"'files' in manifest .* must be a list"):
+    with pytest.raises(ValueError, match=r"'files' in manifest .* must be a list"):
         enrich_from(tmp_path, manifest, [curation_record(CLEAN)])
 
 
@@ -327,9 +356,7 @@ def test_a_non_string_filename_in_the_manifest_raises(tmp_path, filename) -> Non
     record = manifest_record(CLEAN)
     record["output_filename"] = filename
 
-    with pytest.raises(
-        MissingInputError, match=r"'output_filename' must be a string in manifest entry 0"
-    ):
+    with pytest.raises(ValueError, match=r"'output_filename' must be a string in manifest entry 0"):
         enrich_from(tmp_path, good_manifest(record), [curation_record(CLEAN)])
 
 
@@ -337,9 +364,7 @@ def test_a_non_string_filename_in_the_run_raises(tmp_path) -> None:
     record = curation_record(CLEAN)
     record["output_filename"] = 42
 
-    with pytest.raises(
-        MissingInputError, match=r"'output_filename' must be a string in curation entry 0"
-    ):
+    with pytest.raises(ValueError, match=r"'output_filename' must be a string in curation entry 0"):
         enrich_from(tmp_path, good_manifest(), [record])
 
 
@@ -347,6 +372,6 @@ def test_a_non_string_filename_in_the_run_raises(tmp_path) -> None:
 def test_an_unsafe_run_id_raises_naming_it(tmp_path, run_id) -> None:
     # A run id names one folder under the outputs root; anything else could read
     # the root itself or a file outside it.
-    with pytest.raises(MissingInputError, match="single folder name") as raised:
+    with pytest.raises(ValueError, match="single folder name") as raised:
         enrich_from(tmp_path, good_manifest(), [curation_record(CLEAN)], run_id=run_id)
     assert repr(run_id) in str(raised.value)

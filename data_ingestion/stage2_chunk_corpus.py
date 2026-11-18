@@ -52,7 +52,6 @@ from data_ingestion.metadata import (
     CORPUS_ROOT,
     CURATION_OUTPUTS_ROOT,
     MANIFEST_PATH,
-    MetadataError,
     attach_metadata,
     load_curation_run,
     load_manifest,
@@ -205,7 +204,7 @@ def main(argv: list[str] | None = None) -> Path:
         curation = load_curation_run(args.curation_run, CURATION_OUTPUTS_ROOT)
         documents = load_documents(DOCS_DIR)
         enriched = attach_metadata(documents, manifest=manifest, curation=curation)
-    except (OSError, RuntimeError, MetadataError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         logger.error("%s", exc)
         raise SystemExit(1) from None
 
@@ -226,7 +225,7 @@ def main(argv: list[str] | None = None) -> Path:
             "--limit %d: chunking the first %d of %d kept documents",
             limit,
             len(kept),
-            enriched.kept_count,
+            len(enriched.documents),
         )
 
     logger.info(

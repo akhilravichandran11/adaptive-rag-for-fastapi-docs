@@ -6,6 +6,21 @@ the pipeline grows; the newest sit at the top.
 
 ---
 
+## 2026-11-17 — `fastembed` and `fastembed-haystack` leave the dependencies
+
+**Decision.** `pyproject.toml` and `uv.lock` no longer hold `fastembed` or
+`fastembed-haystack`. This reverses the last clause of the 2026-10-04 entry "The local
+BGE code path is removed", which kept both for Qdrant's BM25 sparse vectors.
+
+**Why.** Hybrid search was built with in-memory BM25 instead (`retrieval/DECISIONS.md`,
+2026-10-26), so nothing imports either package. BGE's tokenizer is read with `tokenizers`
+and `huggingface_hub`, and `models/fastembed` keeps its name.
+
+**Consequences.** Moving sparse vectors into Qdrant, which that entry names as its
+revisit condition, brings both packages back. Files: `pyproject.toml`, `uv.lock`.
+
+---
+
 ## 2026-11-16 — Two simpler heading-based strategies run beside `markdown_ast`
 
 **Decision.** Two strategies join the study after `markdown_ast`, so it compares nine

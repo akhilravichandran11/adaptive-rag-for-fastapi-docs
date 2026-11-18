@@ -95,10 +95,8 @@ outputs/
 # Local embedding / tokenizer model cache (FASTEMBED_CACHE_PATH, NLTK_DATA)
 /models/
 
-# Tests are kept local while the testing approach settles (see AGENTS.md)
-/tests/
-
-# Experiments are kept local for now
+# Experiments are kept local for now, and so are their tests
 /experiments/
+/tests/experiments/
 
 /docs/code-atlas/

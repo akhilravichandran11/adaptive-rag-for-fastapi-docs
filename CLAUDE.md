@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Setup: `uv sync --extra dev`, then `cp .env.example .env` and fill in keys.
 - Local models (BGE tokenizer, NLTK punkt → `models/`): `uv run python scripts/download_models.py` (`--check` to only report).
 - Tests: `uv run pytest`. Lint/format: `uvx pre-commit run --all-files` (ruff check + ruff format, not black).
-- There is no test or lint CI; the GitHub workflows are advisory LLM PR review/description only. Run the checks above yourself.
+- CI: `.github/workflows/tests.yml` runs `download_models.py` then `uv run pytest` on Python 3.11 for every push and pull request, with no secrets. There is no lint CI, so run pre-commit yourself; the other two workflows are advisory LLM PR review/description only.
 
 ## Gotchas
 

@@ -44,7 +44,6 @@ import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -114,7 +113,7 @@ DEFAULT_INJECTED_RUN_LENGTH = 5_000
 _RUN_ALPHABET = string.ascii_letters + string.digits
 
 
-@dataclass(frozen=True)
+@dataclass
 class RuleBreak:
     """One shape rule one document's chunks break.
 
@@ -131,7 +130,6 @@ class RuleBreak:
 # --- lengths ------------------------------------------------------------------
 
 
-@lru_cache(maxsize=1)
 def _sentence_splitter():
     """Haystack's sentence splitter, configured as ``DocumentSplitter`` builds it."""
     from haystack.components.preprocessors.sentence_tokenizer import SentenceSplitter
@@ -148,13 +146,13 @@ def _sentence_splitter():
     )
 
 
-def chunk_length(text: str, unit: str) -> int:
+def chunk_length(text: str, unit: str, splitter=None) -> int:
     """How long ``text`` is in ``unit``, counted the way the splitters count it.
 
     A word is a run between single spaces, as Haystack's word splitter cuts it, so
-    newlines travel inside words; sentences come from the same NLTK tokenizer and
-    rules the sentence splitter uses; characters are characters. A chunk's
-    sentences are counted against its parent instead (see ``_chunk_lengths``).
+    newlines travel inside words; sentences come from ``splitter``, the same NLTK
+    tokenizer and rules the sentence splitter uses; characters are characters. A
+    chunk's sentences are counted against its parent instead (see ``_chunk_lengths``).
     """
     if unit == CHAR_UNIT:
         return len(text)
@@ -166,11 +164,13 @@ def chunk_length(text: str, unit: str) -> int:
     if unit == SENTENCE_UNIT:
         if not text.strip():
             return 0
-        return len(_sentence_splitter().split_sentences(text))
+        if splitter is None:
+            splitter = _sentence_splitter()
+        return len(splitter.split_sentences(text))
     raise ValueError(f"Unknown chunk unit {unit!r}; expected one of: word, sentence, char")
 
 
-def _chunk_lengths(parent_text: str, texts: Sequence[str], unit: str) -> list[int]:
+def _chunk_lengths(parent_text: str, texts: Sequence[str], unit: str, splitter) -> list[int]:
     """Each chunk's length in ``unit`` (0 for a blank chunk), as its strategy counted it.
 
     Sentences are counted on the parent, not on the chunk alone: the sentence
@@ -183,7 +183,7 @@ def _chunk_lengths(parent_text: str, texts: Sequence[str], unit: str) -> list[in
         return [chunk_length(text, unit) if text.strip() else 0 for text in texts]
 
     starts = (
-        [sentence["start"] for sentence in _sentence_splitter().split_sentences(parent_text)]
+        [sentence["start"] for sentence in splitter.split_sentences(parent_text)]
         if parent_text.strip()
         else []
     )
@@ -197,7 +197,7 @@ def _chunk_lengths(parent_text: str, texts: Sequence[str], unit: str) -> list[in
         if at == -1:
             at = parent_text.find(text)
         if at == -1:
-            lengths.append(chunk_length(text, unit))
+            lengths.append(chunk_length(text, unit, splitter))
             continue
         lengths.append(bisect.bisect_left(starts, at + len(text)) - bisect.bisect_left(starts, at))
         search_from = at + 1
@@ -212,7 +212,7 @@ def _without_whitespace(text: str) -> str:
 
 
 def check_chunks(
-    parent: Document, chunks: Sequence[Document], settings: ChunkSettings
+    parent: Document, chunks: Sequence[Document], settings: ChunkSettings, splitter=None
 ) -> list[RuleBreak]:
     """Check one parent document's chunks against the five shape rules.
 
@@ -221,12 +221,16 @@ def check_chunks(
     is read from the chunks' ``min_length`` metadata where the strategy declares
     one. Returns every break found, in chunk order with document-level breaks
     last; an empty list means the chunks keep all five rules.
+
+    Pass ``splitter`` when checking many documents: building one takes about 25 ms.
     """
+    if splitter is None and settings.unit == SENTENCE_UNIT:
+        splitter = _sentence_splitter()
     texts = [chunk.content or "" for chunk in chunks]
     breaks: list[RuleBreak] = []
 
     non_empty = sum(1 for text in texts if text.strip())
-    lengths = _chunk_lengths(parent.content or "", texts, settings.unit)
+    lengths = _chunk_lengths(parent.content or "", texts, settings.unit, splitter)
     for index, (chunk, text, length) in enumerate(zip(chunks, texts, lengths, strict=True)):
         if not text.strip():
             breaks.append(RuleBreak(EMPTY, index, "chunk is empty or whitespace only"))
@@ -563,6 +567,14 @@ def build_report(
             raise ValueError(f"two documents share the source path {path}")
         parents[path] = document
 
+    # Only when a strategy counts sentences: importing the splitter takes a second.
+    counts_sentences = any(
+        chunk.meta.get("chunk_unit") == SENTENCE_UNIT
+        for chunks in chunks_by_strategy.values()
+        for chunk in chunks
+    )
+    splitter = _sentence_splitter() if counts_sentences else None
+
     summaries: dict[str, dict[str, Any]] = {}
     chunk_rows: list[dict[str, Any]] = []
     document_rows: list[dict[str, Any]] = []
@@ -594,7 +606,7 @@ def build_report(
             )
             if parent_chunks:
                 unit, declared_max = settings.unit, settings.size
-            breaks = check_chunks(parents[path], parent_chunks, settings)
+            breaks = check_chunks(parents[path], parent_chunks, settings, splitter)
             for rule_break in breaks:
                 counts[rule_break.rule] += 1
             if any(rule_break.rule == LOST_TEXT for rule_break in breaks):
@@ -614,6 +626,7 @@ def build_report(
                 parents[path].content or "",
                 [chunk.content or "" for chunk in parent_chunks],
                 settings.unit,
+                splitter,
             )
             for index, (chunk, length) in enumerate(zip(parent_chunks, lengths, strict=True)):
                 text = chunk.content or ""

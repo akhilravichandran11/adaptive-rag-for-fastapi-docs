@@ -89,6 +89,10 @@ version for each LLM step. `--route-check` logs each result, then one `match` or
 expected`. A mismatch is reported, not raised, because the routes are LLM judgments. A
 blank `--question` exits 2 before anything runs.
 
+For example, if the answer cites `[2]`, find the entry with `rank` equal to `2`
+in the `sources` array. Its `source` field identifies the documentation path or
+web URL, and its `content` field contains the second excerpt the generator saw.
+
 ## Server and web page
 
 ```bash

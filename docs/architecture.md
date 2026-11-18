@@ -37,6 +37,9 @@ flowchart TD
     gen --> response["API response with answer, sources and route"]
 ```
 
+BM25 and dense retrieval use the same document ID for each chunk, so reciprocal
+rank fusion combines its ranks when both searches return it.
+
 On the correct route, the generator receives the relevant chunks directly. On the
 ambiguous route, refinement keeps those chunks and adds evidence from the new
 searches. If initial retrieval is empty or a route yields no context, the

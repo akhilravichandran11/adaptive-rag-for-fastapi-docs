@@ -342,12 +342,16 @@ def test_valid_title_publishes_without_correction(workflow, title):
         "fix: support\tlegacy includes",
     ],
 )
-@pytest.mark.parametrize("corrected", [True, False])
-def test_title_gets_only_one_correction(workflow, monkeypatch, pr_body, title, corrected):
+@pytest.mark.parametrize("bad_corrections", [0, 1, 2])
+def test_title_gets_at_most_two_corrections(workflow, monkeypatch, pr_body, title, bad_corrections):
     client, run, summary = workflow
     monkeypatch.setenv("PR_BODY", pr_body)
-    invalid = VALID_RESPONSE.replace("ci: improve PR suggestions", title)
-    contents = [invalid, VALID_RESPONSE if corrected else invalid]
+    corrected = bad_corrections < 2
+    # A correction reply is the title alone; the body stays the first reply's.
+    contents = [VALID_RESPONSE.replace("ci: improve PR suggestions", title)]
+    contents += [title] * bad_corrections
+    if corrected:
+        contents.append("ci: improve PR suggestions")
     client.chat.completions.create.side_effect = [
         SimpleNamespace(
             choices=[
@@ -360,7 +364,7 @@ def test_title_gets_only_one_correction(workflow, monkeypatch, pr_body, title, c
         run.side_effect = [SimpleNamespace(stdout="[[]]"), SimpleNamespace(stdout="")]
 
     assert script.main() == (0 if corrected else 1)
-    assert client.chat.completions.create.call_count == 2
+    assert client.chat.completions.create.call_count == (2 if bad_corrections == 0 else 3)
     if corrected:
         if pr_body:
             assert "ci: improve PR suggestions" in summary.read_text()
@@ -368,6 +372,9 @@ def test_title_gets_only_one_correction(workflow, monkeypatch, pr_body, title, c
         else:
             command = run.call_args.args[0]
             assert command[command.index("--title") + 1] == "ci: improve PR suggestions"
+            assert command[command.index("--body") + 1].startswith(
+                "## Summary\nExample description."
+            )
     else:
         assert run.call_count == 0
         assert not summary.exists()
@@ -404,9 +411,11 @@ def test_bad_correction_never_publishes(workflow, failure):
     )
     if failure == "choices":
         second.choices = []
-    client.chat.completions.create.side_effect = [first, second]
+    # A correction reply is read as the title alone, so a full reply with a bad body
+    # fails the title check and is asked for once more.
+    client.chat.completions.create.side_effect = [first, second, second]
 
     assert script.main() == 1
-    assert client.chat.completions.create.call_count == 2
+    assert client.chat.completions.create.call_count == (3 if failure == "body" else 2)
     assert run.call_count == 0
     assert not summary.exists()

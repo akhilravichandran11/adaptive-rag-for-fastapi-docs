@@ -28,7 +28,7 @@ document changed.
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from haystack import Document
 
@@ -46,7 +46,7 @@ _SPLITTER_META_KEYS = frozenset(
 )
 
 
-@dataclass(frozen=True)
+@dataclass
 class ChunkSettings:
     """How one strategy splits, recorded on every chunk it produces.
 
@@ -59,30 +59,6 @@ class ChunkSettings:
     size: int
     overlap: int
     unit: str
-
-
-class Splitter(Protocol):
-    """The part of a Haystack splitter component the helpers here rely on.
-
-    Both Haystack splitters warm themselves up on their first ``run``, so
-    :func:`split_documents` only ever calls ``run``.
-    """
-
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]: ...
-
-
-class Chunker(Protocol):
-    """What every strategy in this package offers its caller.
-
-    ``get_chunker`` returns this, so a chunker fetched by name has a known shape
-    without the package importing any strategy module.
-    """
-
-    settings: ChunkSettings
-
-    def warm_up(self) -> None: ...
-
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]: ...
 
 
 def source_path_of(document: Document) -> str | None:
@@ -191,11 +167,12 @@ def check_source_paths(documents: Sequence[Document], strategy: str) -> None:
 
 def split_documents(
     documents: list[Document],
-    splitter: Splitter,
+    splitter,
     settings: ChunkSettings,
 ) -> list[Document]:
-    """Split every document with ``splitter`` and stamp the shared chunk fields.
+    """Split every document with a Haystack ``splitter`` and stamp the shared chunk fields.
 
+    Only ``splitter.run`` is called: Haystack's splitters warm up on their first ``run``.
     The splitter sees one parent per call, so the chunks that come back are that
     parent's, in order: their ``chunk_index`` runs 0…n-1 with no gaps and does
     not depend on how many documents were passed in.

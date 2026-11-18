@@ -10,17 +10,13 @@ The scorer can reach no paid API, so this module installs no network guard (C006
 import json
 import logging
 import re
-import sys
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from evaluation import retrieval_metrics  # noqa: E402  (needs the path set above)
-from evaluation.retrieval_metrics import main, score_chunks, score_files  # noqa: E402
-from evaluation.schemas import EvalQuestion  # noqa: E402
+from evaluation import retrieval_metrics
+from evaluation.retrieval_metrics import main, score_chunks, score_files
+from evaluation.schemas import EvalQuestion
 
 GOLD = "advanced/response-headers.md"
 OTHER = "tutorial/handling-errors.md"

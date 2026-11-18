@@ -7,9 +7,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-
-from data_curation.pipeline_v2.sources import prepare_source_inventory  # noqa: E402
+from data_curation.pipeline_v2.sources import prepare_source_inventory
 
 
 @pytest.fixture
@@ -403,7 +401,6 @@ def test_import_orders_and_execution_are_isolated_without_credentials(corpus, le
     import subprocess
 
     path, _ = corpus
-    repository = Path(__file__).resolve().parents[3]
     script = """
 import builtins
 import importlib
@@ -411,7 +408,6 @@ import socket
 import sys
 from pathlib import Path
 
-sys.path.insert(0, sys.argv[1])
 original_import = builtins.__import__
 blocked = ("dotenv", "openai", "data_collection", "data_ingestion",
            "data_curation.config", "data_curation.pipeline", "data_curation.stage")
@@ -429,18 +425,18 @@ socket.socket.connect = no_network
 socket.socket.connect_ex = no_network
 socket.create_connection = no_network
 names = ["data_curation.schemas", "data_curation.pipeline_v2.sources"]
-if sys.argv[3] == "False":
+if sys.argv[2] == "False":
     names.reverse()
 for name in names:
     importlib.import_module(name)
 from data_curation.pipeline_v2.sources import prepare_source_inventory
-inventory = prepare_source_inventory(Path(sys.argv[2]))
+inventory = prepare_source_inventory(Path(sys.argv[1]))
 assert type(inventory).__module__ == "data_curation.pipeline_v2.schemas"
 assert len(inventory.documents) == 2
 assert "schemas" not in sys.modules
 """
     result = subprocess.run(
-        [sys.executable, "-c", script, str(repository), str(path), str(legacy_first)],
+        [sys.executable, "-c", script, str(path), str(legacy_first)],
         cwd=path.parent,
         env={"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
         capture_output=True,

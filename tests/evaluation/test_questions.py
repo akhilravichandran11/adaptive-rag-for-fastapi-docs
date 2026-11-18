@@ -6,17 +6,15 @@ Nothing here can reach a paid API, so this module installs no network guard (C00
 """
 
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
+from evaluation.schemas import EvalQuestion
 
-from evaluation.schemas import EvalQuestion  # noqa: E402  (needs the path set above)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 QUESTIONS_DIR = PROJECT_ROOT / "evaluation" / "questions"
 QUESTION_FILES = ["handwritten.json", "synthetic.json"]

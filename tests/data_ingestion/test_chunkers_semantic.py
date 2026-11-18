@@ -26,24 +26,19 @@ ignored.
 import socket
 import subprocess
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_ingestion import openrouter_embeddings  # noqa: E402
-from data_ingestion.chunkers import (  # noqa: E402
+from data_ingestion import openrouter_embeddings
+from data_ingestion.chunkers import (
     get_chunker,
     strategy_names,
 )
-from data_ingestion.chunkers.semantic import SPLITTER_META  # noqa: E402
-from data_ingestion.embedders import cached_tokenizer_path  # noqa: E402
-from data_ingestion.model_cache import register_nltk_data_dir  # noqa: E402
+from data_ingestion.chunkers.semantic import SPLITTER_META
+from data_ingestion.embedders import cached_tokenizer_path
+from data_ingestion.model_cache import register_nltk_data_dir
 
 # Metadata a Haystack splitter writes for its own bookkeeping; chunks must not carry it.
 SPLITTER_META_KEYS = ("source_id", "parent_id", "split_id", "split_idx_start", "_split_overlap")
@@ -175,11 +170,11 @@ def test_semantic_is_registered_after_the_size_based_strategies() -> None:
 def test_importing_the_package_does_not_load_the_semantic_module() -> None:
     # A fresh interpreter, so modules this test session already imported do not count.
     code = (
-        "import sys; sys.path.insert(0, sys.argv[1]); import data_ingestion.chunkers; "
+        "import sys; import data_ingestion.chunkers; "
         "print('data_ingestion.chunkers.semantic' in sys.modules, 'fastembed' in sys.modules)"
     )
     result = subprocess.run(
-        [sys.executable, "-c", code, str(PROJECT_ROOT)],
+        [sys.executable, "-c", code],
         capture_output=True,
         text=True,
         check=True,

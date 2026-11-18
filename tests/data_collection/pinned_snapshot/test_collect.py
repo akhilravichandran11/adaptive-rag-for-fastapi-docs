@@ -8,10 +8,7 @@ from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_collection.pinned_snapshot import collect  # noqa: E402
+from data_collection.pinned_snapshot import collect
 
 
 def git(root: Path, *args: str) -> str:

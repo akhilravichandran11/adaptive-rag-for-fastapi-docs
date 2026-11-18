@@ -5,18 +5,13 @@ the prompt (a page url), never by call order. No network (C006, the no-network f
 """
 
 import socket
-import sys
 import threading
-from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag import refinement  # noqa: E402  (needs the path set above)
-from crag.refinement import KnowledgeRefinement  # noqa: E402
+from crag import refinement
+from crag.refinement import KnowledgeRefinement
 
 QUESTION = "How do I declare a path parameter with a type?"
 REGRADE_KEY = "[Document 1]"

@@ -10,17 +10,15 @@ guard (C006).
 import json
 import logging
 import random
-import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
+from evaluation import question_set_report
+from evaluation.question_set_report import main, question_stats
 
-from evaluation import question_set_report  # noqa: E402  (needs the path set above)
-from evaluation.question_set_report import main, question_stats  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 QUESTIONS_DIR = PROJECT_ROOT / "evaluation" / "questions"
 FIRST_STEPS = "tutorial/first-steps.md"

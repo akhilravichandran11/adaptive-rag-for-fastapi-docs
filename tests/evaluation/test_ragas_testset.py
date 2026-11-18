@@ -30,7 +30,6 @@ from ragas.testset import TestsetSample as RagasSample
 from ragas.testset.graph import KnowledgeGraph, Node, NodeType, Relationship
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
 
 FIRST_STEPS = "tutorial/first-steps.md"
 EVENTS = "advanced/events.md"
@@ -676,7 +675,6 @@ def test_importing_the_module_parses_no_arguments_and_opens_no_connection(
     ragas_testset, monkeypatch
 ):
     monkeypatch.setattr(sys, "argv", ["ragas_testset.py", "--no-such-flag"])
-    monkeypatch.setattr(sys, "path", list(sys.path))  # the module adds the project root
     spec = importlib.util.spec_from_file_location(
         "ragas_testset_fresh", PROJECT_ROOT / "evaluation" / "ragas_testset.py"
     )

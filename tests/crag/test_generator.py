@@ -4,17 +4,12 @@ a fake LLM. No network (C006, the no-network form).
 """
 
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 from haystack import Document
 from pydantic import ValidationError
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag.generator import AnswerGenerator  # noqa: E402  (needs the path set above)
+from crag.generator import AnswerGenerator
 
 QUESTION = "How do I give a query parameter a default value?"
 PRIMARY = "gemini-pro-latest"

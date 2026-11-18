@@ -3,7 +3,6 @@
 import importlib
 import json
 import socket
-import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -12,10 +11,9 @@ import openai
 import pytest
 from pydantic import ValidationError
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
+from data_curation import schemas
 
-from data_curation import schemas  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture

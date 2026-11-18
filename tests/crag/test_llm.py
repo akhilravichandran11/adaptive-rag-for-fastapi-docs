@@ -6,8 +6,6 @@ The fake client copies the SDK's keyword-only call, ``.text`` and ``.model_versi
 
 import logging
 import socket
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -15,10 +13,7 @@ from google.genai import errors
 from pydantic import BaseModel, ValidationError
 from tenacity import wait_none
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag import llm  # noqa: E402  (needs the path set above)
+from crag import llm
 
 PRIMARY = "gemini-pro-latest"
 FALLBACK = "fallback-model"

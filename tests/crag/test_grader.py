@@ -4,16 +4,11 @@ fake LLM. No network (C006, the no-network form).
 """
 
 import socket
-import sys
-from pathlib import Path
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from crag.grader import DocumentGrader  # noqa: E402  (needs the path set above)
+from crag.grader import DocumentGrader
 
 QUESTION = "How do I declare a path parameter with a type?"
 PRIMARY = "gemini-flash-latest"

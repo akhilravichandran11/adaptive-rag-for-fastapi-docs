@@ -22,11 +22,8 @@ from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # same convention as scripts/download_models.py
-
-from data_ingestion import openrouter_embeddings  # noqa: E402  (needs the path set above)
-from data_ingestion.embedders import (  # noqa: E402
+from data_ingestion import openrouter_embeddings
+from data_ingestion.embedders import (
     EMBEDDERS,
     VOYAGE_TOKENS_PER_WORD,
     EmbedderSpec,
@@ -318,13 +315,13 @@ def test_bge_counts_need_only_the_tokenizer_file_and_not_fastembed(
 def test_building_and_counting_never_imports_fastembed():
     """The local path is gone (IDX-14); a fresh interpreter proves nothing loads it."""
     code = (
-        "import sys; sys.path.insert(0, sys.argv[1]); from data_ingestion import embedders as e; "
+        "import sys; from data_ingestion import embedders as e; "
         "e.build_document_embedder('bge'); e.build_query_embedder('bge'); "
         "e.count_tokens('bge', ['hi']); e.build_document_embedder('voyage'); "
         "print('fastembed' in sys.modules)"
     )
     result = subprocess.run(
-        [sys.executable, "-c", code, str(PROJECT_ROOT)],
+        [sys.executable, "-c", code],
         capture_output=True,
         text=True,
         check=True,

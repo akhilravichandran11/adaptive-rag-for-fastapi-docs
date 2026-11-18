@@ -16,11 +16,10 @@ import dotenv
 import pytest
 from fastapi.testclient import TestClient
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
+from backend.app import main
+from crag.orchestrator import CragResult
 
-from backend.app import main  # noqa: E402  (needs the path set above)
-from crag.orchestrator import CragResult  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED = (
     "GOOGLE_API_KEY",

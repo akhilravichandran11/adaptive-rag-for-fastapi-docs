@@ -32,13 +32,12 @@ from haystack_integrations.components.generators.google_genai import GoogleGenAI
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
+from data_ingestion import qdrant_store
+from data_ingestion.embedders import EMBEDDERS, build_query_embedder
+from data_ingestion.variants import Variant
+from retrieval import baseline_rag
 
-from data_ingestion import qdrant_store  # noqa: E402  (needs the path set above)
-from data_ingestion.embedders import EMBEDDERS, build_query_embedder  # noqa: E402
-from data_ingestion.variants import Variant  # noqa: E402
-from retrieval import baseline_rag  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 BGE_VARIANT = Variant("naive_small", EMBEDDERS["bge"])
 COLLECTION = "fastapi_docs__naive_small__bge"
@@ -756,7 +755,6 @@ def test_importing_the_module_parses_no_arguments_and_opens_no_connection(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(sys, "argv", ["baseline_rag.py", "--no-such-flag"])
-    monkeypatch.setattr(sys, "path", list(sys.path))  # the module adds the project root
     spec = importlib.util.spec_from_file_location(
         "baseline_rag_fresh", PROJECT_ROOT / "retrieval" / "baseline_rag.py"
     )

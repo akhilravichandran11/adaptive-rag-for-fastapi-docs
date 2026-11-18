@@ -2,17 +2,13 @@
 
 import io
 import json
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_collection import collect_referenced_code as collector  # noqa: E402
+from data_collection import collect_referenced_code as collector
 
 
 @pytest.mark.parametrize(

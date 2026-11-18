@@ -13,16 +13,11 @@ Run offline::
 """
 
 import re
-import sys
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets pytest import the project from any directory
-
-from data_ingestion.pipeline import (  # noqa: E402  (needs the path set above)
+from data_ingestion.pipeline import (
     OUTPUTS_DIR,
     resolve_run_dir,
     resolve_run_id,

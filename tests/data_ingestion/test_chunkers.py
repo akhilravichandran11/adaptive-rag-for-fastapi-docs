@@ -10,23 +10,16 @@ instead of failing.
     uv run pytest tests/data_ingestion/test_chunkers.py    # from the project root
 """
 
-import sys
-from pathlib import Path
-
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_ingestion.chunkers import (  # noqa: E402  (needs the path set above)
+from data_ingestion.chunkers import (
     ChunkSettings,
     build_chunks,
     get_chunker,
     strategy_names,
 )
-from data_ingestion.model_cache import register_nltk_data_dir  # noqa: E402
+from data_ingestion.model_cache import register_nltk_data_dir
 
 # The sizes each strategy is defined by: name -> (size, overlap, unit).
 EXPECTED_SETTINGS = {

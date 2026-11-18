@@ -3,17 +3,13 @@
 import json
 import socket
 import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from scripts.ci import generate_pr_description as script  # noqa: E402
+from scripts.ci import generate_pr_description as script
 
 VALID_RESPONSE = """TITLE: ci: improve PR suggestions
 ---

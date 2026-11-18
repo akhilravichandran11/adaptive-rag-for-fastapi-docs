@@ -13,26 +13,20 @@ BGE's tokenizer in the project cache and skip when it is absent:
 
 import logging
 import socket
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from haystack import Document
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from data_ingestion import openrouter_embeddings  # noqa: E402
-from data_ingestion.embedders import (  # noqa: E402
+from data_ingestion import openrouter_embeddings
+from data_ingestion.embedders import (
     bge_tokenizer,
     build_document_embedder,
     build_query_embedder,
     cached_tokenizer_path,
     count_tokens,
 )
-from data_ingestion.openrouter_embeddings import (  # noqa: E402
+from data_ingestion.openrouter_embeddings import (
     MAX_TOKENS,
     OpenRouterDocumentEmbedder,
     OpenRouterTextEmbedder,

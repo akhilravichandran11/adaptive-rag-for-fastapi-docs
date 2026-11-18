@@ -194,7 +194,7 @@ built because nothing needed it yet.
 
 ## C005: Model source IDs are separate from persisted source paths
 
-**Status:** accepted · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/stage3_learning_taxonomy_final.py`
+**Status:** accepted · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/legacy/stage3_learning_taxonomy_final.py`
 
 **What.** Stage 3 has a dedicated model-facing draft schema with ordered
 `source_ids`. The persisted `DatasetFile` and `SynthesisPlan` schemas continue
@@ -219,7 +219,7 @@ stay aligned. Deterministic identity does not make semantic selection
 deterministic. Schema validation cannot establish catalog membership.
 
 **Blast radius.** `data_curation/schemas.py`,
-`data_curation/stage3_learning_taxonomy_final.py`, and
+`data_curation/legacy/stage3_learning_taxonomy_final.py`, and
 `tests/data_curation/test_stage3_source_identity.py`. No Stage 4 change is required.
 
 **Alternatives.** Exact-path enums still ask the model to return authoritative

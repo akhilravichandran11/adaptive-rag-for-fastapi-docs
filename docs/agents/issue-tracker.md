@@ -533,9 +533,10 @@ a second status list by hand:
 
 - `.scratch/NOW.md` — Needs you, Ready for an agent, In progress, Blocked, and Needs you
   later when anything is deferred. Open this right after `MINE.md`.
-- `.scratch/MINE.md` — the user's own hand-written list, not generated and not parsed:
-  a "My pick" of one to three items and an "Ideas" backlog. Agents read it first and
-  never write it; while "My pick" is non-empty it outranks NOW.md's order.
+- `.scratch/MINE.md` — the user's own hand-written list, never generated: a "My pick"
+  of one to three items, an "Ideas" backlog and the sections ideas move to. `now.py`
+  reads it and opens NOW.md with "My pick". Agents read it first and never write it;
+  while "My pick" is non-empty it outranks NOW.md's order.
 - `.scratch/views/needs-you.md` — only what needs the user, by capability.
 - `.scratch/views/everything.md` — every open ticket, finding and inbox line.
 

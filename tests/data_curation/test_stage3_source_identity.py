@@ -141,8 +141,8 @@ def stage_modules(monkeypatch):
     monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: False)
     monkeypatch.syspath_prepend(str(PROJECT_ROOT / "data_curation"))
 
-    stage3 = importlib.import_module("stage3_learning_taxonomy_final")
-    stage4 = importlib.import_module("stage4_synthetic_dataset")
+    stage3 = importlib.import_module("data_curation.legacy.stage3_learning_taxonomy_final")
+    stage4 = importlib.import_module("data_curation.legacy.stage4_synthetic_dataset")
     monkeypatch.setattr(stage3, "chat_structured", refuse)
     monkeypatch.setattr(stage4, "chat", refuse)
     return stage3, stage4

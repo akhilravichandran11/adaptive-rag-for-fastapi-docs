@@ -2,9 +2,8 @@
 
 A corrective/adaptive RAG (CRAG) system for answering questions about the
 FastAPI documentation. It collects the docs from a pinned upstream commit,
-normalizes them into self-contained documents, runs an LLM-assisted curation
-pipeline to prepare candidate content for review, then chunks and indexes the
-corpus for retrieval.
+normalizes them into self-contained documents, attaches saved Stage 1 quality
+metadata, then chunks and indexes the corpus for retrieval.
 
 > Early development. Source collection, normalization, chunking, indexing, and
 > hybrid retrieval work, and the CRAG pipeline answers questions from the command
@@ -24,7 +23,7 @@ collect  →  normalize  →  curate  →  chunk  →  index  →  retrieve  →
 | --------- | ----------- |
 | collect   | Done        |
 | normalize | Done        |
-| curate    | Deferred    |
+| curate    | Stage 1 metadata retained; v2 planned |
 | chunk     | Done        |
 | index     | Done        |
 | retrieve  | Done        |
@@ -51,7 +50,9 @@ Qdrant collection per strategy × embedder pair.
 ```text
 data_collection/    # Collect FastAPI docs + referenced code from a pinned commit
   data_normalization/ # Inline referenced code into self-contained documents
-data_curation/      # LLM-assisted quality pipeline (stage runner + stages)
+data_curation/      # Stage 1 metadata, Stage 5 evaluation questions, shared runner/modules
+  legacy/          # Retired guide-generation stages 2–4
+  pipeline_v2/     # Offline source inventory; further curation work is planned
 data_ingestion/     # Qdrant setup, chunking strategies, embedders, indexing
 retrieval/          # Dense baseline RAG, and hybrid BM25 + dense search, reranked
 crag/               # CRAG pipeline: grade chunks, pick a route, search the web, answer
@@ -123,6 +124,11 @@ than merging files. Regenerate saved chunks for the new manifest fingerprint
 before indexing. These promotion steps are not performed by the commands above.
 
 ### 3. Curate (**paid**)
+
+Ingestion reads the explicitly selected run's Stage 1 analysis at
+`data_curation/outputs/<run_id>/content_analysis.json`; the existing run
+`20260925_032632` remains in place. Guide generation (Stages 2–4) is retired under
+`data_curation/legacy/`. See [the curation README](data_curation/README.md).
 
 ```bash
 uv run python data_curation/stage0_run_pipeline.py --limit 5 --only 1   # small smoke run

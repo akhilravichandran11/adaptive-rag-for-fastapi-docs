@@ -13,20 +13,20 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from pipeline import (
+from tqdm import tqdm
+
+from data_curation.pipeline import (
     CONTENT_ANALYSIS_FILE,
     KNOWLEDGE_DOMAINS_FILE,
     LEARNING_TAXONOMY_FILE,
     resolve_run_dir,
 )
-from tqdm import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 APPLICATION_NAME = "FastAPI Documentation Q&A RAG system"
 DOCUMENTATION_NAME = "FastAPI documentation"

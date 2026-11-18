@@ -110,15 +110,12 @@ First use adds three Git setup commands and retained checkout storage (about
 51.8 MB in this run); it is not fewer setup commands overall. These are measured
 tradeoffs, not a promised percentage reduction.
 
-Tests are kept in the git-ignored `tests/data_collection/pinned_snapshot/`:
+Tests are in `tests/data_collection/pinned_snapshot/`:
 
 ```sh
 uv run pytest tests/data_collection/pinned_snapshot/ -q
 uv run ruff check data_collection/pinned_snapshot/collect.py tests/data_collection/pinned_snapshot/test_collect.py
 ```
-
-In a sandbox that blocks the `pytest-rerunfailures` plugin's local socket, use
-`-p no:rerunfailures` and report that override explicitly.
 
 The local [plan](../../.scratch/data-collection-pipeline/targets/github-docs-source/plans/direct-snapshot/plan.md),
 [ticket](../../.scratch/data-collection-pipeline/issues/GDS-04-collect-pinned-snapshot-and-compare-baseline.md)

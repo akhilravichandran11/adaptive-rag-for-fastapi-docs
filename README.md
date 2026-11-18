@@ -61,7 +61,7 @@ backend/            # FastAPI service: POST /query, GET /health, the page at /
 frontend/           # Static page for asking questions, served by the backend
 experiments/        # Ad-hoc experiments
 docs/               # Conventions and agent-workflow docs
-tests/              # Kept local for now, while the testing approach settles
+tests/              # The pytest suite, run by CI on every push
 ```
 
 ## Getting started
@@ -158,6 +158,8 @@ uv run pytest                          # tests never call a paid API
 uvx pre-commit run --all-files         # ruff check + ruff format
 ```
 
+The suite never calls a paid API, and the [Tests workflow](.github/workflows/tests.yml) runs it on every push and pull request.
+
 ## Documentation
 
 - [ROADMAP.md](ROADMAP.md): status of each capability and what comes next.
@@ -178,8 +180,10 @@ uvx pre-commit run --all-files         # ruff check + ruff format
 This project was developed with assistance from OpenAI Codex and Anthropic
 Claude Code for brainstorming, planning, implementation, code review,
 debugging, documentation, and analysis of generated artifacts. The test suite
-was largely written with these tools; I agreed what each test covers and ran
-the suite.
+was written by these tools, test-first since October using an adapted version
+of Matt Pocock's `tdd` skill. For each ticket I approved what its tests had to
+check and which interface they test through, and I ran the suite; I did not
+review the test code line by line.
 
 Third-party sources for the agent workflow (skills and agents it builds on) are
 listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

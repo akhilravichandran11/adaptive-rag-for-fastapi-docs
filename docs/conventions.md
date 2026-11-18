@@ -151,7 +151,7 @@ reading those assertions cold will think they are wrong.
 **Blast radius.** `tests/data_ingestion/test_loading.py` only. Generalizes to any future
 structure-preservation test.
 
-**Scope.** Test-only, and `/tests/` is not tracked — this affects no published code.
+**Scope.** Test-only; it affects no code outside `tests/`.
 
 **Alternatives.** Parse with `markdown_it` (a real parser, but pins test outcomes to a
 third-party renderer's version); fix the corpus upstream (that is F007's open
@@ -264,7 +264,7 @@ lazy Voyage clients). A guard turns that claim into something a test run proves.
 exist; `needs_bge` in `test_embedders.py` uses a filesystem probe for that reason.
 The paid-host list lives here, so a new paid provider has to be added to it.
 
-**Blast radius.** Test-only, and `/tests/` is not tracked. Modules whose code cannot
+**Blast radius.** Test-only. Modules whose code cannot
 reach a paid API (`test_loading.py`, `test_chunkers.py`, `test_model_cache.py`) need
 no guard.
 

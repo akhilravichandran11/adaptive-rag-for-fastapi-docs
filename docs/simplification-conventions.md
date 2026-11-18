@@ -31,12 +31,12 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 
 **S005 — Failures raise built-in exceptions with a message naming the step and the input; no custom exception classes until a caller must catch one kind apart from the others.**
 - *Why:* where nothing catches a failure by type, a class hierarchy is code with no reader. When a caller does need it (a retry on one error type, an HTTP status per failure), add one class for that caller, as `data_curation/openai_llm_utils.py`'s `EmptyStructuredResponse` does for tenacity.
-- *Applies to:* all Python. `data_ingestion/metadata.py`'s three classes (tests use the subclasses 11×) change in its `SMP-` ticket.
+- *Applies to:* all Python. `data_ingestion/metadata.py`'s three classes are gone: it raises `FileNotFoundError`, `OSError` or `ValueError`.
 - *Decided:* 2026-10-20 (CRAG first-cut grill, Q04; repo-wide by Q12).
 
 **S006 — A `@dataclass` only for a record passed between functions, and not `frozen` unless something relies on it never changing (a dict key, a set member, an object shared across threads). Pydantic models where data comes from outside (LLM replies, API request and response bodies).**
 - *Why:* a dataclass checks nothing at runtime, so it is for data this code builds; Pydantic validates, so it is for data this code receives. `frozen` adds a rule to explain that most records never use.
-- *Applies to:* all Python. The 10 frozen dataclasses are revisited in their files' `SMP-` tickets.
+- *Applies to:* all Python. No `frozen` dataclass is left in tracked code.
 - *Decided:* 2026-10-20 (CRAG first-cut grill, Q06; repo-wide by Q12).
 
 **S007 — No `functools` caches (`lru_cache`, `cache`, `cached_property`) and no `copy.deepcopy`. Load an expensive object once, in the caller, a component's `warm_up()` or the app's `lifespan`, and pass it in.**
@@ -51,7 +51,7 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 
 **S009 — A `@property` only for a value built from other fields that reads better than the expression it replaces, or holds logic of its own such as a guard. Never a bare wrapper around a field or `len()`.**
 - *Why:* `status.present` reads better than `not status.missing`, and a `label` built from `kind` and `name` cannot go stale, but `result.kept_count` only renames `len(result.documents)` and draws "why not just `len()`?". Python can turn an attribute into a property later without touching callers, so none is added in advance.
-- *Applies to:* all Python. Three pass today: `scripts/download_models.py` (`ModelStatus.present`, `ModelStatus.label`) and `data_ingestion/embedders.py` (`TruncationStats.percent_over_limit`). `data_ingestion/metadata.py`'s `EnrichmentResult.kept_count` and `dropped_count` break it; they change in its `SMP-` ticket, with their one caller in `stage2_chunk_corpus.py` and four test asserts. `@staticmethod`, the rest of Q03, is S010.
+- *Applies to:* all Python. Three pass today: `scripts/download_models.py` (`ModelStatus.present`, `ModelStatus.label`) and `data_ingestion/embedders.py` (`TruncationStats.percent_over_limit`). `data_ingestion/metadata.py`'s `EnrichmentResult.kept_count` and `dropped_count` broke it and are gone; callers use `len()`. `@staticmethod`, the rest of Q03, is S010.
 - *Decided:* 2026-11-09 (Q03, `@property` half, after comparing `_no_property` copies of `metadata.py` and `download_models.py`).
 
 **S010 — No `@staticmethod`. A helper that uses neither `self` nor `cls` is a module function, placed above the class that calls it.**
@@ -76,7 +76,7 @@ Format: **ID — rule.** *Why:* one line. *Applies to:* paths. *Decided:* date a
 
 **S014 — No `sys.path` edits to reach the project's own packages. `uv sync --extra dev` installs the project in editable mode, so a script imports `data_ingestion`, `retrieval` and the rest by name, whether it runs by path from any folder or with `python -m`.**
 - *Why:* twelve scripts each opened with the same two lines and a `# noqa: E402` on every import below them, which drew "why does every script edit `sys.path`?". Six lines in `pyproject.toml` say it once, and the setup step the README already gives installs it. Hatchling needs the `packages` list only to know what a wheel would hold; the editable install puts the whole project folder on the path. `python -m` alone would have meant rewriting 43 run commands across seven docs.
-- *Applies to:* all Python outside `sandbox/` and `.scratch/`. The twelve scripts lost the lines: `crag/run.py`, `data_curation/stage5_synthetic_qa.py`, `data_ingestion/stage1_setup_qdrant.py`, `stage2_chunk_corpus.py`, `stage3_index_chunks.py`, `evaluation/generate_results.py`, `ragas_testset.py`, `retrieval_metrics.py`, `retrieval/baseline_rag.py`, `hybrid.py`, `scripts/chunk_size_report.py` and `download_models.py`, and `uv.lock` now records the project as `editable`. Under `tests/`, 40 files still add the project root; the line is now redundant and goes in an `SMP-` ticket. A test that imports a script by its bare name, as `stage5_synthetic_qa`'s does, still adds that script's folder, because the script imports its neighbours the same way.
+- *Applies to:* all Python outside `sandbox/` and `.scratch/`. The twelve scripts lost the lines: `crag/run.py`, `data_curation/stage5_synthetic_qa.py`, `data_ingestion/stage1_setup_qdrant.py`, `stage2_chunk_corpus.py`, `stage3_index_chunks.py`, `evaluation/generate_results.py`, `ragas_testset.py`, `retrieval_metrics.py`, `retrieval/baseline_rag.py`, `hybrid.py`, `scripts/chunk_size_report.py` and `download_models.py`, and `uv.lock` now records the project as `editable`. The 40 test files that added the project root no longer do. The cost: tests import the checkout the venv's editable install points at, so run them with `uv run` inside the checkout being tested. A test that imports a script by its bare name, as `stage5_synthetic_qa`'s does, still adds that script's folder, because the script imports its neighbours the same way.
 - *Decided:* 2026-11-17 (Q08, option (c), after a copy ran all twelve scripts by path from another folder with no API keys and passed the full test suite).
 
 <!-- Next: S015, from the next question decided. -->

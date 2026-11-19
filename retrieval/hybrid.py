@@ -1,6 +1,7 @@
 """
 Hybrid retrieval: BM25 matches exact words (API names) that dense search can rank low, and
-Voyage reranks the fused lists. CRAG imports ``build_hybrid_pipeline`` and ``retrieve`` (C011).
+Voyage reranks the fused lists. Other modules import ``build_hybrid_pipeline`` and
+``retrieve`` (C011).
 """
 
 import argparse
@@ -58,7 +59,7 @@ def build_hybrid_pipeline(
 ) -> Pipeline:
     """Build the BM25 + dense pipeline for ``variant``; makes one free Qdrant call, no paid one.
 
-    Raises ``ValueError`` for missing config, chunk file or collection, which ``main`` exits 1 on.
+    Raises ``ValueError`` for missing config, chunk file or collection.
     """
     settings = load_settings(
         collection_override=variant.collection(prefix),

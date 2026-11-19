@@ -102,7 +102,7 @@ Say if other chats' dirty files were excluded from the judgment.
   user yes. Tag Progress lines `(cursor lead)`.
 - After user says committed: status `done (YYYY-MM-DD; committed in <sha>)`,
   unblock dependents with yes, then `python3 .scratch/now.py`.
-- If phone needs the board: remind user to push nested `.scratch` to GitLab.
+- If phone needs the board: remind user to push nested `.scratch` to its GitHub remote.
 
 ## 6. Report
 

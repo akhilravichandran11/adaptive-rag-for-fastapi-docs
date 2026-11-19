@@ -59,6 +59,11 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   as the corpus under `data/` or a curation run, skips itself with a reason, so
   the suite passes on a fresh checkout too. Ticket acceptance criteria still
   require `uv run pytest` to pass locally.
+- **Cloud sessions:** in a cloud session (Claude Code on the web, Cursor or
+  Codex cloud agents), read
+  [`docs/agents/cloud-sessions.md`](docs/agents/cloud-sessions.md) before your
+  first commit or `.scratch/` edit: it holds the commit and scratch rules that
+  replace the local ones there.
 - **Commit-only requests:** planning, staging, or committing existing changes
   does not trigger `code-review`, `active-code-reviewer`, or
   `active-code-simplifier`. Invoke them for such a request only when the user

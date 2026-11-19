@@ -376,10 +376,12 @@ skills (MIT, see `THIRD_PARTY_NOTICES.md`). If a skill is not available in the
 current tool, follow the step by hand. Where a skill's own
 instructions conflict with this repo, this repo wins:
 
-- **No commits.** `implement` ends by committing; skip that step and leave the
-  changes uncommitted. End the report with the `git add <paths>` line (only the
-  files this ticket changed) and a Conventional Commit message; the user runs
-  both. For several logical commits, use `commit-planning` instead.
+- **No commits in a local checkout** (cloud sessions:
+  [`cloud-sessions.md`](cloud-sessions.md)). `implement` ends by committing;
+  skip that step and leave the changes uncommitted. End the report with the
+  `git add <paths>` line (only the files this ticket changed) and a
+  Conventional Commit message; the user runs both. For several logical
+  commits, use `commit-planning` instead.
 - **End with a handback.** Whichever path built it, the ticket's report uses
   the implementer's headings (`.claude/agents/ticket-implementer.md`,
   `.codex/agents/ticket-implementer.toml`): Status (`implementation-complete
@@ -585,6 +587,8 @@ answer from `.scratch/NOW.md`; do not rebuild the list from boards and memory.
 ## Git worktrees
 
 The checkout where `.scratch/` is created owns the canonical local workspace.
-Ignored files do not appear automatically in another Git worktree. Give a
-worktree session the absolute path to the canonical finding, plan, or ticket,
-and keep its status in that single file rather than creating a second copy.
+A new worktree gets `.scratch` as a link to the canonical copy: each tool's
+worktree setup runs `scripts/session_setup.sh`
+([`cloud-sessions.md`](cloud-sessions.md)). A ticket keeps its status in that
+single file. If the link is missing, give the session the absolute path to the
+canonical finding, plan, or ticket rather than creating a second copy.

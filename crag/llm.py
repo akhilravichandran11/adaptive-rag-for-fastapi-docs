@@ -55,7 +55,7 @@ class StructuredLLM:
     @retry(
         retry=retry_if_exception(is_retryable),
         stop=stop_after_attempt(MAX_ATTEMPTS),
-        wait=wait_exponential(multiplier=1, max=10),
+        wait=wait_exponential(max=10),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )

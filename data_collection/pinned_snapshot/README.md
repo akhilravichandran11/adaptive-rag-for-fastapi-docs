@@ -107,8 +107,7 @@ acquisition scripts, including comments and blanks. It still imports their two
 pure regexes. After checkout preparation, one local collection command replaces
 the two collector commands and their aggregate split/per-example HTTP work.
 First use adds three Git setup commands and retained checkout storage (about
-51.8 MB in this run); it is not fewer setup commands overall. These are measured
-tradeoffs, not a promised percentage reduction.
+51.8 MB in this run); it is not fewer setup commands overall.
 
 Tests are in `tests/data_collection/pinned_snapshot/`:
 

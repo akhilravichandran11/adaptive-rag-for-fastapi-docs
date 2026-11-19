@@ -5,7 +5,7 @@ ingestion. It remains at `outputs/<run-id>/content_analysis.json`; ingestion
 requires an explicit run ID, currently `20260925_032632`. Every existing output
 stays in place, including the retired guide artifacts in that run.
 
-Stages 2–4, which generated candidate learning guides, are retired under
+Stages 2 to 4, which generated candidate learning guides, are retired under
 `legacy/`. Their source and regression tests remain available. Stage 0 stays
 here to preserve the Stage 1 command and historical workflows; Stage 5's
 evaluation-question generator and the shared modules also stay here.
@@ -48,9 +48,8 @@ The stages call the OpenAI API, which costs money. Set `OPENAI_API_KEY` in
 uv run python data_curation/stage0_run_pipeline.py --limit 5 --only 1
 ```
 
-The following commands preserve the retired guide workflow for reference;
-they are not the current recommended workflow. Generated guides are candidates
-for human review, not verified results.
+These commands run the retired guide workflow and are kept for reference.
+Generated guides are unverified candidates for human review.
 
 ```bash
 # Run stages 1 to 4 in a fresh run directory

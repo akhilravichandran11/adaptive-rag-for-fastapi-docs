@@ -8,9 +8,9 @@ Statuses: Done, In progress, Deferred, Planned.
 
 ## Overview
 
-The system is organized as a linear data pipeline. Each stage reads the previous
-stage's artifacts and writes its own, so stages can be run, re-run, and verified
-independently:
+The system is a linear data pipeline. Each stage reads the previous stage's
+artifacts and writes its own, so each stage can be re-run and checked on its
+own:
 
 ```
 collect  →  normalize  →  curate  →  chunk  →  index  →  retrieve  →  evaluate
@@ -49,7 +49,7 @@ Stage 1's existing analysis remains an ingestion dependency at
 `data_curation/outputs/20260925_032632/content_analysis.json`. A revised
 curation approach is being planned; the guide-generation workflow is retired.
 
-All four stages remain executable from the existing orchestrator. Stages 2–4
+All four stages remain executable from the existing orchestrator. Stages 2 to 4
 now live under `data_curation/legacy/`:
 
 - Stage 1, content quality analysis: scores every document across quality
@@ -74,7 +74,7 @@ now live under `data_curation/legacy/`:
   and writing fixed artifact names under `outputs/<run_id>/`.
 - Orchestrator with fail-fast execution, single-stage (`--only`) and resume
   (`--resume`) modes, and a document limit for small paid Stage 1 runs. The
-  Stage 1-only command is unchanged; Stages 2–4 dispatch to `data_curation/legacy/`
+  Stage 1-only command is unchanged; Stages 2 to 4 dispatch to `data_curation/legacy/`
   for the retired workflow. Existing outputs stay under `data_curation/outputs/`.
 
 ## 5. Chunking: Done
@@ -125,7 +125,7 @@ chunk viewer are planned for December.
 
 ## Engineering practices
 
-- LLM outputs are parsed into Pydantic schemas, not free text.
+- LLM outputs are parsed into Pydantic schemas.
 - API-bound stages run with bounded concurrency.
 - Document content is delimited and treated as untrusted data, and suspicious
   content is quarantined from curated output, to defend against prompt

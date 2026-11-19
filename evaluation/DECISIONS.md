@@ -37,12 +37,7 @@ the harness grows; the newest sit at the top.
 
 ## 2026-11-14 — Model probe: each answering attempt records the version the alias pointed to
 
-**Decision.** Answers come from the model named by `GEMINI_MODEL`, an alias such as `gemini-pro-latest` that Google may point at a newer model at any time.
-- **The call:** at the start of each attempt that answers, `generate_results.py` makes one short call of its own with that alias and reads the response's `model_version`.
-- **What it records:** it appends `{at, model_version}` to `run_meta.json`'s `model_versions`, with `null` when the response names no version.
-- **When it warns:** when a resume gets a different version from the run's last attempt.
-- **When it stops:** if the call fails, the attempt stops with exit 1, before its run folder is made and before any question is asked.
-- **When it is skipped:** a retrieve-only run, and an attempt with nothing left to ask, make no call.
+**Decision.** Answers come from the model named by `GEMINI_MODEL`, an alias such as `gemini-pro-latest` that Google may point at a newer model at any time. At the start of each attempt that answers, `generate_results.py` makes one short call of its own with that alias, reads the response's `model_version`, and appends `{at, model_version}` to `run_meta.json`'s `model_versions`, with `null` when the response names no version. It warns when a resume gets a different version from the run's last attempt. If the call fails, the attempt stops with exit 1, before its run folder is made and before any question is asked. A retrieve-only run, and an attempt with nothing left to ask, make no call.
 
 **Why a call of its own.** The answer pipeline's generator reports only the alias, so recording a version per answer would mean replacing that generator. One extra call costs under a cent. It lets a reader line this run up against the model versions recorded by the project's CRAG pipeline (`crag/llm.py`).
 
@@ -169,8 +164,8 @@ syn-16, whose page does not say how to set environment variables, takes the
 page's second question from the corpus analysis, with an answer written from the
 page. The limit: the corpus analysis wrote these questions while
 reading the page, so they tend to reuse its wording and may make retrieval look
-easier than it is for a real user. That is why the two sets are reported apart,
-never pooled. The echo also favours keyword search: about nine in ten of a
+easier than it is for a real user. That is why the two sets are reported apart.
+The echo also favours keyword search: about nine in ten of a
 synthetic question's content words appear in its gold page, against about three
 in four for the handwritten ten, so a gap between hybrid and dense retrieval on
 this set is checked against the handwritten set. A second limit: the four

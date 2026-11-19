@@ -7,18 +7,17 @@ that come back. When they miss the question, or cover only part of it, the
 pipeline searches the web with Tavily, and Gemini writes the answer with
 numbered sources. You can ask it from the command line, over HTTP
 (`POST /query`), or on a web page served by the same FastAPI app. Its retrieval
-is evaluated: the table below scores dense against hybrid retrieval on 50
-questions.
+is evaluated on 50 questions, dense against hybrid.
 
 **Status:** evaluation v1 is done (two runs, one comparison). The LLM answer
 judge and a chunk viewer are planned for December. See [ROADMAP.md](ROADMAP.md).
 
 ## Retrieval results
 
-This compares dense with hybrid retrieval of the top 10 chunks from
-`fastapi_docs__markdown_ast__voyage`, the collection CRAG searches. Both runs
-use the same 50 questions (10 handwritten, 40 synthetic), and only the
-retrieval method changes. Dense is Qdrant vector search alone, in systems named
+Both runs retrieve the top 10 chunks from
+`fastapi_docs__markdown_ast__voyage`, the collection CRAG searches, for the same
+50 questions (10 handwritten, 40 synthetic). Only the retrieval method changes.
+Dense is Qdrant vector search alone, in systems named
 `baseline__…`. Hybrid runs BM25 and vector search, takes 50 candidates from
 each, fuses them by reciprocal rank fusion and reranks them with `rerank-2.5`.
 
@@ -227,7 +226,7 @@ before indexing. These promotion steps are not performed by the commands above.
 
 Ingestion reads the explicitly selected run's Stage 1 analysis at
 `data_curation/outputs/<run_id>/content_analysis.json`; the existing run
-`20260925_032632` remains in place. Guide generation (Stages 2–4) is retired under
+`20260925_032632` remains in place. Guide generation (Stages 2 to 4) is retired under
 `data_curation/legacy/`. See [the curation README](data_curation/README.md).
 
 ```bash

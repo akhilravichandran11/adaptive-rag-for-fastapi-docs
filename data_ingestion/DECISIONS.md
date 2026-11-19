@@ -1,8 +1,8 @@
 # Ingestion decisions
 
 Why the ingestion side of this project is built the way it is. Each entry records
-what was decided, what else was considered, and what it costs. Entries are added as
-the pipeline grows; the newest sit at the top.
+what was decided, what else was considered, and what it costs. The newest entries
+sit at the top.
 
 ---
 
@@ -211,7 +211,7 @@ so on):
 
 - `bucket` (keyword): filter retrieval by section of the docs, such as tutorial,
   advanced or deployment.
-- `quality_score` (float): range filters on the curation step's quality score (0–10),
+- `quality_score` (float): range filters on the curation step's quality score (0 to 10),
   such as 7 or more. It only filters; it never keeps a document out of the index.
 - `source_path` (keyword): pull one document's chunks, and match retrieved chunks to
   the source files an evaluation question expects.
@@ -280,7 +280,7 @@ lines stripped, punctuation removed, a long unbroken run injected, documents glu
 together). Only `semantic` breaks its declared size today: Haystack treats its lengths
 as targets, so it returns chunks of over 15,000 characters. `sentence` keeps its six
 sentences, but a fenced code block counts as one sentence, so its chunks can reach
-15,000 characters too. Both are measured, not oversights.
+15,000 characters too. Both are known and measured.
 
 The first report, on the 2026-10-05 build of the normalized `github-docs/v1` corpus
 (124 documents, `manifest.json` sha256 `898fc5bf…`, Haystack 3.2.0), found the five
@@ -348,12 +348,12 @@ model. The model file itself is deleted by hand.
 ## 2026-10-04 — BGE-large runs on OpenRouter, not on the laptop
 
 **Decision.** BGE-large (`BAAI/bge-large-en-v1.5`, 1024 dimensions, 512-token input)
-stays in the study for both of its jobs — the semantic chunker's boundary model and
-the embedder behind the `*__bge` collections — but it now runs on OpenRouter
+stays in the study for both of its jobs (the semantic chunker's boundary model and
+the embedder behind the `*__bge` collections), but it now runs on OpenRouter
 (`baai/bge-large-en-v1.5`, OpenAI-compatible embeddings endpoint) instead of locally
 through fastembed. Only its tokenizer file stays on the laptop.
 
-**Why.** Time. The first full-corpus semantic run took 106 minutes on a MacBook Air
+**Why.** Time: the first full-corpus semantic run took 106 minutes on a MacBook Air
 with BGE-large on the CPU, with other applications closed to let it finish, and
 embedding every strategy's chunks for the `*__bge` collections would take hours more
 on the same machine. A study that is re-run whenever the corpus or a setting changes
@@ -391,7 +391,7 @@ a single hosting provider means an outage stops embedding until it is back. The
 (2048 dimensions, 32k-token input) as the primary embedder, and once with
 `BAAI/bge-large-en-v1.5` (1024 dimensions, 512-token input), run locally through
 fastembed. Every chunking strategy is indexed with both, so retrieval quality can be
-compared per strategy **and** per embedder.
+compared both per strategy and per embedder.
 
 **Why keep a second embedder at all.** A chunking comparison with one embedder
 cannot tell "this strategy is better" apart from "this strategy happens to suit this
@@ -420,10 +420,9 @@ documents; see the 2026-10-08 entry):
 The largest `naive_large` chunk loses about four-fifths of its tokens. Voyage, with
 more than 60× the input budget, reads those same chunks whole.
 
-That contrast is the point: "big chunks lose their tails on a small-context
-embedder" is a finding worth reporting, and designing it away would hide it. The
-indexing report records, per variant, how many chunks exceeded the limit and by how
-much, so the effect is measured rather than assumed.
+"Big chunks lose their tails on a small-context embedder" is a finding worth
+reporting, and designing it away would hide it. The indexing report records, per
+variant, how many chunks exceeded the limit and by how much.
 
 *Corrected 2026-10-08.* This entry first gave estimates (69% of `naive_medium` and
 70% of `naive_large` chunks over BGE's input limit, with `naive_small` and `recursive`
@@ -497,7 +496,7 @@ leaves the pipeline's inputs outside the project. Fetching it up front with
 `--check` reports what is present without downloading, and the pipeline only ever
 reads from that folder.
 
-There is a second, sharper reason. Recent NLTK versions refuse to read or write data
+The stronger reason is that recent NLTK versions refuse to read or write data
 outside the folders on their search path, so the project cache must be registered
 before use (`data_ingestion/model_cache.py::register_nltk_data_dir`). Without that
 step the cached copy is ignored *and* rejected, and the library falls back to

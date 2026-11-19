@@ -84,7 +84,7 @@ wording than Claude; then `.cursor/` wins and you own the twin.
 
 ### Could
 - Cursor `/` commands that alias `next`, `catch-up`, `commit-planning` if slash UX is nicer than skill auto-load
-- Mirror this README pointer into the GitLab workbench plan (process remote)
+- Mirror this README pointer into the scratch workbench plan
 
 ### Won't
 - Triple-maintain every skill under `.cursor`, `.claude`, and `.agents`

@@ -79,10 +79,14 @@ now live under `data_curation/legacy/`:
 
 ## 5. Chunking: Done
 
-- Seven strategies compared on the same corpus: three fixed-size word sweeps
+- Nine strategies compared on the same corpus: three fixed-size word sweeps
   (`naive_small`, `naive_medium`, `naive_large`), `sentence`, `recursive`,
-  `semantic` (embedding-based, paid), and `markdown_ast` (heading-aware
-  Markdown with Python AST splitting for code).
+  `semantic` (embedding-based, paid), `markdown_ast` (heading-aware
+  Markdown with Python AST splitting for code), and two simpler heading-based
+  strategies added on 2026-11-16: `markdown_sections` and `markdown_headers`
+  (Haystack's header splitter with settings only). Whether `markdown_ast` or
+  `markdown_sections` stays is decided from the recall and MRR of all 18
+  collections.
 - Every chunk carries the same metadata fields whatever strategy produced it,
   including its source path and position in the parent document.
 - Chunk runs are saved with the corpus build they came from, so indexing can

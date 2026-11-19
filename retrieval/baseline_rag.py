@@ -1,8 +1,8 @@
 """
-Ask one indexed variant a question, by dense or hybrid retrieval. Step 6 imports
-``build_rag_pipeline`` and ``ask``, so one question from the command line and the study's
-run query a variant the same way (C011). Embedding the question, reranking it (hybrid)
-and answering it are PAID calls; see ``--help``.
+Ask one indexed variant a question, by dense or hybrid retrieval. Other modules import
+``build_rag_pipeline`` and ``ask`` (C011), so the command line and the results run query a
+variant the same way. Embedding the question, reranking it (hybrid) and answering it are
+PAID calls; see ``--help``.
 """
 
 import argparse
@@ -65,6 +65,28 @@ USER_TEMPLATE = """Documentation excerpts:
 Question: {{ question }}"""
 
 
+def _build_dense_pipeline(variant: Variant, *, prefix: str, top_k: int) -> Pipeline:
+    settings = load_settings(
+        collection_override=variant.collection(prefix),
+        dimension_override=variant.embedder.dimension,
+    )
+    # The Haystack store creates a missing collection when it first connects, so a
+    # mistyped prefix would otherwise search a new, empty collection.
+    if not collection_exists(settings):
+        raise ValueError(
+            f"Collection {settings.collection} does not exist; index it with stage 3 first"
+        )
+
+    pipeline = Pipeline(metadata={"collection": settings.collection, "top_k": top_k})
+    pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
+    pipeline.add_component(
+        "retriever",
+        QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=top_k),
+    )
+    pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
+    return pipeline
+
+
 def build_rag_pipeline(
     variant: Variant,
     *,
@@ -73,11 +95,10 @@ def build_rag_pipeline(
     retrieve_only: bool = False,
     retrieval: str = "dense",
 ) -> Pipeline:
-    """Build the pipeline that asks ``variant``'s collection a question by ``retrieval``.
+    """Build ``variant``'s dense or hybrid pipeline; makes one free Qdrant call, no paid one.
 
-    Makes one free Qdrant call and no paid one; ``hybrid`` also loads a saved chunk run for
-    BM25. Raises ``ValueError`` naming a missing collection, chunk file or config, or an
-    unknown ``retrieval``.
+    ``hybrid`` also loads a saved chunk run for BM25. Raises ``ValueError`` naming a missing
+    collection, chunk file or config, or an unknown ``retrieval``.
     """
     if retrieval not in RETRIEVALS:
         raise ValueError(
@@ -87,24 +108,7 @@ def build_rag_pipeline(
         pipeline = build_hybrid_pipeline(variant, prefix=prefix, top_k=top_k)
         documents = "ranker.documents"
     else:
-        settings = load_settings(
-            collection_override=variant.collection(prefix),
-            dimension_override=variant.embedder.dimension,
-        )
-        # The Haystack store creates a missing collection when it first connects, so a
-        # mistyped prefix would otherwise search a new, empty collection.
-        if not collection_exists(settings):
-            raise ValueError(
-                f"Collection {settings.collection} does not exist; index it with stage 3 first"
-            )
-
-        pipeline = Pipeline(metadata={"collection": settings.collection, "top_k": top_k})
-        pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
-        pipeline.add_component(
-            "retriever",
-            QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=top_k),
-        )
-        pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
+        pipeline = _build_dense_pipeline(variant, prefix=prefix, top_k=top_k)
         documents = "retriever.documents"
     if retrieve_only:
         return pipeline

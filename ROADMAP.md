@@ -108,11 +108,20 @@ now live under `data_curation/legacy/`:
 - Corrective/adaptive RAG control flow (relevance grading, query rewriting,
   fallback strategies).
 
-## 8. Evaluation: In progress
+## 8. Evaluation: Done (v1)
 
-- Build a question and answer set over the corpus to evaluate retrieval and
-  answers.
-- Track quality metrics across pipeline changes.
+Evaluation v1 is done: two runs and one comparison. The LLM answer judge and a
+chunk viewer are planned for December.
+
+- Question sets (done): 10 handwritten and 40 synthetic questions, each naming
+  the pages that answer it (`evaluation/questions/`).
+- Retrieval scoring (done): recall@1, @3, @5 and @10 and MRR at page level,
+  computed from saved results files with no API call
+  (`evaluation/retrieval_metrics.py`).
+- Dense vs hybrid retrieval (done): two runs on `markdown_ast` × Voyage,
+  compared in
+  [`evaluation/results/dense-vs-hybrid.md`](evaluation/results/dense-vs-hybrid.md).
+- LLM answer judge and chunk viewer (planned, December).
 
 ## Engineering practices
 

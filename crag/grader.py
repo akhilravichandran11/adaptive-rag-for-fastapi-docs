@@ -1,7 +1,7 @@
 """
 Grade the retrieved chunks for one question: which hold a passage a correct answer would use,
 then whether those chunks cover every aspect of the question (D7). Errors from ``llm.ask``
-propagate; ``StructuredLLM`` already retries and falls back (plan fix 3).
+propagate; ``StructuredLLM`` already retries and falls back (D5).
 """
 
 import logging

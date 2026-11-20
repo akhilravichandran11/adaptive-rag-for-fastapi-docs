@@ -53,8 +53,6 @@ class Decomposition(BaseModel):
 
 
 def format_passages(documents: list[Document]) -> str:
-    if not documents:
-        return "(none)"
     return "\n\n".join(f"[{doc.meta['source_path']}]\n{doc.content}" for doc in documents)
 
 

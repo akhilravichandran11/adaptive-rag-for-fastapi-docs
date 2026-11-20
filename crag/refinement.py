@@ -156,7 +156,7 @@ class KnowledgeRefinement:
         )
         reply, model = self.llm.ask(prompt, PageExtraction)
         extracts = [extract for extract in reply.extracts if extract.verbatim_passage.strip()]
-        if not (reply.document_useful and extracts):
+        if not reply.document_useful or not extracts:
             return None, model
         content = "\n\n".join(
             f"[Extract {i}] Addresses: {', '.join(extract.aspects_addressed)}\n"

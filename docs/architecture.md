@@ -44,3 +44,8 @@ On the correct route, the generator receives the relevant chunks directly. On th
 ambiguous route, refinement keeps those chunks and adds evidence from the new
 searches. If initial retrieval is empty or a route yields no context, the
 orchestrator returns a fixed answer with empty sources and skips generation.
+
+Known limitation: nothing checks yet whether a question is about FastAPI. A
+question unrelated to it, such as "how does rockets work", finds no relevant
+chunk, takes the incorrect route and is answered from web pages. A check that
+declines such questions is planned.

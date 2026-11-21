@@ -8,6 +8,10 @@ description: Coordinate a user-requested batch of approved repository tickets in
 Lead the named tickets using the repository tracker as the shared task list.
 This is a Codex workflow, independent of Claude's commands and Agent Teams.
 
+In a cloud session, the cloud column of the table in
+`docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
+review-skill, views, relay and close rules.
+
 ## Responsibilities and authority
 
 - The user approves scope changes, tracker transitions, and durable progress

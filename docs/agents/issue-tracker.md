@@ -351,8 +351,9 @@ within one ticket's scope and request user approval before expanding it. Mark th
    are worth a lead at that size. A smaller ticket, a paid or live run, or
    sequential same-file work runs in a single supervised chat launched with
    `/implement` (Codex: `$implement`), and that chat ends with a handback
-   (see the override below). Name the path and the reason in the ticket's
-   first Progress line. Write tests with `tdd`, only at the ticket's `Seams`.
+   (see the override below). A ticket with a paid or live step never runs in
+   a cloud session. Name the path and the reason in the ticket's first
+   Progress line. Write tests with `tdd`, only at the ticket's `Seams`.
 8. Review the change. This step is the one rule for every path: a single
    `/implement` chat, a `/batch-lead` implementer, and Codex. Tickets point
    here instead of listing reviews.

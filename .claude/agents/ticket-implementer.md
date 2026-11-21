@@ -33,7 +33,7 @@ You start with no memory of the conversation that spawned you. The spawn prompt 
 
 ## Do not
 
-- Commit, push, branch, stash, or rebase. The lead commits.
+- Stage, commit, push, branch, stash, or rebase. The lead proposes the `git add` line and the commit message; only the user stages and commits. In a cloud session the table in `docs/agents/cloud-sessions.md` says who commits.
 - Edit `.scratch/` (tickets, `NOW.md`, `INBOX.md`), `docs/conventions.md`, any `DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`, or `.github/`. Draft what should change there in the report instead.
 - Run `scripts/chunk_size_report.py --include-semantic`, the semantic chunker, or anything that calls Voyage, Gemini, OpenAI or OpenRouter.
 - Weaken, skip or delete an existing assertion to make a test pass.

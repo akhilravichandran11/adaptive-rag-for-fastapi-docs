@@ -7,6 +7,10 @@ ticket files are the task list; `ticket-implementer` subagents do the work; you
 review, stage, and report. I commit. Follow this order. Do not skip a numbered
 step.
 
+In a cloud session, the cloud column of the table in
+`docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
+review-skill, views, relay and close rules.
+
 ## 1. Pre-flight (before any spawn)
 
 - Read each ticket named in my prompt. For every one, check `Status`,

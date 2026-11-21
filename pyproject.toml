@@ -19,6 +19,7 @@ dependencies = [
     "nltk>=3.9.2",
     "huggingface-hub>=1.16.1",
     "tokenizers>=0.22.2",
+    "tiktoken==0.13.0",
     "qdrant-client>=1.19.0",
     "voyage-embedders-haystack>=1.8.0",
     "ragas>=0.4.3",

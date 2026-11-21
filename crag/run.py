@@ -169,22 +169,17 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.retriever == "hybrid":
             pipeline = hybrid.build_hybrid_pipeline(variant)
-
-            def retrieve(query: str, top_k: int) -> list[Document]:
-                return hybrid.retrieve(pipeline, query, top_k)
-
         else:
             pipeline = build_rag_pipeline(variant, retrieve_only=True)
-
-            def retrieve(query: str, top_k: int) -> list[Document]:
-                outputs = pipeline.run(
-                    {"query_embedder": {"text": query}, "retriever": {"top_k": top_k}}
-                )
-                return outputs["retriever"]["documents"]
-
     except ValueError as exc:  # a missing collection or chunk run, or missing Qdrant config
         logger.error("%s", exc)
         raise SystemExit(1) from None
+
+    def retrieve(query: str, top_k: int) -> list[Document]:
+        if args.retriever == "hybrid":
+            return hybrid.retrieve(pipeline, query, top_k)
+        outputs = pipeline.run({"query_embedder": {"text": query}, "retriever": {"top_k": top_k}})
+        return outputs["retriever"]["documents"]
 
     client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
     pro = StructuredLLM(client, primary=os.environ["GEMINI_MODEL"], fallback=pro_fallback)

@@ -46,6 +46,7 @@ set yet.
 | [C011](#c011-a-module-may-carry-a-guarded-command-line-and-still-be-imported-by-a-stage) | A module may carry a guarded command line and still be imported by a stage | PRT-11 | accepted |
 | [C012](#c012-crag-adapters-are-required-constructor-arguments-the-caller-builds-them-once-at-startup) | CRAG adapters are required constructor arguments; the caller builds them once at startup | CRG-07 | accepted |
 | [C013](#c013-a-run-of-hundreds-of-paid-calls-writes-its-settings-first-and-may-be-resumed-into-its-own-folder) | A run of hundreds of paid calls writes its settings first and may be resumed into its own folder | PRT-17 | accepted |
+| [C014](#c014-one-run-bound-callback-records-completed-provider-calls) | One run-bound callback records completed provider calls | OBS-01 | accepted |
 
 ---
 
@@ -517,3 +518,19 @@ components (rejected by D8 and D9).
 - No resume: pays again for a killed run.
 - Resuming into a new folder that reads the old one: two files to score as one run.
 - Writing settings last, as C009 does: a killed run would leave nothing to resume from.
+
+---
+
+## C014: One run-bound callback records completed provider calls
+
+**Status:** accepted · **Introduced:** 2026-11-22, OBS-01 · **Where:** `observability/costs.py` (`create_recorder`)
+
+**The convention, stated.** A CLI creates one fresh cost directory before dispatch and receives `record` and `finish` callbacks. Providers call `record` once per completed observable SDK response or error, before parsing business output. The CLI calls `finish(run_failed=...)` in its `finally` path after its workers have joined. One lock serializes each append and flush; accounting I/O errors propagate without provider retries. Records contain only provider/operation/model/outcome, selected numeric usage, estimated USD and a fixed unknown-cost reason.
+
+**Why.** Completed-call records preserve paid work across later failures, while null USD distinguishes missing accounting from measured zero.
+
+**What it replaces.** No existing cross-provider cost recorder; per-call usage was discarded.
+
+**Blast radius.** `observability/costs.py`, its tests, and the later Voyage/CRAG integrations in OBS-02/03. Those integrations remain pending.
+
+**Alternatives.** Recorder class, global active run, ContextVar, registry and exporter interface; each adds machinery unnecessary for one CLI run. A total measured only after pipeline success loses earlier calls on failure.

@@ -93,6 +93,52 @@ For example, if the answer cites `[2]`, find the entry with `rank` equal to `2`
 in the `sources` array. Its `source` field identifies the documentation path or
 web URL, and its `content` field contains the second excerpt the generator saw.
 
+## Cost records (CLI integrations pending)
+
+OBS-01 supplies the local recorder. The following commands are planned for OBS-02
+(retrieval) and OBS-03 (CRAG); **`--costs-dir` is not available yet**:
+
+```bash
+uv run python retrieval/hybrid.py --question "How do I add CORS middleware?" --costs-dir /tmp/retrieval-costs
+uv run python crag/run.py --question "How do I add CORS middleware?" --costs-dir /tmp/crag-costs
+```
+
+Each path must name a new directory. `calls.jsonl` holds one flushed row per
+completed observable SDK call: provider, operation, model, outcome, selected numeric
+usage, estimated USD and a reason when USD is null. `summary.json` totals known USD
+and unknown-cost counts by provider and overall, flags a failed run, and gives the
+price date, basis and sources. Zero is measured zero; null is unknown. Neither a
+failed run nor a partly priced run establishes a complete bill.
+
+Prices are standard text-request estimates for `voyage-4-lite`, `rerank-2.5`,
+`gemini-3.1-pro-preview` (up to 200,000 prompt tokens), `gemini-3.8-flash` and
+`gemini-3.5-flash-lite`. Gemini aliases require a supported resolved model; missing
+usage, other models, modalities and tiers stay unpriced. Flash 3.8 promotional rates
+expire after 2026-12-31 and then stay unpriced until refreshed. Cached prompt tokens
+are subtracted from ordinary input; candidate and thinking tokens are separate
+output counts. Tavily credits use the labelled $0.008/credit PAYG reference, not
+this account's invoice. Free allowances, discounts and cache storage are excluded.
+
+The integration contract is `record, finish = create_recorder(directory)` from
+`observability.costs`. Call `record` with keyword arguments `provider` (`voyage`,
+`gemini`, `tavily`), `operation` (`embedding`, `rerank`, `generation`, `search`),
+`model` (null for Tavily), `outcome` (`response` or `error`) and `usage` (a selected
+numeric dictionary, or null). Voyage supplies `total_tokens`; Tavily supplies
+`credits`; Gemini supplies `prompt_token_count`, `candidates_token_count` and any
+reported `cached_content_token_count`, `thoughts_token_count`, `total_token_count`
+or `tool_use_prompt_token_count`. Omit absent optional fields. `service_tier` and
+`modality` default to `standard` and `text`; pass other values when applicable so
+they cannot receive a text/standard price. After workers join, call
+`finish(run_failed=...)` in `finally`. A callback error or summary failure raises;
+an append/flush failure prevents a misleading successful summary.
+
+No prompts, answers, document content or exception text belong in these records.
+Hidden SDK retries and calls interrupted before a response may be missing; a killed
+process may leave only partial JSONL without a summary. There is no recovery or
+invoice reconciliation. Recording is planned only for single-question Voyage hybrid
+CLI runs; HTTP, dense/BGE modes, route-check batches and Opik export remain outside
+this scope. Commands without recording retain their existing behavior.
+
 ## Server and web page
 
 ```bash

@@ -124,7 +124,7 @@ for every path. After the worker's checks pass, spawn the
 active-code-simplifier with the ticket path, the starting commit and the
 changed production Python files only (never tests; without an explicit scope
 it falls back to checkout-wide changes), and wait for its handback before
-reviewing the resulting files. Skip it for a fix round under about 50 lines.
+reviewing the resulting files. It runs once, on the first build; a fix round does not get it again.
 Report its Split list (each new step and its one-line job) to the user
 verbatim; step names are a design call. Then apply step 8's tier by this
 ticket's Python diff size, including its exceptions: a docs-only ticket gets

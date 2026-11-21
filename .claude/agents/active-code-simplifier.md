@@ -133,7 +133,7 @@ ternary, a merged `with`) is flagged, not applied.
 
 ## Verify every change
 
-Before each change, copy the file to `/tmp/` (`cp <file> /tmp/<name>.bak`).
+Before each change, copy the file into a fresh temporary folder (`d=$(mktemp -d)`, then `cp <file> $d/<name>.bak`), and remove that folder once the file's checks pass.
 After each change:
 1. Run `uv run ruff check <file>`.
 2. Run the tests that import the file (`grep -rln <module> tests/`).

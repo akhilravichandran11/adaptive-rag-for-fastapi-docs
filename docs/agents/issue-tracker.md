@@ -157,7 +157,9 @@ commit holds the change, or `Reviewed working tree based on <sha>, recorded
 <date>` when the table is written before the commit; the lead replaces the
 second form with the first on the "committed" yes. A fix round or a later
 batch adds its rows under a dated `### <date> fix round` subheading rather
-than editing earlier rows. It is added with the Progress line, on the same
+than editing earlier rows. `Where` names a function or a heading; add a
+line number only to the newest rows, because earlier lines move with each
+fix round. It is added with the Progress line, on the same
 yes. The table is the complete record and stays private with the ticket; the
 rows a code pointer cites also go to the package's `DECISIONS.md`, as the
 next paragraph says.
@@ -355,8 +357,8 @@ within one ticket's scope and request user approval before expanding it. Mark th
    `/implement` chat, a `/batch-lead` implementer, and Codex. Tickets point
    here instead of listing reviews.
    - If Python changed, run `active-code-simplifier` on the changed files
-     with the starting commit, before any review. Skip it for a fix round
-     under about 50 lines.
+     with the starting commit, before any review. It runs once, on the
+     first build; a fix round does not get it again.
    - Then by the size of the Python diff: under about 50 lines, read the diff
      yourself against the ticket and the standards sources, then run the
      `active-code-reviewer` agent; under about 200, run `code-review` with
@@ -365,8 +367,10 @@ within one ticket's scope and request user approval before expanding it. Mark th
      docs do not count toward the size; a docs-only ticket gets no reviews.
    - A fix round that changes behaviour or an interface gets
      `active-code-reviewer` again plus your own read; a rename-only or
-     comment-only round gets your read alone. The Progress line names the
-     tier that ran.
+     comment-only round gets your read alone. On a re-review, a finding
+     that needs an input no ticket, board or caller produces today becomes a
+     follow-up finding by default; only a false write or a false record
+     reopens the code. The Progress line names the tier that ran.
    Verify the acceptance criteria, record any convention the work introduced
    in `docs/conventions.md`, update the status, then select the next
    unblocked ticket. Closing a ticket includes its dependents: once it is

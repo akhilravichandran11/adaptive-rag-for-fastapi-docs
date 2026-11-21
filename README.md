@@ -1,7 +1,9 @@
 # Adaptive RAG for FastAPI Docs
 
 A corrective RAG (CRAG) system that answers questions about the FastAPI
-documentation. Each question goes through hybrid retrieval: BM25 and dense
+documentation. The design follows Yan et al., *Corrective Retrieval Augmented
+Generation* (2024, [arXiv:2401.15884](https://arxiv.org/abs/2401.15884)).
+Each question goes through hybrid retrieval: BM25 and dense
 search over Qdrant, fused and then reranked by Voyage. Gemini grades the chunks
 that come back. When they miss the question, or cover only part of it, the
 pipeline searches the web with Tavily, and Gemini writes the answer with
@@ -297,13 +299,11 @@ review the test code line by line.
 Third-party sources for the agent workflow (skills and agents it builds on) are
 listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-**Who built it.** I built this project. The corrective-RAG design and some
-early pipeline stages began as exercises in NeoSage's
-[Engineer's AI Accelerator](https://neosage.io/accelerator/) and were rewritten
-here; the design follows the CRAG paper: Yan et al., *Corrective Retrieval
-Augmented Generation*, 2024 ([arXiv:2401.15884](https://arxiv.org/abs/2401.15884)).
-The coding agents named above drafted most of the code from tickets I approved;
-I ran it, reviewed it and am responsible for it.
+**Who built it.** I built this project: I set the design, wrote the tickets,
+ran and reviewed every change, and own the result. OpenAI Codex and Claude Code
+drafted most of the code from those tickets. The corrective-RAG design and some
+early pipeline stages began as exercises in NeoSage Academy's Engineer's AI
+Accelerator and were rewritten here.
 
 ## License
 

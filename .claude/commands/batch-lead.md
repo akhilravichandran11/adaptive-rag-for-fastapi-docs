@@ -13,7 +13,10 @@ step.
   `Blocked by`, and `Touches`.
 - Stale state is common: a blocker that is `done` still listed, a ticket still
   `blocked` after its blocker closed. Show me the fixes (status, blocker list,
-  owner) and apply them only after I say yes. Same for setting `in-progress`.
+  owner) and apply them only after I say yes. Same for setting `in-progress`:
+  run `python3 .scratch/ticket.py claim <ID> --owner "claude, <chat>"`, show
+  me its output, and rerun it with `--write` on my yes, before the spawn, so
+  the files' starting state is saved before the implementer edits them.
 - Refuse to run two tickets that touch the same file. Check the other boards
   too (`code-simplification` overlaps ingestion files); flag an overlap to me.
 - A ticket with a paid or live step (an evaluation, a route check, a live
@@ -61,6 +64,11 @@ step.
   `tests/` by its own rules even when a prompt names a test file.
   Its Split list (each new step and its job) comes to me verbatim with the
   ticket's report; step names are a design call.
+- Once the simplifier is done, run `python3 .scratch/ticket.py packet <ID>`
+  and paste its output into the prompt of every reviewer that runs
+  (`code-review`, `active-code-reviewer`): a reviewer that did not write the
+  code needs the contract, the edits that were there before the ticket, and
+  the change.
 - Run `code-review` with the handback's `Start` sha as the fixed point.
   Nothing is committed, so its default `<Start>...HEAD` diff is empty: tell
   it to review `git diff <Start>` and to read every untracked file in full.
@@ -127,11 +135,16 @@ step.
   tracker doc sets (columns, the anchor line, dated fix-round subheadings).
   Record edits that touch more than one file or add one go through the
   proposal page first (tracker doc, "Record edits go on a proposal page"):
-  page approval, then my yes in chat.
+  page approval, then my yes in chat. A claim or close made with
+  `ticket.py` is the exception: its output without `--write` and my yes in
+  chat are enough.
   On the same yes, write the implementer's drafted `DECISIONS.md entries`
-  into the package file. On my "committed" yes, set the status line to
-  `done (YYYY-MM-DD; committed in <sha>)` and swap a working-tree anchor for
-  `Line numbers as of <sha>`.
+  into the package file. On my "committed" yes, run
+  `python3 .scratch/ticket.py close <ID> --sha <sha>`, show me its output,
+  and rerun it with `--write` on my yes: it sets the status line to
+  `done (YYYY-MM-DD; committed in <sha>)`, swaps a working-tree anchor for
+  `Line numbers as of <sha>`, moves the board row and lists the tickets the
+  next bullet updates.
 - After I confirm a ticket is `done` and committed, update every ticket whose
   `Blocked by` names it (drop the entry; `ready-for-agent` when nothing
   remains), with my yes. Then regenerate the views: `python3 .scratch/now.py`.

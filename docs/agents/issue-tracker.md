@@ -312,6 +312,12 @@ Rule: a session claims a ticket by moving its line to **Doing** with an owner
 criterion is verified. The per-ticket file's `Status:` line and this board must
 agree; if they disagree, the ticket file wins and the board is corrected.
 
+`python3 .scratch/ticket.py` makes the three mechanical record edits: `claim`
+flips a ticket and its board row to in-progress and saves the files' starting
+state; `packet` prints the contract, that starting state and the change for a
+reviewer; `close` writes the done form and lists the tickets it unblocks. It
+refuses when the ticket and the board disagree. Hand edits stay allowed.
+
 Before implementation, read the full ticket and confirm that every blocker is
 `done`. Also check that the ticket's reason still holds given what its blockers
 delivered; if a blocker removed it (a cheaper path now exists, the cost it targeted
@@ -412,7 +418,9 @@ instructions conflict with this repo, this repo wins:
 - **Record edits go on a proposal page.** When edits to findings, plans,
   tickets or boards touch more than one file or add one, show them as a
   proposal page before anything is written; see
-  [`visual-tools.md`](visual-tools.md).
+  [`visual-tools.md`](visual-tools.md). A status flip made by `ticket.py`
+  needs only the yes in chat: show its output without `--write`, then run it
+  with `--write` on the yes.
 - **A ticket's edits are approved by the ticket.** Its `Touches`, Seams and
   acceptance criteria were approved at `to-tickets`, so the per-edit approval
   of `pre-edit-review` and `pre-edit-review-except-tests` is not used inside

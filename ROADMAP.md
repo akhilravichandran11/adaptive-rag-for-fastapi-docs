@@ -104,7 +104,8 @@ now live under `data_curation/legacy/`:
   counts (done).
 - Live end-to-end runs across all 14 pairs completed on 2026-10-15, including
   the successful retry of Voyage's `markdown_ast` collection.
-- Choosing the pairs that go forward to retrieval (in progress).
+- Pair used for retrieval (done): `markdown_ast` × Voyage, the collection CRAG
+  searches. Choosing among all 18 collections is under Chunking, above.
 
 ## 7. Retrieval and adaptive RAG: Done
 

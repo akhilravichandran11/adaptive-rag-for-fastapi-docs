@@ -157,7 +157,9 @@ commit holds the change, or `Reviewed working tree based on <sha>, recorded
 <date>` when the table is written before the commit; the lead replaces the
 second form with the first on the "committed" yes. A fix round or a later
 batch adds its rows under a dated `### <date> fix round` subheading rather
-than editing earlier rows. It is added with the Progress line, on the same
+than editing earlier rows. `Where` names a function or a heading; add a
+line number only to the newest rows, because earlier lines move with each
+fix round. It is added with the Progress line, on the same
 yes. The table is the complete record and stays private with the ticket; the
 rows a code pointer cites also go to the package's `DECISIONS.md`, as the
 next paragraph says.
@@ -312,6 +314,12 @@ Rule: a session claims a ticket by moving its line to **Doing** with an owner
 criterion is verified. The per-ticket file's `Status:` line and this board must
 agree; if they disagree, the ticket file wins and the board is corrected.
 
+`python3 .scratch/ticket.py` makes the three mechanical record edits: `claim`
+flips a ticket and its board row to in-progress and saves the files' starting
+state; `packet` prints the contract, that starting state and the change for a
+reviewer; `close` writes the done form and lists the tickets it unblocks. It
+refuses when the ticket and the board disagree. Hand edits stay allowed.
+
 Before implementation, read the full ticket and confirm that every blocker is
 `done`. Also check that the ticket's reason still holds given what its blockers
 delivered; if a blocker removed it (a cheaper path now exists, the cost it targeted
@@ -343,14 +351,15 @@ within one ticket's scope and request user approval before expanding it. Mark th
    are worth a lead at that size. A smaller ticket, a paid or live run, or
    sequential same-file work runs in a single supervised chat launched with
    `/implement` (Codex: `$implement`), and that chat ends with a handback
-   (see the override below). Name the path and the reason in the ticket's
-   first Progress line. Write tests with `tdd`, only at the ticket's `Seams`.
+   (see the override below). A ticket with a paid or live step never runs in
+   a cloud session. Name the path and the reason in the ticket's first
+   Progress line. Write tests with `tdd`, only at the ticket's `Seams`.
 8. Review the change. This step is the one rule for every path: a single
    `/implement` chat, a `/batch-lead` implementer, and Codex. Tickets point
    here instead of listing reviews.
    - If Python changed, run `active-code-simplifier` on the changed files
-     with the starting commit, before any review. Skip it for a fix round
-     under about 50 lines.
+     with the starting commit, before any review. It runs once, on the
+     first build; a fix round does not get it again.
    - Then by the size of the Python diff: under about 50 lines, read the diff
      yourself against the ticket and the standards sources, then run the
      `active-code-reviewer` agent; under about 200, run `code-review` with
@@ -359,11 +368,26 @@ within one ticket's scope and request user approval before expanding it. Mark th
      docs do not count toward the size; a docs-only ticket gets no reviews.
    - A fix round that changes behaviour or an interface gets
      `active-code-reviewer` again plus your own read; a rename-only or
-     comment-only round gets your read alone. The Progress line names the
-     tier that ran.
+     comment-only round gets your read alone. On a re-review, a finding
+     that needs an input no ticket, board or caller produces today becomes a
+     follow-up finding by default; only a false write or a false record
+     reopens the code. The Progress line names the tier that ran.
    Verify the acceptance criteria, record any convention the work introduced
    in `docs/conventions.md`, update the status, then select the next
-   unblocked ticket. Closing a ticket includes its dependents: once it is
+   unblocked ticket. `uvx pre-commit run --files` reads the files on disk,
+   except the reserved-words hook, which reads the git index: where nothing
+   is staged, it checks the last commit and skips new files. Run that hook
+   through a temporary index instead, which leaves the shared index alone:
+
+   ```bash
+   i=$(mktemp -u)
+   GIT_INDEX_FILE=$i git read-tree HEAD && GIT_INDEX_FILE=$i git add <files>
+   GIT_INDEX_FILE=$i scripts/hooks/block-reserved-words.sh <files>; echo "exit $?"
+   ```
+
+   Before a ticket's Linear issue moves to Done, read the issue's whole
+   description against what the ticket delivered, and ask the user where
+   each item left over goes. Closing a ticket includes its dependents: once it is
    `done` and committed, open every ticket whose **Blocked by** names it,
    remove the entry, and set `ready-for-agent` when nothing remains. A ticket
    left `blocked` on a finished blocker is stale state the next agent will
@@ -412,7 +436,9 @@ instructions conflict with this repo, this repo wins:
 - **Record edits go on a proposal page.** When edits to findings, plans,
   tickets or boards touch more than one file or add one, show them as a
   proposal page before anything is written; see
-  [`visual-tools.md`](visual-tools.md).
+  [`visual-tools.md`](visual-tools.md). A status flip made by `ticket.py`
+  needs only the yes in chat: show its output without `--write`, then run it
+  with `--write` on the yes.
 - **A ticket's edits are approved by the ticket.** Its `Touches`, Seams and
   acceptance criteria were approved at `to-tickets`, so the per-edit approval
   of `pre-edit-review` and `pre-edit-review-except-tests` is not used inside

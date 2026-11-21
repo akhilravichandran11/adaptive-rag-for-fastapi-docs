@@ -217,3 +217,319 @@ class RunMetadata(BaseModel):
         if not isinstance(path, str) or not Path(path).is_absolute():
             raise ValueError("source_manifest_path: must be absolute")
         return value
+
+
+class AnalysisScores(BaseModel):
+    model_config = {"extra": "forbid", "strict": True, "hide_input_in_errors": True}
+
+    information_density: int = Field(ge=1, le=10)
+    practical_value: int = Field(ge=1, le=10)
+    clarity: int = Field(ge=1, le=10)
+    completeness: int = Field(ge=1, le=10)
+    self_contained: int = Field(ge=1, le=10)
+
+
+class DocumentAnalysis(BaseModel):
+    model_config = {"extra": "forbid", "strict": True, "hide_input_in_errors": True}
+
+    scores: AnalysisScores
+    topics: list[str]
+    injection_suspected: bool
+    injection_evidence: str = Field(max_length=200)
+    knowledge_domain: Literal[
+        "core_concepts",
+        "implementation_patterns",
+        "api_and_framework_details",
+        "integration_scenarios",
+        "troubleshooting",
+    ]
+    content_type: Literal["tutorial", "reference", "overview", "specification", "examples"]
+    content_kind: Literal["docs", "code"]
+    code_examples_present: bool
+    one_sentence_summary: str
+    key_concepts: list[str]
+    fastapi_features: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_json(cls, value):
+        _check_json(value, "analysis")
+        return value
+
+
+def _checkpoint_keys(value, names, field):
+    if not isinstance(value, dict) or value.keys() != set(names.split()):
+        raise ValueError(f"checkpoint {field}: missing or unknown fields")
+
+
+def _checkpoint_time(value, nullable=False):
+    if value is None and nullable:
+        return
+    if not isinstance(value, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", value
+    ):
+        raise ValueError("checkpoint: expected UTC timestamp with Z")
+    datetime.fromisoformat(value)
+
+
+def _checkpoint_provenance(value):
+    _checkpoint_keys(
+        value,
+        "text_sha256 original_characters submitted_characters truncated selection transformation",
+        "provenance",
+    )
+    if not isinstance(value["text_sha256"], str) or not re.fullmatch(
+        "[0-9a-f]{64}", value["text_sha256"]
+    ):
+        raise ValueError("checkpoint: invalid supplied-text hash")
+    original, submitted = value["original_characters"], value["submitted_characters"]
+    if (
+        type(original) is not int
+        or type(submitted) is not int
+        or original < 0
+        or submitted < 0
+        or type(value["truncated"]) is not bool
+    ):
+        raise ValueError("checkpoint: invalid supplied-text counts")
+    if value["selection"] == "full":
+        if (
+            value["truncated"]
+            or submitted != original
+            or value["transformation"] != "UTF-8 decoding; no newline normalization"
+        ):
+            raise ValueError("checkpoint: invalid full-text provenance")
+    elif value["selection"] == "prefix":
+        if (
+            not value["truncated"]
+            or not 1 <= submitted - 168 < original
+            or value["transformation"]
+            != "UTF-8 decoding; character-prefix selection; appended pipeline disclosure; no newline normalization"
+        ):
+            raise ValueError("checkpoint: invalid prefix provenance")
+    else:
+        raise ValueError("checkpoint: unsupported supplied-text selection")
+
+
+def _checkpoint_attempt(attempt, number):
+    _checkpoint_keys(
+        attempt, "attempt state reserved_at finished_at response_model error", "attempt"
+    )
+    if type(attempt["attempt"]) is not int or attempt["attempt"] != number:
+        raise ValueError("checkpoint: attempts must be sequential")
+    state = attempt["state"]
+    if state not in ("reserved", "interrupted", "succeeded", "failed"):
+        raise ValueError("checkpoint: unknown attempt state")
+    _checkpoint_time(attempt["reserved_at"])
+    _checkpoint_time(attempt["finished_at"], nullable=state in ("reserved", "interrupted"))
+    if state in ("reserved", "interrupted") and any(
+        attempt[key] is not None for key in ("finished_at", "response_model", "error")
+    ):
+        raise ValueError("checkpoint: unresolved attempt cannot have response evidence")
+    if attempt["response_model"] is not None and (
+        not isinstance(attempt["response_model"], str) or not attempt["response_model"]
+    ):
+        raise ValueError("checkpoint: invalid returned model")
+    if state == "failed":
+        _checkpoint_keys(attempt["error"], "code message", "attempt error")
+        if any(
+            not isinstance(attempt["error"][key], str) or not attempt["error"][key]
+            for key in ("code", "message")
+        ):
+            raise ValueError("checkpoint: invalid attempt error")
+    elif attempt["error"] is not None:
+        raise ValueError("checkpoint: unexpected attempt error")
+
+    if state == "failed" and (
+        attempt["error"]["code"] not in ERROR_MESSAGES
+        or attempt["error"]["code"] == "interrupted_attempts_exhausted"
+        or attempt["error"]["message"] != ERROR_MESSAGES[attempt["error"]["code"]]
+    ):
+        raise ValueError("checkpoint: unsupported or unsanitized attempt error")
+    if attempt["finished_at"] is not None and datetime.fromisoformat(
+        attempt["finished_at"]
+    ) < datetime.fromisoformat(attempt["reserved_at"]):
+        raise ValueError("checkpoint: attempt finishes before reservation")
+
+
+def _checkpoint_failure(cycle, attempts, last):
+    _checkpoint_keys(cycle["analysis_error"], "code attempts message", "analysis error")
+    error = cycle["analysis_error"]
+    if (
+        not isinstance(error["code"], str)
+        or error["code"] not in ERROR_MESSAGES
+        or error["message"] != ERROR_MESSAGES[error["code"]]
+    ):
+        raise ValueError("checkpoint: unsupported or unsanitized final error")
+    if error["code"] in TRANSIENT_CODES and len(attempts) != 3:
+        raise ValueError("checkpoint: temporary failure finalized before exhaustion")
+    if (
+        cycle["model_analysis"] is not None
+        or type(error["attempts"]) is not int
+        or error["attempts"] != len(attempts)
+    ):
+        raise ValueError("checkpoint: failure has predictions or wrong attempt count")
+    if last["state"] == "failed":
+        if {key: error[key] for key in ("code", "message")} != last["error"]:
+            raise ValueError("checkpoint: final and attempt errors disagree")
+    elif (
+        last["state"] != "interrupted"
+        or len(attempts) != 3
+        or error["code"] != "interrupted_attempts_exhausted"
+    ):
+        raise ValueError("checkpoint: invalid final failure")
+    _checkpoint_time(cycle["finished_at"])
+    if last["state"] == "failed" and cycle["finished_at"] != last["finished_at"]:
+        raise ValueError("checkpoint: failed finish times disagree")
+
+
+def _checkpoint_cycle_attempts(cycle):
+    attempts = cycle["attempts"]
+    if not isinstance(attempts, list) or not 1 <= len(attempts) <= 3:
+        raise ValueError("checkpoint: cycles need one to three attempts")
+    for index, attempt in enumerate(attempts, 1):
+        _checkpoint_attempt(attempt, index)
+        if (
+            index < len(attempts)
+            and attempt["state"] == "failed"
+            and attempt["error"]["code"] not in TRANSIENT_CODES
+        ):
+            raise ValueError("checkpoint: nonretryable attempt followed by another attempt")
+        if index < len(attempts) and attempt["state"] not in ("failed", "interrupted"):
+            raise ValueError("checkpoint: only last attempt can be reserved or successful")
+    return attempts
+
+
+def _checkpoint_cycle(cycle, number):
+    _checkpoint_keys(
+        cycle, "cycle attempts outcome model_analysis analysis_error finished_at", "cycle"
+    )
+    if type(cycle["cycle"]) is not int or cycle["cycle"] != number:
+        raise ValueError("checkpoint: cycles must be sequential")
+    attempts = _checkpoint_cycle_attempts(cycle)
+    outcome, last = cycle["outcome"], attempts[-1]
+    if outcome is None:
+        if (
+            last["state"] == "failed"
+            and (last["error"]["code"] not in TRANSIENT_CODES or len(attempts) == 3)
+            or last["state"] == "interrupted"
+            and len(attempts) == 3
+        ):
+            raise ValueError("checkpoint: terminal failure cannot be unfinished")
+        if (
+            any(
+                cycle[key] is not None
+                for key in ("model_analysis", "analysis_error", "finished_at")
+            )
+            or last["state"] == "succeeded"
+        ):
+            raise ValueError("checkpoint: unfinished cycle has final evidence")
+    elif outcome in ("ready", "quarantined"):
+        prediction = DocumentAnalysis.model_validate(cycle["model_analysis"])
+        if (
+            last["state"] != "succeeded"
+            or cycle["analysis_error"] is not None
+            or prediction.injection_suspected != (outcome == "quarantined")
+        ):
+            raise ValueError("checkpoint: successful outcome disagrees with result")
+        _checkpoint_time(cycle["finished_at"])
+        if cycle["finished_at"] != last["finished_at"]:
+            raise ValueError("checkpoint: successful finish times disagree")
+    elif outcome == "analysis_failed":
+        _checkpoint_failure(cycle, attempts, last)
+    else:
+        raise ValueError("checkpoint: unknown outcome")
+
+
+def _checkpoint_document(doc, seen):
+    reserved = 0
+    _checkpoint_keys(doc, "source_id supplied_document cycles", "document")
+    if not isinstance(doc["source_id"], str) or not doc["source_id"] or doc["source_id"] in seen:
+        raise ValueError("checkpoint: invalid or duplicate source_id")
+    seen.add(doc["source_id"])
+    if not isinstance(doc["cycles"], list):
+        raise ValueError("checkpoint: cycles must be a list")
+    for number, cycle in enumerate(doc["cycles"], 1):
+        _checkpoint_cycle(cycle, number)
+        if number < len(doc["cycles"]) and cycle["outcome"] != "analysis_failed":
+            raise ValueError("checkpoint: only final failures can have a later cycle")
+        if number < len(doc["cycles"]) and cycle["analysis_error"]["code"] not in RETRY_CODES:
+            raise ValueError("checkpoint: ineligible failure received another cycle")
+        reserved += sum(attempt["state"] == "reserved" for attempt in cycle["attempts"])
+    if doc["supplied_document"] is not None:
+        _checkpoint_provenance(doc["supplied_document"])
+    if doc["cycles"] and doc["supplied_document"] is None:
+        raise ValueError("checkpoint: attempted document needs provenance")
+    return reserved
+
+
+class AnalysisCheckpoint(BaseModel):
+    model_config = {"extra": "forbid", "strict": True, "hide_input_in_errors": True}
+
+    schema_version: Literal["1.0"]
+    run_id: str
+    input_hashes: dict
+    retry_not_before: str | None
+    documents: list[dict]
+
+    @model_validator(mode="after")
+    def validate_checkpoint(self):
+        _check_json(self.model_dump(), "checkpoint")
+        _checkpoint_keys(self.input_hashes, "run_metadata source_inventory", "input hashes")
+        if any(
+            not isinstance(value, str) or not re.fullmatch("[0-9a-f]{64}", value)
+            for value in self.input_hashes.values()
+        ):
+            raise ValueError("checkpoint: invalid input hashes")
+        _checkpoint_time(self.retry_not_before, nullable=True)
+        reserved, seen = 0, set()
+        for doc in self.documents:
+            reserved += _checkpoint_document(doc, seen)
+        if reserved > 1:
+            raise ValueError("checkpoint: multiple outstanding reservations")
+        return self
+
+
+ERROR_MESSAGES = {
+    "provider_timeout": "Analysis did not complete within the configured client timeout.",
+    "provider_connection_error": "The provider connection failed.",
+    "provider_transient_error": "The provider reported a temporary request failure.",
+    "provider_rate_limited": "The provider temporarily throttled the request.",
+    "provider_server_error": "The provider reported a server failure.",
+    "output_token_limit": "Analysis exceeded the saved output token limit.",
+    "content_filtered": "The provider filtered the analysis output.",
+    "model_refusal": "The model refused the analysis request.",
+    "empty_output": "The completed response contained no analysis text.",
+    "invalid_json": "The analysis output was not valid JSON.",
+    "invalid_analysis": "The analysis output failed schema or evidence validation.",
+    "unexpected_provider_response": "The provider returned an unsupported response envelope.",
+    "authentication_error": "The provider rejected authentication.",
+    "permission_denied": "The provider denied access.",
+    "quota_exhausted": "The provider reported exhausted quota or credits.",
+    "model_unavailable": "The requested model is unavailable.",
+    "input_too_large": "The provider rejected the request input size; inspect input counting.",
+    "request_rejected": "The provider rejected the saved request; inspect configuration.",
+    "interrupted_attempts_exhausted": "The final reserved attempt has no saved result; no attempts remain in this cycle.",
+}
+TRANSIENT_CODES = (
+    "provider_timeout",
+    "provider_connection_error",
+    "provider_transient_error",
+    "provider_rate_limited",
+    "provider_server_error",
+)
+RETRY_CODES = (
+    *TRANSIENT_CODES,
+    "interrupted_attempts_exhausted",
+    "authentication_error",
+    "permission_denied",
+    "quota_exhausted",
+)
+STOP_CODES = (
+    "unexpected_provider_response",
+    "authentication_error",
+    "permission_denied",
+    "quota_exhausted",
+    "model_unavailable",
+    "input_too_large",
+    "request_rejected",
+)

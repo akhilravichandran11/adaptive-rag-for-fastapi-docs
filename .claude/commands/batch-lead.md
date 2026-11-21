@@ -7,22 +7,29 @@ ticket files are the task list; `ticket-implementer` subagents do the work; you
 review, stage, and report. I commit. Follow this order. Do not skip a numbered
 step.
 
+In a cloud session, the cloud column of the table in
+`docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
+review-skill, views, relay and close rules.
+
 ## 1. Pre-flight (before any spawn)
 
 - Read each ticket named in my prompt. For every one, check `Status`,
   `Blocked by`, and `Touches`.
 - Stale state is common: a blocker that is `done` still listed, a ticket still
   `blocked` after its blocker closed. Show me the fixes (status, blocker list,
-  owner) and apply them only after I say yes. Same for setting `in-progress`.
+  owner) and apply them only after I say yes. Same for setting `in-progress`:
+  run `python3 .scratch/ticket.py claim <ID> --owner "claude, <chat>"`, show
+  me its output, and rerun it with `--write` on my yes, before the spawn, so
+  the files' starting state is saved before the implementer edits them.
 - Refuse to run two tickets that touch the same file. Check the other boards
   too (`code-simplification` overlaps ingestion files); flag an overlap to me.
 - A ticket with a paid or live step (an evaluation, a route check, a live
   index) is not batch work: step 7 of the tracker doc routes it to a
   supervised chat. Say so and never spawn it from here. That chat checks the
-  ticket's `**Inputs:**` line (CRG-12's route questions were invented by the
-  ticket writer and caught only after the paid run) and confirms the keys
-  with the cheapest paid call first (a rotated Voyage key killed CRG-13's
-  first run on its first call).
+  ticket's `**Inputs:**` line (one ticket's route questions were invented by
+  its writer and caught only after the paid run) and confirms the keys with
+  the cheapest paid call first (a rotated Voyage key once killed a run on its
+  first call).
 - Run `git status --short`. Tell me about uncommitted tracked files in the
   batch's `Touches` before starting. Also list modified or untracked files
   outside the batch: another chat's work in progress can turn the full suite
@@ -38,8 +45,8 @@ step.
   anything the ticket leaves open that I settled in my prompt. Paste the
   "While a question is open" list from
   `.scratch/code-simplification/questions.md` verbatim into the prompt: a
-  pointer to the file is not read under pressure, and one missed item (a
-  factory helper in a test, CRG-12) costs a fix round. Say explicitly: do not
+  pointer to the file is not read under pressure, and one missed item (once,
+  a factory helper in a test) costs a fix round. Say explicitly: do not
   run `code-review` or `active-code-reviewer`; the lead runs them.
 - Spawn tickets with a dependency only after the handback of the ticket they
   wait on has been reviewed.
@@ -61,6 +68,13 @@ step.
   `tests/` by its own rules even when a prompt names a test file.
   Its Split list (each new step and its job) comes to me verbatim with the
   ticket's report; step names are a design call.
+- Once the simplifier is done, run `python3 .scratch/ticket.py packet <ID>`
+  and paste its output into the prompt of every reviewer that runs
+  (`code-review`, `active-code-reviewer`): a reviewer that did not write the
+  code needs the contract, the edits that were there before the ticket, and
+  the change. When the packet runs past about 300 lines, save it to a file
+  in your scratchpad, paste its contract and baseline, and give each
+  reviewer the file's path for the diff.
 - Run `code-review` with the handback's `Start` sha as the fixed point.
   Nothing is committed, so its default `<Start>...HEAD` diff is empty: tell
   it to review `git diff <Start>` and to read every untracked file in full.
@@ -86,13 +100,13 @@ step.
   size of the Python diff picks the tier, `code-review` runs at most once per
   ticket on the first build, and the Progress line names the tier. The
   reasons are cost: `code-review` is four to six times a bug review and finds
-  spec gaps and style, not bugs (CRG-18 was 3 lines and cost 110k; CRG-15 was
-  6 lines of Python plus 135 of markup and cost 113k for no must-fix).
+  spec gaps and style, not bugs (one 3-line ticket cost 110k; another, 6 lines
+  of Python plus 135 of markup, cost 113k for no must-fix).
   `code-review` and `active-code-reviewer` may run in parallel: both only
   read.
 - Resume versus respawn. A resumed implementer reloads its whole transcript,
-  so each fix round costs more than the last (PRT-04: 226k build, then 328k
-  to 410k per resume). Resume for the first fix round. For a later round, or
+  so each fix round costs more than the last (one ticket: a 226k build, then
+  328k to 410k per resume). Resume for the first fix round. For a later round, or
   whenever the implementer's last usage line is past about 250k tokens, spawn
   a fresh implementer with the ticket path, the current handback, the fix
   list and the files it owns; it reads the code, not the history. Two fix
@@ -127,11 +141,16 @@ step.
   tracker doc sets (columns, the anchor line, dated fix-round subheadings).
   Record edits that touch more than one file or add one go through the
   proposal page first (tracker doc, "Record edits go on a proposal page"):
-  page approval, then my yes in chat.
+  page approval, then my yes in chat. A claim or close made with
+  `ticket.py` is the exception: its output without `--write` and my yes in
+  chat are enough.
   On the same yes, write the implementer's drafted `DECISIONS.md entries`
-  into the package file. On my "committed" yes, set the status line to
-  `done (YYYY-MM-DD; committed in <sha>)` and swap a working-tree anchor for
-  `Line numbers as of <sha>`.
+  into the package file. On my "committed" yes, run
+  `python3 .scratch/ticket.py close <ID> --sha <sha>`, show me its output,
+  and rerun it with `--write` on my yes: it sets the status line to
+  `done (YYYY-MM-DD; committed in <sha>)`, swaps a working-tree anchor for
+  `Line numbers as of <sha>`, moves the board row and lists the tickets the
+  next bullet updates.
 - After I confirm a ticket is `done` and committed, update every ticket whose
   `Blocked by` names it (drop the entry; `ready-for-agent` when nothing
   remains), with my yes. Then regenerate the views: `python3 .scratch/now.py`.
@@ -149,4 +168,5 @@ uses, minutes; a total line per ticket). Then one numbered list of every decisio
 each with your recommendation, so I answer once rather than in rounds. If the
 relay session is not in `ListAgents`, don't wait on it: tell me, and send the
 report when it appears. Then send the full handback reports and every process problem you
-hit to the session named "Agent teams implementation" with `SendMessage`.
+hit to the process-lead session your brief names, by the title `ListAgents` shows, with
+`SendMessage`; with no brief, they stay in the report.

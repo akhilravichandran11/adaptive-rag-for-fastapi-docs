@@ -33,8 +33,8 @@ You start with no memory of the conversation that spawned you. The spawn prompt 
 
 ## Do not
 
-- Commit, push, branch, stash, or rebase. The lead commits.
-- Edit `.scratch/` (tickets, `NOW.md`, `INBOX.md`), `docs/conventions.md`, any `DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`, or `.github/`. Draft what should change there in the report instead.
+- Stage, commit, push, branch, stash, or rebase. The lead proposes the `git add` line and the commit message; only the user stages and commits. In a cloud session the table in `docs/agents/cloud-sessions.md` says who commits.
+- Edit `.scratch/` records (tickets, boards, findings, `NOW.md`, `INBOX.md`), `docs/conventions.md`, any `DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`, or `.github/`. Draft what should change there in the report instead. Tracker code that your ticket's `Touches` names, such as a script under `.scratch/` and its tests, is an owned file like any other.
 - Run `scripts/chunk_size_report.py --include-semantic`, the semantic chunker, or anything that calls Voyage, Gemini, OpenAI or OpenRouter.
 - Weaken, skip or delete an existing assertion to make a test pass.
 - Ask the lead or the user a question you can answer by reading the ticket, the plan it links, or the code. If you must stop, stop with the report, not a question.

@@ -17,6 +17,10 @@ Ticket files are the task list. Workers implement. You pre-flight, spawn,
 review, stage-propose, and report. **The user commits.** Do not skip numbered
 steps.
 
+In a cloud session, the cloud column of the table in
+`docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
+review-skill, views, relay and close rules.
+
 This is the Cursor harness twin of `.claude/commands/batch-lead.md` and
 `.agents/skills/batch-lead/SKILL.md`. Same board rules; different spawn
 surfaces — see [harness.md](harness.md).

@@ -297,13 +297,11 @@ review the test code line by line.
 Third-party sources for the agent workflow (skills and agents it builds on) are
 listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-**Where the code comes from.** The code is of three kinds. *Original:* written
-for this project. *Cohort-derived and rewritten:* the corrective-RAG design and
-some early pipeline stages began as exercises in an AI engineering cohort and
-were rewritten here; files that still resemble that material say so in a
-header. *Written by coding agents under my direction:* most of the code in both
-groups was drafted by OpenAI Codex and Claude Code from tickets I approved. I
-ran it, reviewed it, and am responsible for it.
+**Who built it.** I built this project. The coding agents named above drafted
+most of the code from tickets I approved; I ran it, reviewed it and am
+responsible for it. The corrective-RAG design follows the CRAG paper:
+Yan et al., *Corrective Retrieval Augmented Generation*, 2024
+([arXiv:2401.15884](https://arxiv.org/abs/2401.15884)).
 
 ## License
 

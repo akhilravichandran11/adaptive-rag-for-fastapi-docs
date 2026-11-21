@@ -297,11 +297,13 @@ review the test code line by line.
 Third-party sources for the agent workflow (skills and agents it builds on) are
 listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-**Who built it.** I built this project. The coding agents named above drafted
-most of the code from tickets I approved; I ran it, reviewed it and am
-responsible for it. The corrective-RAG design follows the CRAG paper:
-Yan et al., *Corrective Retrieval Augmented Generation*, 2024
-([arXiv:2401.15884](https://arxiv.org/abs/2401.15884)).
+**Who built it.** I built this project. The corrective-RAG design and some
+early pipeline stages began as exercises in NeoSage's
+[Engineer's AI Accelerator](https://neosage.io/accelerator/) and were rewritten
+here; the design follows the CRAG paper: Yan et al., *Corrective Retrieval
+Augmented Generation*, 2024 ([arXiv:2401.15884](https://arxiv.org/abs/2401.15884)).
+The coding agents named above drafted most of the code from tickets I approved;
+I ran it, reviewed it and am responsible for it.
 
 ## License
 

@@ -374,7 +374,20 @@ within one ticket's scope and request user approval before expanding it. Mark th
      reopens the code. The Progress line names the tier that ran.
    Verify the acceptance criteria, record any convention the work introduced
    in `docs/conventions.md`, update the status, then select the next
-   unblocked ticket. Closing a ticket includes its dependents: once it is
+   unblocked ticket. `uvx pre-commit run --files` reads the files on disk,
+   except the reserved-words hook, which reads the git index: where nothing
+   is staged, it checks the last commit and skips new files. Run that hook
+   through a temporary index instead, which leaves the shared index alone:
+
+   ```bash
+   i=$(mktemp -u)
+   GIT_INDEX_FILE=$i git read-tree HEAD && GIT_INDEX_FILE=$i git add <files>
+   GIT_INDEX_FILE=$i scripts/hooks/block-reserved-words.sh <files>; echo "exit $?"
+   ```
+
+   Before a ticket's Linear issue moves to Done, read the issue's whole
+   description against what the ticket delivered, and ask the user where
+   each item left over goes. Closing a ticket includes its dependents: once it is
    `done` and committed, open every ticket whose **Blocked by** names it,
    remove the entry, and set `ready-for-agent` when nothing remains. A ticket
    left `blocked` on a finished blocker is stale state the next agent will

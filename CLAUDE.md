@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `.scratch/NOW.md` is generated — regenerate with `python3 .scratch/now.py`, never hand-edit it.
 - Design decisions go in one `DECISIONS.md` per top-level package that makes them (`data_ingestion/DECISIONS.md` exists; create `data_curation/DECISIONS.md` or `data_collection/DECISIONS.md` on their first entry): dated entries, newest first, each naming the files it touches. Code keeps a one-line pointer to the entry instead of the rationale (S002 in `docs/simplification-conventions.md`).
 - The shell is zsh on macOS: a word starting with `=` (an `=====` separator in `echo`) is expanded and fails, an unquoted `$VAR` does not split into words, and there is no `timeout` command. Quote the first two; for the third use a Python or `uv run` timeout.
+- In the desktop app a `cd` in one Bash call carries into the next. Run tracker git as `git -C .scratch …` and use absolute paths instead of `cd .scratch`.
 
 ## Agent teams
 

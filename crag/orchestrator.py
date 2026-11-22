@@ -71,11 +71,15 @@ def sources_of(documents: list[Document]) -> list[dict[str, Any]]:
 
 
 def _fallback(
-    question: str, route: str, missing: list[str], steps: list[dict[str, Any]]
+    question: str,
+    route: str,
+    missing: list[str],
+    steps: list[dict[str, Any]],
+    start_stage: Callable[[str], str],
 ) -> CragResult:
-    started = utc_now_iso()
+    started = start_stage("fallback")
     record_step(steps, "fallback", started, {"documents": 0})
-    logger.warning("no documents to answer from, route %s: %r", route, question)
+    logger.warning("no documents to answer from, route %s", route)
     return CragResult(
         question=question,
         route=route,
@@ -103,16 +107,21 @@ class CragOrchestrator:
         self.refinement = refinement
         self.generator = generator
 
-    def run(self, question: str) -> CragResult:
+    def run(self, question: str, *, on_stage: Callable[[str], None] | None = None) -> CragResult:
         steps: list[dict[str, Any]] = []
 
-        started = utc_now_iso()
+        def start_stage(name: str) -> str:
+            if on_stage is not None:
+                on_stage(name)
+            return utc_now_iso()
+
+        started = start_stage("retrieve")
         documents = self.retrieve(question, RETRIEVE_TOP_K)
         record_step(steps, "retrieve", started, {"documents": len(documents)})
         if not documents:
-            return _fallback(question, NO_DOCUMENTS_ROUTE, [], steps)
+            return _fallback(question, NO_DOCUMENTS_ROUTE, [], steps, start_stage)
 
-        started = utc_now_iso()
+        started = start_stage("grade")
         graded = self.grader.run(query=question, documents=documents)
         relevant = graded["relevant_documents"]
         record_step(
@@ -128,15 +137,15 @@ class CragOrchestrator:
         if route == "correct":
             context = relevant
         elif route == "ambiguous":
-            context = self._ambiguous(question, documents, graded, steps)
+            context = self._ambiguous(question, documents, graded, steps, start_stage)
         elif route == "incorrect":
-            context = self._incorrect(question, steps)
+            context = self._incorrect(question, steps, start_stage)
         else:
             raise ValueError(f"grade: unknown decision {route!r} for question {question!r}")
 
         if not context:
-            return _fallback(question, route, missing, steps)
-        return self._generate(question, route, context, missing, steps)
+            return _fallback(question, route, missing, steps, start_stage)
+        return self._generate(question, route, context, missing, steps, start_stage)
 
     def _ambiguous(
         self,
@@ -144,8 +153,9 @@ class CragOrchestrator:
         documents: list[Document],
         graded: dict[str, Any],
         steps: list[dict[str, Any]],
+        start_stage: Callable[[str], str],
     ) -> list[Document]:
-        started = utc_now_iso()
+        started = start_stage("decompose")
         decomposed = self.decomposer.run(
             query=question,
             missing_aspects=graded["missing_aspects"],
@@ -161,15 +171,15 @@ class CragOrchestrator:
             decomposed["model"],
         )
 
-        reretrieved = self._reretrieve(vector_queries, documents, steps)
+        reretrieved = self._reretrieve(vector_queries, documents, steps, start_stage)
 
         web_documents = []
         if web_queries:
-            started = utc_now_iso()
+            started = start_stage("web_search")
             web_documents = self.web_search.run(queries=web_queries)["documents"]
             record_step(steps, "web_search", started, {"documents": len(web_documents)})
 
-        started = utc_now_iso()
+        started = start_stage("refine")
         refined = self.refinement.run(
             query=question,
             aspects=graded["aspects"],
@@ -196,11 +206,15 @@ class CragOrchestrator:
         return refined["refined_context"]
 
     def _reretrieve(
-        self, queries: list[str], documents: list[Document], steps: list[dict[str, Any]]
+        self,
+        queries: list[str],
+        documents: list[Document],
+        steps: list[dict[str, Any]],
+        start_stage: Callable[[str], str],
     ) -> list[Document]:
         if not queries:
             return []
-        started = utc_now_iso()
+        started = start_stage("reretrieve")
         held_ids = {doc.id for doc in documents}
         reretrieved = []
         retrieved = 0
@@ -219,14 +233,16 @@ class CragOrchestrator:
         )
         return reretrieved
 
-    def _incorrect(self, question: str, steps: list[dict[str, Any]]) -> list[Document]:
-        started = utc_now_iso()
+    def _incorrect(
+        self, question: str, steps: list[dict[str, Any]], start_stage: Callable[[str], str]
+    ) -> list[Document]:
+        started = start_stage("web_search")
         web_documents = self.web_search.run(queries=[question])["documents"]
         record_step(steps, "web_search", started, {"documents": len(web_documents)})
         if not web_documents:
             return []
 
-        started = utc_now_iso()
+        started = start_stage("refine")
         refined = self.refinement.run(
             query=question,
             aspects=[],
@@ -255,9 +271,10 @@ class CragOrchestrator:
         documents: list[Document],
         missing: list[str],
         steps: list[dict[str, Any]],
+        start_stage: Callable[[str], str],
     ) -> CragResult:
+        started = start_stage("generate")
         sources = sources_of(documents)  # fails before the paid call on a bad document
-        started = utc_now_iso()
         generated = self.generator.run(query=question, documents=documents)
         record_step(steps, "generate", started, {"documents": len(documents)}, generated["model"])
         return CragResult(

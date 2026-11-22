@@ -6,10 +6,14 @@ against recording fakes. The real ``.env`` is not loaded. No network (C006, the 
 
 import asyncio
 import importlib
+import json
 import os
 import socket
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
 import dotenv
@@ -91,7 +95,7 @@ class FakeCrag:
         self.error = error
         self.questions: list[str] = []
 
-    def run(self, question: str) -> CragResult:
+    def run(self, question: str, *, on_stage=None) -> CragResult:
         self.questions.append(question)
         if self.error is not None:
             raise self.error
@@ -104,6 +108,111 @@ def crag() -> FakeCrag:
     main.app.dependency_overrides[main.get_crag] = lambda: fake
     yield fake
     main.app.dependency_overrides.clear()
+
+
+def test_one_query_returns_the_id_of_its_stdout_events(crag, startup, capsys) -> None:
+    with TestClient(main.app) as client:
+        response = client.post(
+            "/query",
+            json={"question": "private question"},
+            headers={"X-CRAG-Follow-ID": "private credential"},
+        )
+    assert response.status_code == 200
+    request_id = response.headers["x-request-id"]
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert all("follow_id" not in row for row in events)
+    assert [(row["request_id"], row["outcome"]) for row in events] == [
+        (request_id, "started"),
+        (request_id, "succeeded"),
+    ]
+
+
+def test_follow_interleaved_queries_and_export_their_outcomes(startup, capsys, tmp_path) -> None:
+    slow_entered = Event()
+    failing_entered = Event()
+    release = Event()
+    slow_tag = "crg-" + "1" * 32
+    failing_tag = "crg-" + "2" * 32
+
+    def retrieve(question, top_k):
+        if question == "private held question":
+            slow_entered.set()
+            assert release.wait(10)
+            return []
+        failing_entered.set()
+        assert release.wait(10)
+        raise RuntimeError("private provider response")
+
+    runner = main.CragOrchestrator(retrieve, None, None, None, None, None)
+    main.app.dependency_overrides[main.get_crag] = lambda: runner
+    try:
+        with (
+            TestClient(main.app, raise_server_exceptions=False) as client,
+            ThreadPoolExecutor() as pool,
+        ):
+            held = pool.submit(
+                client.post,
+                "/query",
+                json={"question": "private held question"},
+                headers={"X-CRAG-Follow-ID": slow_tag},
+            )
+            failing = pool.submit(
+                client.post,
+                "/query",
+                json={"question": "private failed question"},
+                headers={"X-CRAG-Follow-ID": failing_tag},
+            )
+            try:
+                assert slow_entered.wait(10) and failing_entered.wait(10)
+                live = capsys.readouterr().out
+                live_ids = {}
+                for tag in (slow_tag, failing_tag):
+                    first, retrieving = [
+                        row for row in map(json.loads, live.splitlines()) if row["follow_id"] == tag
+                    ]
+                    assert first["request_id"] == retrieving["request_id"]
+                    assert (retrieving["stage"], retrieving["outcome"]) == ("retrieve", "started")
+                    live_ids[tag] = first["request_id"]
+            finally:
+                release.set()
+            succeeded = held.result(timeout=10)
+            failed = failing.result(timeout=10)
+    finally:
+        del main.app.dependency_overrides[main.get_crag]
+
+    assert (succeeded.status_code, failed.status_code) == (200, 500)
+    success_id = succeeded.headers["x-request-id"]
+    failed_id = failed.headers["x-request-id"]
+    assert success_id == live_ids[slow_tag]
+    assert failed_id == live_ids[failing_tag]
+    assert success_id != failed_id
+    output = live + capsys.readouterr().out
+    assert "private" not in output
+    for row in map(json.loads, output.splitlines()):
+        assert set(row) == {"event_time", "message", "request_id", "stage", "outcome", "follow_id"}
+        assert datetime.fromisoformat(row["event_time"]).utcoffset() == UTC.utcoffset(None)
+    for request_id, expected in [
+        (
+            success_id,
+            [
+                ("query", "started"),
+                ("retrieve", "started"),
+                ("fallback", "started"),
+                ("query", "succeeded"),
+            ],
+        ),
+        (failed_id, [("query", "started"), ("retrieve", "started"), ("retrieve", "failed")]),
+    ]:
+        path = tmp_path / f"{request_id}.jsonl"
+        path.write_text(
+            "".join(
+                line
+                for line in output.splitlines(keepends=True)
+                if json.loads(line)["request_id"] == request_id
+            )
+        )
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        assert [(row["stage"], row["outcome"]) for row in events] == expected
 
 
 def test_health_returns_ok() -> None:
@@ -221,6 +330,8 @@ def startup(monkeypatch: pytest.MonkeyPatch) -> dict[str, list]:
     monkeypatch.setattr(main, "load_dotenv", lambda *a, **k: calls["dotenv"].append(a))
     for name in REQUIRED:
         monkeypatch.setenv(name, f"test-{name.lower()}")
+    for name in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"):
+        monkeypatch.setenv(name, "")
     for name in OPTIONAL:
         monkeypatch.delenv(name, raising=False)
 

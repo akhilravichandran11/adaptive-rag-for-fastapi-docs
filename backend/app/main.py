@@ -4,31 +4,39 @@ to Voyage, Gemini and Tavily.
 """
 
 import dataclasses
+import json
 import logging
 import os
+import re
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
+from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
+from starlette.exceptions import HTTPException
 from tavily import TavilyClient
 
 from backend.app.models import QueryRequest, QueryResponse
+from backend.app.telemetry import crag_telemetry
 from crag.decomposer import QueryDecomposer
 from crag.generator import AnswerGenerator
 from crag.grader import DocumentGrader
 from crag.llm import FALLBACK_MODEL, StructuredLLM
-from crag.orchestrator import CragOrchestrator
+from crag.orchestrator import CragOrchestrator, utc_now_iso
 from crag.refinement import KnowledgeRefinement
 from crag.web_search import WebSearch
 from data_ingestion.variants import select_variants
 from retrieval import hybrid
 
 logger = logging.getLogger(__name__)
+run_logger = logging.getLogger("crag_run")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
@@ -45,7 +53,7 @@ REQUIRED_SETTINGS = (
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[dict]:
     # Same wiring as crag/run.py's main. Why: backend/DECISIONS.md, 2026-10-26 (copied wiring).
     load_dotenv(PROJECT_ROOT / ".env")
     missing = [name for name in REQUIRED_SETTINGS if not os.getenv(name)]
@@ -71,7 +79,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         AnswerGenerator(pro),
     )
     logger.info("CRAG ready on %s", pipeline.metadata["collection"])
-    yield
+    handler = logging.StreamHandler(sys.stdout)
+    run_logger.setLevel(logging.INFO)
+    run_logger.propagate = False
+    run_logger.addHandler(handler)
+    try:
+        with crag_telemetry() as telemetry:
+            yield {"crag_telemetry": telemetry}
+    finally:
+        run_logger.removeHandler(handler)
+        handler.close()
 
 
 app = FastAPI(title="Adaptive RAG for the FastAPI docs", lifespan=lifespan)
@@ -86,12 +103,54 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/query")
+@app.post("/query", response_model=QueryResponse)
 def query(
-    body: QueryRequest, crag: Annotated[CragOrchestrator, Depends(get_crag)]
-) -> QueryResponse:
-    crag_result = crag.run(body.question)
-    return QueryResponse(**dataclasses.asdict(crag_result))
+    body: QueryRequest,
+    request: Request,
+    response: Response,
+    crag: Annotated[CragOrchestrator, Depends(get_crag)],
+) -> QueryResponse | Response:
+    request_id = str(uuid4())
+    response.headers["X-Request-ID"] = request_id
+    fields = {"message": "crag_run"}
+    follow_id = request.headers.get("X-CRAG-Follow-ID", "")
+    if re.fullmatch(r"crg-[0-9a-f]{32}", follow_id):
+        fields["follow_id"] = follow_id
+
+    def emit(stage: str, outcome: str) -> None:
+        event = {
+            "event_time": utc_now_iso(),
+            "request_id": request_id,
+            "stage": stage,
+            "outcome": outcome,
+        }
+        run_logger.info(json.dumps({**fields, **event}))
+        telemetry = getattr(request.state, "crag_telemetry", None)
+        if telemetry is not None:
+            telemetry(event)
+
+    def start_stage(name: str) -> None:
+        nonlocal stage
+        stage = name
+        emit(stage, "started")
+
+    stage = "query"
+    emit(stage, "started")
+    try:
+        crag_result = crag.run(body.question, on_stage=start_stage)
+        stage = "query"
+        result = QueryResponse(**dataclasses.asdict(crag_result))
+    except HTTPException as exc:
+        emit(stage, "failed")
+        exc.headers = {**(exc.headers or {}), "X-Request-ID": request_id}
+        raise
+    except Exception:  # noqa: BLE001 — provider errors can carry prompts or credentials.
+        emit(stage, "failed")
+        return PlainTextResponse(
+            "Internal Server Error", status_code=500, headers={"X-Request-ID": request_id}
+        )
+    emit("query", "succeeded")
+    return result
 
 
 # Mounted last: a mount at "/" only gets the requests no route above matched.

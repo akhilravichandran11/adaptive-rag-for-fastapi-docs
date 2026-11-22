@@ -66,7 +66,7 @@ Tell each worker explicitly:
 | Task `ticket-implementer` (or generalPurpose with the ticket prompt) | Lead stays in one chat; wants handbacks back here |
 | Sibling Agents Window chats | User wants visible parallel chats to pin/review |
 | Worktree agent | Parallel **code** edits; pass absolute `.scratch` paths (F001) |
-| Cloud Agent | Ticket is GitHub-visible + self-contained; paste full ticket body (no `.scratch` on VM) |
+| Cloud Agent | Ticket is GitHub-visible + self-contained; paste full ticket body |
 
 Serialize dependency tickets: spawn B only after A's handback is reviewed.
 

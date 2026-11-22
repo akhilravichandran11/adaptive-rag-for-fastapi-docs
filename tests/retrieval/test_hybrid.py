@@ -5,15 +5,18 @@ components, except fakes for the paid embedder and ranker and an in-memory Qdran
 
 import dataclasses
 import importlib.util
+import json
 import logging
 import socket
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from haystack import Document, component
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+from haystack.core.errors import PipelineRuntimeError
 from haystack.telemetry import _telemetry as haystack_telemetry
 from haystack_integrations.components.rankers.voyage import VoyageRanker
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
@@ -24,7 +27,7 @@ from data_ingestion.chunk_snapshot import write_chunks
 from data_ingestion.embedders import EMBEDDERS, build_query_embedder
 from data_ingestion.stage3_index_chunks import point_key
 from data_ingestion.variants import Variant
-from retrieval import hybrid
+from retrieval import hybrid, voyage_usage
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -484,3 +487,199 @@ def test_importing_the_module_parses_no_arguments_and_opens_no_connection(
     spec.loader.exec_module(module)  # parsing would exit 2; connecting would fail the test
 
     assert (module.CANDIDATES, module.TOP_K, module.RERANK_MODEL) == (50, 10, "rerank-2.5")
+
+
+@pytest.fixture
+def recorded_voyage(fakes, monkeypatch, tmp_path):
+    state = SimpleNamespace(calls=[], fail_rerank=False, directory=tmp_path / "costs")
+
+    def embed(**kwargs):
+        assert (state.directory / "calls.jsonl").exists()
+        state.calls.append(("embedding", kwargs))
+        return SimpleNamespace(embeddings=[[1.0, 0.0, 0.0]], total_tokens=7)
+
+    def rerank(**kwargs):
+        state.calls.append(("rerank", kwargs))
+        if state.fail_rerank:
+            raise RuntimeError("reranker failed with private detail")
+        words = set(kwargs["query"].lower().rstrip("?").split())
+        results = [
+            SimpleNamespace(index=i, relevance_score=float(len(words & set(text.lower().split()))))
+            for i, text in enumerate(kwargs["documents"])
+        ]
+        results.sort(key=lambda result: result.relevance_score, reverse=True)
+        return SimpleNamespace(results=results[: kwargs["top_k"]], total_tokens=20)
+
+    monkeypatch.setattr(
+        voyage_usage, "Client", lambda **kwargs: SimpleNamespace(embed=embed, rerank=rerank)
+    )
+    return state
+
+
+@pytest.mark.parametrize("compare", [[], ["--compare"]], ids=["plain", "compare"])
+def test_recorded_cli_keeps_results_and_saves_both_costs(recorded_voyage, compare, caplog):
+    caplog.set_level(logging.INFO, logger=hybrid.__name__)
+    args = ["--question", QUESTION, "--chunks-run", CHUNKS_RUN, "--top-k", "2", *compare]
+    hybrid.main(args)
+    unrecorded = [
+        record.getMessage() for record in caplog.records if record.name == hybrid.__name__
+    ]
+    caplog.clear()
+
+    hybrid.main([*args, "--costs-dir", str(recorded_voyage.directory)])
+
+    assert [
+        record.getMessage() for record in caplog.records if record.name == hybrid.__name__
+    ] == unrecorded
+    rows = [
+        json.loads(line)
+        for line in (recorded_voyage.directory / "calls.jsonl").read_text().splitlines()
+    ]
+    assert [(row["operation"], row["usage"]) for row in rows] == [
+        ("embedding", {"total_tokens": 7}),
+        ("rerank", {"total_tokens": 20}),
+    ]
+    assert [call[0] for call in recorded_voyage.calls] == ["embedding", "rerank"]
+    summary = json.loads((recorded_voyage.directory / "summary.json").read_text())
+    assert summary["call_count"] == 2
+    assert summary["known_estimated_usd"] == pytest.approx(0.00000114)
+    assert summary["unknown_cost_count"] == 0
+    assert summary["run_failed"] is False
+    assert summary["all_observed_costs_known"] is True
+    assert all(
+        set(row) == {"provider", "operation", "model", "outcome", "usage", "usd", "reason"}
+        for row in rows
+    )
+
+
+def test_recorded_bge_cli_is_rejected_before_prerequisites_or_dispatch(
+    recorded_voyage, monkeypatch, existence_checks, capsys
+):
+    prerequisites = []
+    monkeypatch.setattr(hybrid, "_check_prerequisites", prerequisites.append)
+    with pytest.raises(SystemExit) as error:
+        hybrid.main(
+            [
+                "--question",
+                QUESTION,
+                "--embedder",
+                "bge",
+                "--chunks-run",
+                CHUNKS_RUN,
+                "--costs-dir",
+                str(recorded_voyage.directory),
+            ]
+        )
+    assert error.value.code == 2
+    assert "--costs-dir requires a Voyage embedder; got bge" in capsys.readouterr().err
+    assert prerequisites == existence_checks == recorded_voyage.calls == []
+    assert not recorded_voyage.directory.exists()
+
+
+def test_recorded_bge_builder_is_rejected_before_loading_or_dispatch(existence_checks):
+    with pytest.raises(ValueError, match="Voyage"):
+        hybrid.build_hybrid_pipeline(
+            Variant("markdown_ast", EMBEDDERS["bge"]), record=lambda **kwargs: None
+        )
+    assert existence_checks == []
+
+
+def test_rerank_failure_keeps_completed_embedding_and_failed_summary(recorded_voyage):
+    recorded_voyage.fail_rerank = True
+    with pytest.raises(PipelineRuntimeError, match="reranker failed"):
+        hybrid.main(
+            [
+                "--question",
+                QUESTION,
+                "--chunks-run",
+                CHUNKS_RUN,
+                "--costs-dir",
+                str(recorded_voyage.directory),
+            ]
+        )
+    rows = [
+        json.loads(line)
+        for line in (recorded_voyage.directory / "calls.jsonl").read_text().splitlines()
+    ]
+    assert [(row["operation"], row["outcome"]) for row in rows] == [
+        ("embedding", "response"),
+        ("rerank", "error"),
+    ]
+    assert rows[0]["usage"] == {"total_tokens": 7}
+    assert rows[0]["usd"] == 0.00000014
+    assert rows[1]["usage"] == {}
+    assert rows[1]["usd"] is None
+    assert "private" not in (recorded_voyage.directory / "calls.jsonl").read_text()
+    assert [call[0] for call in recorded_voyage.calls] == ["embedding", "rerank"]
+    summary = json.loads((recorded_voyage.directory / "summary.json").read_text())
+    assert summary["call_count"] == 2
+    assert summary["known_estimated_usd"] == 0.00000014
+    assert summary["unknown_cost_count"] == 1
+    assert summary["run_failed"] is True
+    assert summary["all_observed_costs_known"] is False
+
+
+@pytest.mark.parametrize(
+    "failure", ["existing-directory", "open-file", "build", "record", "finish"]
+)
+def test_recording_failures_surface_without_repeating_paid_calls(
+    failure, recorded_voyage, monkeypatch
+):
+    directory = recorded_voyage.directory
+    expected_error = OSError
+    expected_calls = []
+    if failure == "existing-directory":
+        directory.mkdir()
+    elif failure == "open-file":
+        original_open = Path.open
+
+        def fail_open(path, *args, **kwargs):
+            if path == directory / "calls.jsonl":
+                raise PermissionError("record file cannot open")
+            return original_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", fail_open)
+    elif failure == "build":
+        monkeypatch.setattr(hybrid, "collection_exists", lambda settings: False)
+        expected_error = SystemExit
+    elif failure == "record":
+        original_create = hybrid.create_recorder
+
+        def create_failing_recorder(path):
+            _, finish = original_create(path)
+
+            def fail_record(**kwargs):
+                raise OSError("record append failed")
+
+            return fail_record, finish
+
+        monkeypatch.setattr(hybrid, "create_recorder", create_failing_recorder)
+        expected_error = PipelineRuntimeError
+        expected_calls = ["embedding"]
+    else:
+        original_write = Path.write_text
+
+        def fail_summary(path, *args, **kwargs):
+            if path == directory / "summary.json":
+                raise OSError("summary write failed")
+            return original_write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", fail_summary)
+        expected_calls = ["embedding", "rerank"]
+
+    with pytest.raises(expected_error):
+        hybrid.main(
+            [
+                "--question",
+                QUESTION,
+                "--chunks-run",
+                CHUNKS_RUN,
+                "--costs-dir",
+                str(directory),
+            ]
+        )
+    assert [call[0] for call in recorded_voyage.calls] == expected_calls
+    if failure in ("build", "record"):
+        summary = json.loads((directory / "summary.json").read_text())
+        assert summary["run_failed"] is True
+        assert summary["call_count"] == 0

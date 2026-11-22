@@ -21,21 +21,43 @@ class WebSearch:
         *,
         search_depth: str = SEARCH_DEPTH,
         max_results: int = MAX_RESULTS_PER_QUERY,
+        record=None,
     ) -> None:
         self.client = client
         self.search_depth = search_depth
         self.max_results = max_results
+        self.record = record
 
     def run(self, queries: list[str]) -> dict[str, list[Document]]:
         documents = []
         seen_urls = set()
         for query in queries:
-            response = self.client.search(
-                query=query,
-                search_depth=self.search_depth,
-                max_results=self.max_results,
-                include_raw_content="markdown",
-            )
+            try:
+                response = self.client.search(
+                    query=query,
+                    search_depth=self.search_depth,
+                    max_results=self.max_results,
+                    include_raw_content="markdown",
+                    **({"include_usage": True} if self.record is not None else {}),
+                )
+            except Exception:
+                if self.record is not None:
+                    self.record(
+                        provider="tavily",
+                        operation="search",
+                        model=None,
+                        outcome="error",
+                        usage=None,
+                    )
+                raise
+            if self.record is not None:
+                self.record(
+                    provider="tavily",
+                    operation="search",
+                    model=None,
+                    outcome="response",
+                    usage=response.get("usage"),
+                )
             results = response["results"]
             added = 0
             for result in results:

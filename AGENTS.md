@@ -43,6 +43,8 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   back, the budget, before any planning. The user may write "skip the judge" in
   an approval to waive it. Design:
   [`docs/agents/plan-complexity-judge-design.md`](docs/agents/plan-complexity-judge-design.md).
+  In a cloud session, follow the plan judge's row of the Mac-only tools table
+  in [`docs/agents/cloud-sessions.md`](docs/agents/cloud-sessions.md).
 - **New conventions need a ruling:** if your change introduces a pattern this
   codebase does not already use — a new abstraction (protocol, registry, base
   class), a new dispatch or error-handling style, a new test structure, or a rule

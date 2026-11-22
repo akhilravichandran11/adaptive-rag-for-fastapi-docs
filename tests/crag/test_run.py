@@ -4,8 +4,10 @@ before any client is built, and a ``main`` run end to end on each retriever agai
 fakes. The real ``.env`` is not loaded. No network (C006, the no-network form).
 """
 
+import json
 import logging
 import socket
+from pathlib import Path
 
 import pytest
 from haystack import Document
@@ -251,10 +253,11 @@ class FakeClient:
 
 
 class FakeStructuredLLM:
-    def __init__(self, client, *, primary: str, fallback: str) -> None:
+    def __init__(self, client, *, primary: str, fallback: str, record=None) -> None:
         self.client = client
         self.primary = primary
         self.fallback = fallback
+        self.record = record
 
 
 class FakeOrchestrator:
@@ -361,3 +364,80 @@ def test_main_answers_through_the_hybrid_pipeline_by_default(
         )
     ]
     assert crag.questions == [query]
+
+
+def test_recorded_cli_opens_cost_file_before_building_and_shares_one_recorder(
+    monkeypatch, tmp_path
+):
+    directory = tmp_path / "costs"
+    monkeypatch.setattr(FakeHybridPipeline, "built", [])
+    monkeypatch.setattr(FakeOrchestrator, "built", [])
+
+    def build(variant, **kwargs):
+        assert (directory / "calls.jsonl").exists()
+        return FakeHybridPipeline(variant, **kwargs)
+
+    monkeypatch.setattr(run.hybrid, "build_hybrid_pipeline", build)
+    monkeypatch.setattr(run.genai, "Client", FakeClient)
+    monkeypatch.setattr(run, "TavilyClient", FakeClient)
+    monkeypatch.setattr(run, "StructuredLLM", FakeStructuredLLM)
+    monkeypatch.setattr(run, "CragOrchestrator", FakeOrchestrator)
+    run.main(["--question", "q", "--costs-dir", str(directory)])
+
+    [pipeline] = FakeHybridPipeline.built
+    [crag] = FakeOrchestrator.built
+    record = pipeline.kwargs["record"]
+    assert crag.grader.llm.record is crag.refinement.llm.record is crag.web_search.record is record
+    assert json.loads((directory / "summary.json").read_text())["run_failed"] is False
+
+
+@pytest.mark.parametrize("mode", [["--route-check"], ["--question", "q", "--retriever", "dense"]])
+def test_recorded_unsupported_modes_exit_before_dispatch(mode, tmp_path, isolated, capsys):
+    directory = tmp_path / "costs"
+    with pytest.raises(SystemExit) as raised:
+        run.main([*mode, "--costs-dir", str(directory)])
+    assert raised.value.code == 2
+    assert "--costs-dir requires --question and --retriever hybrid" in capsys.readouterr().err
+    assert isolated == []
+    assert not directory.exists()
+
+
+@pytest.mark.parametrize("failure", ["existing-directory", "open-file", "build", "finish"])
+def test_cost_file_failures_and_build_failure_finalize_without_dispatch(
+    failure, monkeypatch, tmp_path, isolated
+):
+    directory = tmp_path / "costs"
+    if failure == "existing-directory":
+        directory.mkdir()
+    elif failure == "open-file":
+        original_open = Path.open
+
+        def fail_open(path, *args, **kwargs):
+            if path == directory / "calls.jsonl":
+                raise OSError("cannot open costs")
+            return original_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", fail_open)
+    else:
+
+        def fail_build(*args, **kwargs):
+            raise ValueError("missing test collection")
+
+        monkeypatch.setattr(run.hybrid, "build_hybrid_pipeline", fail_build)
+        if failure == "finish":
+            original_write = Path.write_text
+
+            def fail_finish(path, *args, **kwargs):
+                if path == directory / "summary.json":
+                    raise OSError("cannot write summary")
+                return original_write(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "write_text", fail_finish)
+
+    with pytest.raises(SystemExit if failure == "build" else OSError):
+        run.main(["--question", "q", "--costs-dir", str(directory)])
+    assert isolated == []
+    if failure == "build":
+        summary = json.loads((directory / "summary.json").read_text())
+        assert summary["run_failed"] is True
+        assert summary["call_count"] == 0

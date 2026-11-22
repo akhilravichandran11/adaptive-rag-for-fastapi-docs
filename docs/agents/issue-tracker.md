@@ -397,7 +397,9 @@ within one ticket's scope and request user approval before expanding it. Mark th
 
 The steps above name the skill that performs each one; most are Matt Pocock's
 skills (MIT, see `THIRD_PARTY_NOTICES.md`). If a skill is not available in the
-current tool, follow the step by hand. Where a skill's own
+current tool, follow the step by hand. In a cloud session, the Mac-only tools
+table in [`cloud-sessions.md`](cloud-sessions.md) says which of them are
+missing. Where a skill's own
 instructions conflict with this repo, this repo wins:
 
 - **No commits in a local checkout** (cloud sessions:

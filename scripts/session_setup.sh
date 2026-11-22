@@ -37,6 +37,15 @@ fi
 if [ -d "$scratch" ]; then
   ln -sfn "$scratch" .scratch
 fi
+# The reserved-words hook reads its list from the git common dir, which a fresh
+# clone lacks; the scratch repo carries a copy. A worktree shares the main
+# checkout's list.
+if [ "$git_dir" = "$common_dir" ] && [ -r "$scratch/reserved-words" ] &&
+  [ ! -e "$common_dir/info/reserved-words" ]; then
+  { mkdir -p "$common_dir/info" &&
+    cp "$scratch/reserved-words" "$common_dir/info/reserved-words"; } ||
+    echo "session_setup: reserved-words list not copied; copy .scratch/reserved-words to .git/info/reserved-words"
+fi
 
 if ! command -v uv >/dev/null; then
   curl -LsSf https://astral.sh/uv/install.sh | sh

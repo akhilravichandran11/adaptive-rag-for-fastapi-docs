@@ -19,7 +19,11 @@ From [Cursor skills docs](https://cursor.com/docs/skills) and
 | `.codex/agents/` | Codex agents — Cursor loads these |
 
 So almost everything you already maintain for Claude/Codex is **already
-available in Cursor Local** (and in Cloud Agents that clone this GitHub repo).
+available in Cursor Local**. Cloud Agents that clone this GitHub repo get it
+too, except the skills git excludes (`portfolio-code-quality`,
+`portfolio-readiness-quick`, `portfolio-share-readiness`,
+`rag-improvement-checklist`, `rag-improvement-quick`,
+`python-simplification`), which do not reach them.
 
 ## Inventory decision (2026-11-18)
 
@@ -33,14 +37,14 @@ available in Cursor Local** (and in Cloud Agents that clone this GitHub repo).
 | `bug-review` | `.claude` + `.agents` | Spec/bug review contract |
 | `pr-writeup` | `.claude` + `.agents` | PR title/body |
 | `pre-edit-review-except-tests` | `.claude` + `.agents` | Approval gate with test exception |
-| `pre-edit-review` | `.agents` only | Strict approval; rarely needed in Cursor |
-| `python-simplification` | `.claude` + `.agents` | S-rules / open questions |
-| `debug-instrumentation` | `.agents` only | akr debug style add/strip |
-| `portfolio-share-readiness` | `.claude` + `.agents` | Share-ready / provenance |
-| `portfolio-code-quality` | `.claude` + `.agents` | Portfolio script checklist |
-| `portfolio-readiness-quick` | `.claude` + `.agents` | Quick portfolio pass |
-| `rag-improvement-checklist` | `.claude` + `.agents` | RAG/prompt checklist |
-| `rag-improvement-quick` | `.claude` + `.agents` | Quick RAG/prompt pass |
+| `pre-edit-review` | `.claude` + `.agents` | Strict approval; rarely needed in Cursor |
+| `python-simplification` | local only (not in git) | S-rules / open questions |
+| `debug-instrumentation` | `.claude` + `.agents` | akr debug style add/strip |
+| `portfolio-share-readiness` | local only (not in git) | Share-ready / provenance |
+| `portfolio-code-quality` | local only (not in git) | Portfolio script checklist |
+| `portfolio-readiness-quick` | local only (not in git) | Quick portfolio pass |
+| `rag-improvement-checklist` | local only (not in git) | RAG/prompt checklist |
+| `rag-improvement-quick` | local only (not in git) | Quick RAG/prompt pass |
 | `batch-lead` (Codex) | `.agents/skills/batch-lead` | Codex-specific spawn wording |
 
 ### Cursor-specific — keep / add only here

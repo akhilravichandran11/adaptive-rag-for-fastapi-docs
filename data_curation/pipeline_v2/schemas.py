@@ -533,3 +533,197 @@ STOP_CODES = (
     "input_too_large",
     "request_rejected",
 )
+
+
+def normalize_topics(topics: list[str]) -> list[str]:
+    normalized = []
+    for topic in topics:
+        if not isinstance(topic, str):
+            raise ValueError("publication topics: labels must be strings")
+        label = re.sub(r"[\s_-]+", "_", topic.lower()).strip("_")
+        if any(character.isalnum() for character in label) and label not in normalized:
+            normalized.append(label)
+    return normalized
+
+
+def _manifest_document(doc, context):
+    source_keys = [
+        "source_id",
+        "source_path",
+        "output_filename",
+        "source_url",
+        "bucket",
+        "content_sha256",
+    ]
+    _checkpoint_keys(
+        doc,
+        " ".join(source_keys) + " outcome exclusion_reason overall_quality model_analysis"
+        " assigned_topics topic_reviews analysis_provenance analysis_error",
+        "publication document",
+    )
+    SourceDocument.model_validate({key: doc[key] for key in source_keys}, strict=True)
+    if any(not doc[key] for key in source_keys) or doc["topic_reviews"] != []:
+        raise ValueError(f"{context}: empty source fact or unexpected topic reviews")
+    provenance = doc["analysis_provenance"]
+    _checkpoint_keys(
+        provenance, "finished_at response_model supplied_document", "publication provenance"
+    )
+    _checkpoint_time(provenance["finished_at"])
+    _checkpoint_provenance(provenance["supplied_document"])
+    if provenance["response_model"] is not None and (
+        not isinstance(provenance["response_model"], str) or not provenance["response_model"]
+    ):
+        raise ValueError(f"{context}: invalid returned model")
+    reasons = {
+        "ready": None,
+        "quarantined": "injection_policy",
+        "analysis_failed": "analysis_unavailable",
+    }
+    if not isinstance(doc["outcome"], str) or doc["outcome"] not in reasons:
+        raise ValueError(f"{context}: invalid outcome")
+    if doc["exclusion_reason"] != reasons[doc["outcome"]]:
+        raise ValueError(f"{context}: exclusion reason disagrees with outcome")
+    if doc["outcome"] == "analysis_failed":
+        _manifest_failed_analysis(doc, context)
+        return
+    _manifest_prediction(doc, context)
+
+
+def _manifest_failed_analysis(doc, context):
+    error = doc["analysis_error"]
+    _checkpoint_keys(error, "code attempts message", "publication error")
+    if (
+        not isinstance(error["code"], str)
+        or error["code"] not in ERROR_MESSAGES
+        or error["message"] != ERROR_MESSAGES[error["code"]]
+        or type(error["attempts"]) is not int
+        or not 1 <= error["attempts"] <= 3
+        or (
+            error["code"] in (*TRANSIENT_CODES, "interrupted_attempts_exhausted")
+            and error["attempts"] != 3
+        )
+    ):
+        raise ValueError(f"{context}: invalid controlled analysis error")
+    if (
+        doc["model_analysis"] is not None
+        or doc["overall_quality"] is not None
+        or doc["assigned_topics"] != []
+    ):
+        raise ValueError(f"{context}: failed analysis cannot have predictions, quality or topics")
+
+
+def _manifest_prediction(doc, context):
+    prediction = DocumentAnalysis.model_validate(doc["model_analysis"])
+    if (
+        doc["analysis_error"] is not None
+        or prediction.injection_suspected != (doc["outcome"] == "quarantined")
+        or bool(prediction.injection_evidence) != prediction.injection_suspected
+    ):
+        raise ValueError(f"{context}: successful result disagrees with outcome/evidence")
+    quality = doc["overall_quality"]
+    if type(quality) not in (int, float) or quality != round(
+        sum(prediction.scores.model_dump().values()) / 5, 1
+    ):
+        raise ValueError(f"{context}: quality disagrees with the five scores")
+    expected = [
+        dict(topic=topic, assigned_by="model", review_status="unreviewed")
+        for topic in normalize_topics(prediction.topics)
+    ]
+    if doc["assigned_topics"] != expected:
+        raise ValueError(f"{context}: effective topics disagree with model topics")
+
+
+def _manifest_analysis_spec(analysis_spec):
+    _checkpoint_keys(
+        analysis_spec,
+        "provider requested_model request_settings prompt_template_sha256 response_schema_sha256",
+        "publication analysis spec",
+    )
+    if (
+        not isinstance(analysis_spec["provider"], str)
+        or not analysis_spec["provider"]
+        or not isinstance(analysis_spec["requested_model"], str)
+        or not analysis_spec["requested_model"]
+        or not isinstance(analysis_spec["request_settings"], dict)
+    ):
+        raise ValueError("publication: invalid analysis specification")
+    _check_settings(analysis_spec["provider"], "openai", "publication provider")
+    _check_settings(
+        analysis_spec["requested_model"],
+        "gpt-5.4-mini-2026-03-17",
+        "publication requested model",
+    )
+    _check_settings(
+        analysis_spec["request_settings"],
+        {
+            "reasoning": {"effort": "low"},
+            "text": {
+                "verbosity": "low",
+                "format": {
+                    "type": "json_schema",
+                    "name": "document_analysis_v1",
+                    "strict": True,
+                },
+            },
+            "max_output_tokens": 8000,
+            "truncation": "disabled",
+            "store": False,
+            "service_tier": "default",
+            "tools": [],
+        },
+        "publication request settings",
+    )
+
+
+def _manifest_input_hashes(input_hashes, analysis_spec):
+    _checkpoint_keys(
+        input_hashes,
+        "run_metadata source_inventory analysis_results topic_reviews",
+        "publication input hashes",
+    )
+    hashes = [input_hashes[key] for key in ("run_metadata", "source_inventory", "analysis_results")]
+    hashes.extend(
+        analysis_spec[key] for key in ("prompt_template_sha256", "response_schema_sha256")
+    )
+    if any(
+        not isinstance(value, str) or not re.fullmatch("[0-9a-f]{64}", value) for value in hashes
+    ):
+        raise ValueError("publication: invalid input/snapshot hashes")
+    if input_hashes["topic_reviews"] is not None:
+        raise ValueError("publication: no topic review input is supported")
+
+
+class EnrichmentManifest(BaseModel):
+    model_config = {"extra": "forbid", "strict": True, "hide_input_in_errors": True}
+
+    schema_version: Literal["1.0"]
+    run_id: str = Field(pattern=r"^[0-9]{8}_[0-9]{6}_[0-9a-f]{4}$")
+    publication_id: str = Field(pattern=r"^[0-9]{3,}$")
+    published_at: str
+    corpus: dict
+    analysis_spec: dict
+    input_hashes: dict
+    documents: list[dict]
+
+    @model_validator(mode="after")
+    def validate_manifest(self):
+        _check_json(self.model_dump(), "publication")
+        _checkpoint_time(self.published_at)
+        if int(self.publication_id) < 1 or self.publication_id != f"{int(self.publication_id):03d}":
+            raise ValueError("publication: invalid revision number")
+        corpus = InventoryCorpus.model_validate(self.corpus, strict=True)
+        if corpus.model_dump() != self.corpus:
+            raise ValueError("publication: unexpected corpus fields")
+        _manifest_analysis_spec(self.analysis_spec)
+        _manifest_input_hashes(self.input_hashes, self.analysis_spec)
+        seen = {key: set() for key in ("source_id", "source_path", "output_filename")}
+        if not self.documents:
+            raise ValueError("publication: inventory must contain documents")
+        for index, doc in enumerate(self.documents):
+            context = f"publication documents[{index}]"
+            _manifest_document(doc, context)
+            for key, values in seen.items():
+                if doc[key] in values:
+                    raise ValueError(f"{context}: duplicate {key}")
+                values.add(doc[key])
+        return self

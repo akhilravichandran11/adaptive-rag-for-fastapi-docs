@@ -231,6 +231,7 @@ keeping its decisions table and drafted records verbatim, and add:
   usage and cost are not available through this runtime.
 
 Combine questions for the user into one numbered list with recommendations.
-Keep reports in this chat unless the user authorizes another destination.
+Send reports where the "Process notes and the handback" row of the table in
+`docs/agents/cloud-sessions.md` says.
 Do not assume background monitoring or cross-chat synchronization continues
 after this turn; agree a separate follow-up mechanism if needed.

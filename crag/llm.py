@@ -15,6 +15,8 @@ from tenacity import (
     wait_exponential,
 )
 
+from observability.costs import USAGE_FIELDS
+
 FALLBACK_MODEL = "gemini-flash-lite-latest"
 MAX_ATTEMPTS = 3
 RETRIED_ERRORS = (errors.ClientError, errors.ServerError, ValidationError)
@@ -31,10 +33,13 @@ def is_retryable(error: BaseException) -> bool:
 
 
 class StructuredLLM:
-    def __init__(self, client, *, primary: str, fallback: str = FALLBACK_MODEL) -> None:
+    def __init__(
+        self, client, *, primary: str, fallback: str = FALLBACK_MODEL, record=None
+    ) -> None:
         self.client = client
         self.primary = primary
         self.fallback = fallback
+        self.record = record
 
     def ask(self, prompt: str, schema: type[BaseModel]) -> tuple[BaseModel, str]:
         try:
@@ -60,13 +65,38 @@ class StructuredLLM:
         reraise=True,
     )
     def _generate(self, model: str, prompt: str, schema: type[BaseModel]) -> tuple[BaseModel, str]:
-        response = self.client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": schema,
-                "temperature": 0,
-            },
-        )
+        try:
+            response = self.client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                    "temperature": 0,
+                },
+            )
+        except Exception:
+            if self.record is not None:
+                self.record(
+                    provider="gemini",
+                    operation="generation",
+                    model=model,
+                    outcome="error",
+                    usage=None,
+                )
+            raise
+        if self.record is not None:
+            metadata = getattr(response, "usage_metadata", None)
+            usage = {
+                field: getattr(metadata, field)
+                for field in USAGE_FIELDS["gemini"]
+                if getattr(metadata, field, None) is not None
+            }
+            self.record(
+                provider="gemini",
+                operation="generation",
+                model=response.model_version or model,
+                outcome="response",
+                usage=usage,
+            )
         return schema.model_validate_json(response.text), response.model_version or model

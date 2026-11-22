@@ -4,16 +4,18 @@ The fake client copies the SDK's keyword-only call, ``.text`` and ``.model_versi
 (``model_version`` may be ``None``) and real error types.
 """
 
+import json
 import logging
 import socket
 from types import SimpleNamespace
 
 import pytest
-from google.genai import errors
+from google.genai import errors, types
 from pydantic import BaseModel, ValidationError
 from tenacity import wait_none
 
 from crag import llm
+from observability.costs import create_recorder
 
 PRIMARY = "gemini-pro-latest"
 FALLBACK = "fallback-model"
@@ -58,6 +60,8 @@ class FakeModels:
         result = self.scripts[model].pop(0)
         if isinstance(result, Exception):
             raise result
+        if isinstance(result, types.GenerateContentResponse):
+            return result
         return SimpleNamespace(text=result, model_version=self.versions[model])
 
     def models_called(self) -> list[str]:
@@ -240,3 +244,115 @@ def test_plain_value_error_raises_after_one_call_without_fallback():
 
     assert raised.value is error
     assert client.models.models_called() == [PRIMARY]
+
+
+def usage_reply(text, model="gemini-3.1-pro-preview"):
+    return types.GenerateContentResponse(
+        candidates=[types.Candidate(content=types.Content(parts=[types.Part(text=text)]))],
+        model_version=model,
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=100,
+            cached_content_token_count=20,
+            candidates_token_count=10,
+            thoughts_token_count=5,
+            total_token_count=115,
+        ),
+    )
+
+
+def test_recording_keeps_usage_for_invalid_replies_and_fallback():
+    client = fake_client(
+        {
+            PRIMARY: [usage_reply("not json")] * 3,
+            FALLBACK: [usage_reply(GOOD_REPLY, "gemini-3.5-flash-lite")],
+        }
+    )
+    rows = []
+    parsed, model = llm.StructuredLLM(
+        client, primary=PRIMARY, fallback=FALLBACK, record=lambda **row: rows.append(row)
+    ).ask("private prompt", Grade)
+
+    assert parsed == Grade(verdict="yes", score=0.9)
+    assert model == "gemini-3.5-flash-lite"
+    assert client.models.models_called() == [PRIMARY] * 3 + [FALLBACK]
+    assert len(rows) == 4
+    assert [row["model"] for row in rows] == ["gemini-3.1-pro-preview"] * 3 + [model]
+    assert all(row["provider"] == "gemini" and row["outcome"] == "response" for row in rows)
+    assert all(
+        row["usage"]
+        == {
+            "prompt_token_count": 100,
+            "cached_content_token_count": 20,
+            "candidates_token_count": 10,
+            "thoughts_token_count": 5,
+            "total_token_count": 115,
+        }
+        for row in rows
+    )
+    assert "private prompt" not in str(rows)
+
+
+@pytest.mark.parametrize(
+    "error", [rate_limit(), server_error(), bad_request(), ValueError("bad request")]
+)
+def test_recorded_provider_errors_keep_unknown_cost_and_existing_retry_rules(error, tmp_path):
+    client = fake_client({PRIMARY: [error] * 3, FALLBACK: [usage_reply(GOOD_REPLY)]})
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+    model = llm.StructuredLLM(client, primary=PRIMARY, fallback=FALLBACK, record=record)
+    retryable = isinstance(error, errors.ServerError) or getattr(error, "code", None) == 429
+    if retryable:
+        model.ask("private prompt", Grade)
+    else:
+        with pytest.raises(type(error)) as raised:
+            model.ask("private prompt", Grade)
+        assert raised.value is error
+    finish()
+
+    rows = [json.loads(line) for line in (directory / "calls.jsonl").read_text().splitlines()]
+    failed = rows[:-1] if retryable else rows
+    assert len(failed) == (3 if retryable else 1)
+    assert all(row["outcome"] == "error" and row["usd"] is None for row in failed)
+    assert all(row["usage"] == {} and row["reason"] == "missing_or_invalid_usage" for row in failed)
+    assert len(rows) == len(client.models.calls)
+    assert "private prompt" not in (directory / "calls.jsonl").read_text()
+
+
+@pytest.mark.parametrize("reply", [usage_reply("not json"), rate_limit()])
+def test_accounting_io_error_does_not_retry_or_fall_back(reply):
+    client = fake_client({PRIMARY: [reply, GOOD_REPLY], FALLBACK: [GOOD_REPLY]})
+    rows = []
+
+    def fail_record(**row):
+        rows.append(row)
+        raise OSError("cost file cannot be written")
+
+    with pytest.raises(OSError, match="cost file"):
+        llm.StructuredLLM(client, primary=PRIMARY, fallback=FALLBACK, record=fail_record).ask(
+            "q", Grade
+        )
+    assert client.models.models_called() == [PRIMARY]
+    assert len(rows) == 1
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        types.GenerateContentResponseUsageMetadata(prompt_token_count=10, candidates_token_count=2),
+    ],
+)
+def test_unresolved_model_alias_is_never_priced(metadata, tmp_path):
+    response = usage_reply(GOOD_REPLY, model=None)
+    response.usage_metadata = metadata
+    client = fake_client({PRIMARY: [response]})
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+    _, model = llm.StructuredLLM(client, primary=PRIMARY, record=record).ask("q", Grade)
+    finish()
+    row = json.loads((directory / "calls.jsonl").read_text())
+    assert model == row["model"] == PRIMARY
+    assert row["usd"] is None
+    assert row["reason"] == (
+        "missing_or_invalid_usage" if metadata is None else "unsupported_operation_or_model"
+    )

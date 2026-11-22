@@ -4,12 +4,14 @@ fake Tavily client. The fake copies the SDK's keyword call, its always-present `
 ``raw_content`` that can be ``None``, and its real error type. No network (C006).
 """
 
+import json
 import socket
 
 import pytest
 from tavily.errors import UsageLimitExceededError
 
 from crag.web_search import WebSearch
+from observability.costs import create_recorder
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +38,8 @@ class FakeTavilyClient:
         reply = self.replies.get(kwargs["query"], [])
         if isinstance(reply, Exception):
             raise reply
+        if isinstance(reply, dict):
+            return reply
         return {"query": kwargs["query"], "results": reply}
 
 
@@ -171,3 +175,78 @@ def test_constructing_calls_nothing() -> None:
     web_search = WebSearch(UntouchableClient())
 
     assert web_search.search_depth == "advanced"
+
+
+def test_recorded_search_keeps_measured_credits_and_documents(tmp_path):
+    replies = {
+        "first": {"results": [result("a", raw="page a")], "usage": {"credits": 2}},
+        "second": {
+            "results": [result("a", raw="duplicate"), result("b", content="snippet b")],
+            "usage": {"credits": 1},
+        },
+    }
+    plain = FakeTavilyClient(replies)
+    recorded = FakeTavilyClient(replies)
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+    expected = WebSearch(plain).run(["first", "second"])
+    actual = WebSearch(recorded, record=record).run(["first", "second"])
+    finish()
+
+    assert actual == expected
+    assert recorded.calls == [{**call, "include_usage": True} for call in plain.calls]
+    rows = [json.loads(line) for line in (directory / "calls.jsonl").read_text().splitlines()]
+    assert [row["usage"] for row in rows] == [{"credits": 2}, {"credits": 1}]
+    assert [row["usd"] for row in rows] == [0.016, 0.008]
+    assert all(row["outcome"] == "response" and row["model"] is None for row in rows)
+    assert json.loads((directory / "summary.json").read_text())["known_estimated_usd"] == 0.024
+
+
+@pytest.mark.parametrize(
+    "reply, error, outcome",
+    [
+        (UsageLimitExceededError("private quota"), UsageLimitExceededError, "error"),
+        ({"usage": {"credits": 2}}, KeyError, "response"),
+    ],
+)
+def test_failed_search_keeps_one_record_before_document_mapping(reply, error, outcome, tmp_path):
+    client = FakeTavilyClient({"q": reply})
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+    with pytest.raises(error):
+        WebSearch(client, record=record).run(["q", "not dispatched"])
+    finish(run_failed=True)
+    row = json.loads((directory / "calls.jsonl").read_text())
+    assert row["outcome"] == outcome
+    assert row["usd"] == (None if outcome == "error" else 0.016)
+    assert len(client.calls) == 1
+    assert "private quota" not in (directory / "calls.jsonl").read_text()
+
+
+@pytest.mark.parametrize(
+    "reply", [{"results": [], "usage": {"credits": 2}}, UsageLimitExceededError("quota")]
+)
+def test_search_accounting_failure_stops_before_another_query(reply):
+    client = FakeTavilyClient({"q": reply})
+    rows = []
+
+    def fail_record(**row):
+        rows.append(row)
+        raise OSError("cost file cannot be written")
+
+    with pytest.raises(OSError, match="cost file"):
+        WebSearch(client, record=fail_record).run(["q", "not dispatched"])
+    assert len(client.calls) == len(rows) == 1
+
+
+def test_missing_search_usage_is_unknown_and_empty_queries_record_nothing(tmp_path):
+    client = FakeTavilyClient()
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+    search = WebSearch(client, record=record)
+    assert search.run([]) == {"documents": []}
+    assert (directory / "calls.jsonl").read_text() == ""
+    search.run(["q"])
+    finish()
+    row = json.loads((directory / "calls.jsonl").read_text())
+    assert row["usd"] is None and row["reason"] == "missing_or_invalid_usage"

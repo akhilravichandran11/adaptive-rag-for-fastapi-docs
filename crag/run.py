@@ -24,6 +24,7 @@ from crag.orchestrator import CragOrchestrator
 from crag.refinement import KnowledgeRefinement
 from crag.web_search import WebSearch
 from data_ingestion.variants import select_variants
+from observability.costs import create_recorder
 from retrieval import hybrid
 from retrieval.baseline_rag import build_rag_pipeline
 
@@ -107,10 +108,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="hybrid",
         help="hybrid: BM25 + dense, fused and reranked; dense: Qdrant only (default: %(default)s)",
     )
+    parser.add_argument(
+        "--costs-dir", type=Path, help="Fresh directory for single-question hybrid costs"
+    )
     args = parser.parse_args(argv)
     # BM25 refuses an empty query only inside the run, after the paid query embedding.
     if args.question is not None and not args.question.strip():
         parser.error("--question must not be empty")
+    if args.costs_dir is not None and (args.question is None or args.retriever != "hybrid"):
+        parser.error(
+            "--costs-dir requires --question and --retriever hybrid; "
+            f"got route_check={args.route_check}, retriever={args.retriever}"
+        )
     return args
 
 
@@ -165,40 +174,54 @@ def main(argv: list[str] | None = None) -> None:
     pro_fallback = os.getenv("GEMINI_FALLBACK_MODEL") or FALLBACK_MODEL
     light_fallback = os.getenv("GEMINI_LIGHT_FALLBACK_MODEL") or FALLBACK_MODEL
 
-    [variant] = select_variants(STRATEGY, EMBEDDER)
+    record, finish = create_recorder(args.costs_dir) if args.costs_dir is not None else (None, None)
+    recording = {"record": record} if record is not None else {}
+    run_failed = True
     try:
-        if args.retriever == "hybrid":
-            pipeline = hybrid.build_hybrid_pipeline(variant)
+        [variant] = select_variants(STRATEGY, EMBEDDER)
+        try:
+            if args.retriever == "hybrid":
+                pipeline = hybrid.build_hybrid_pipeline(variant, **recording)
+            else:
+                pipeline = build_rag_pipeline(variant, retrieve_only=True)
+        except ValueError as exc:  # a missing collection or chunk run, or missing Qdrant config
+            logger.error("%s", exc)
+            raise SystemExit(1) from None
+
+        def retrieve(query: str, top_k: int) -> list[Document]:
+            if args.retriever == "hybrid":
+                return hybrid.retrieve(pipeline, query, top_k)
+            outputs = pipeline.run(
+                {"query_embedder": {"text": query}, "retriever": {"top_k": top_k}}
+            )
+            return outputs["retriever"]["documents"]
+
+        client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+        pro = StructuredLLM(
+            client, primary=os.environ["GEMINI_MODEL"], fallback=pro_fallback, **recording
+        )
+        light = StructuredLLM(
+            client, primary=os.environ["GEMINI_LIGHT_MODEL"], fallback=light_fallback, **recording
+        )
+
+        crag = CragOrchestrator(
+            retrieve,
+            DocumentGrader(pro),
+            QueryDecomposer(pro),
+            WebSearch(TavilyClient(api_key=os.environ["TAVILY_API_KEY"]), **recording),
+            KnowledgeRefinement(light),
+            AnswerGenerator(pro),
+        )
+
+        if args.route_check:
+            run_route_check(crag)
         else:
-            pipeline = build_rag_pipeline(variant, retrieve_only=True)
-    except ValueError as exc:  # a missing collection or chunk run, or missing Qdrant config
-        logger.error("%s", exc)
-        raise SystemExit(1) from None
-
-    def retrieve(query: str, top_k: int) -> list[Document]:
-        if args.retriever == "hybrid":
-            return hybrid.retrieve(pipeline, query, top_k)
-        outputs = pipeline.run({"query_embedder": {"text": query}, "retriever": {"top_k": top_k}})
-        return outputs["retriever"]["documents"]
-
-    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-    pro = StructuredLLM(client, primary=os.environ["GEMINI_MODEL"], fallback=pro_fallback)
-    light = StructuredLLM(client, primary=os.environ["GEMINI_LIGHT_MODEL"], fallback=light_fallback)
-
-    crag = CragOrchestrator(
-        retrieve,
-        DocumentGrader(pro),
-        QueryDecomposer(pro),
-        WebSearch(TavilyClient(api_key=os.environ["TAVILY_API_KEY"])),
-        KnowledgeRefinement(light),
-        AnswerGenerator(pro),
-    )
-
-    if args.route_check:
-        run_route_check(crag)
-    else:
-        result = crag.run(args.question)
-        logger.info("%s", json.dumps(dataclasses.asdict(result), indent=2))
+            result = crag.run(args.question)
+            logger.info("%s", json.dumps(dataclasses.asdict(result), indent=2))
+        run_failed = False
+    finally:
+        if finish is not None:
+            finish(run_failed=run_failed)
 
 
 if __name__ == "__main__":

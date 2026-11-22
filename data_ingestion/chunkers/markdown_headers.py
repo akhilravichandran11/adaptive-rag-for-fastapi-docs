@@ -1,6 +1,5 @@
 """
 markdown_headers chunker: Haystack's own markdown splitter, configured and not extended.
-Splits at ``#`` and ``##`` headings, then every 300 words within a section.
 
     uv run python -m data_ingestion.chunkers.markdown_headers    # demo, from the project root
 
@@ -30,8 +29,6 @@ MARKDOWN_HEADERS = ChunkSettings(strategy="markdown_headers", size=300, overlap=
 
 @component
 class MarkdownHeadersChunker:
-    """Splits at # and ## headings, then every 300 words within a section."""
-
     def __init__(self) -> None:
         self.settings = MARKDOWN_HEADERS
         self._splitter = MarkdownHeaderSplitter(

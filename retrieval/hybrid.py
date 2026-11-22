@@ -38,6 +38,8 @@ from data_ingestion.variants import (
     check_prefix,
     select_variants,
 )
+from observability.costs import create_recorder
+from retrieval.voyage_usage import UsageVoyageRanker, UsageVoyageTextEmbedder
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,11 +58,14 @@ def build_hybrid_pipeline(
     prefix: str = DEFAULT_PREFIX,
     candidates: int = CANDIDATES,
     top_k: int = TOP_K,
+    record=None,
 ) -> Pipeline:
     """Build the BM25 + dense pipeline for ``variant``; makes one free Qdrant call, no paid one.
 
     Raises ``ValueError`` for missing config, chunk file or collection.
     """
+    if record is not None and variant.embedder.backend != "voyage":
+        raise ValueError(f"Cost recording requires a Voyage embedder; got {variant.embedder.name}")
     settings = load_settings(
         collection_override=variant.collection(prefix),
         dimension_override=variant.embedder.dimension,
@@ -96,13 +101,21 @@ def build_hybrid_pipeline(
     pipeline.add_component(
         "bm25", InMemoryBM25Retriever(document_store=chunk_store, top_k=candidates)
     )
-    pipeline.add_component("query_embedder", build_query_embedder(variant.embedder.name))
+    if record is None:
+        query_embedder = build_query_embedder(variant.embedder.name)
+        ranker = VoyageRanker(model=RERANK_MODEL, top_k=top_k)
+    else:
+        query_embedder = UsageVoyageTextEmbedder(
+            model=variant.embedder.model, output_dimension=variant.embedder.dimension, record=record
+        )
+        ranker = UsageVoyageRanker(model=RERANK_MODEL, top_k=top_k, record=record)
+    pipeline.add_component("query_embedder", query_embedder)
     pipeline.add_component(
         "dense",
         QdrantEmbeddingRetriever(document_store=build_document_store(settings), top_k=candidates),
     )
     pipeline.add_component("joiner", DocumentJoiner(join_mode="reciprocal_rank_fusion"))
-    pipeline.add_component("ranker", VoyageRanker(model=RERANK_MODEL, top_k=top_k))
+    pipeline.add_component("ranker", ranker)
     pipeline.connect("query_embedder.embedding", "dense.query_embedding")
     pipeline.connect("bm25.documents", "joiner.documents")
     pipeline.connect("dense.documents", "joiner.documents")
@@ -166,6 +179,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Also log the BM25 and dense lists and the ids found in both",
     )
+    parser.add_argument("--costs-dir", type=Path, help="Save Voyage usage in a fresh directory")
     args = parser.parse_args(argv)
     # BM25 refuses an empty query only inside the run, after the paid query embedding.
     if not args.question.strip():
@@ -178,6 +192,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         resolve_run_dir(args.chunks_run)
     except ValueError as exc:
         parser.error(str(exc))
+    if args.costs_dir is not None and EMBEDDERS[args.embedder].backend != "voyage":
+        parser.error(f"--costs-dir requires a Voyage embedder; got {args.embedder}")
     if args.top_k < 1:
         parser.error(f"--top-k must be at least 1; got {args.top_k}")
     return args
@@ -235,23 +251,31 @@ def main(argv: list[str] | None = None) -> None:
     _check_prerequisites(args.embedder)
 
     [variant] = select_variants(args.strategy, args.embedder)
+    record, finish = create_recorder(args.costs_dir) if args.costs_dir is not None else (None, None)
+    run_failed = True
     try:
-        pipeline = build_hybrid_pipeline(
-            variant,
-            chunks_run=args.chunks_run,
-            prefix=args.collection_prefix,
-            top_k=args.top_k,
-        )
-    except ValueError as exc:  # missing Qdrant config, chunk file or collection
-        logger.error("%s", exc)
-        raise SystemExit(1) from None
+        try:
+            pipeline = build_hybrid_pipeline(
+                variant,
+                chunks_run=args.chunks_run,
+                prefix=args.collection_prefix,
+                top_k=args.top_k,
+                record=record,
+            )
+        except ValueError as exc:  # missing Qdrant config, chunk file or collection
+            logger.error("%s", exc)
+            raise SystemExit(1) from None
 
-    logger.info("%s: %r", pipeline.metadata["collection"], args.question)
-    if args.compare:
-        reranked = _retrieve_and_log_lists(pipeline, args.question)
-    else:
-        reranked = retrieve(pipeline, args.question)
-    log_documents("Reranked", reranked)
+        logger.info("%s: %r", pipeline.metadata["collection"], args.question)
+        if args.compare:
+            reranked = _retrieve_and_log_lists(pipeline, args.question)
+        else:
+            reranked = retrieve(pipeline, args.question)
+        log_documents("Reranked", reranked)
+        run_failed = False
+    finally:
+        if finish is not None:
+            finish(run_failed=run_failed)
 
 
 if __name__ == "__main__":

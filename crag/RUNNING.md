@@ -93,10 +93,10 @@ For example, if the answer cites `[2]`, find the entry with `rank` equal to `2`
 in the `sources` array. Its `source` field identifies the documentation path or
 web URL, and its `content` field contains the second excerpt the generator saw.
 
-## Cost records (CLI integrations pending)
+## Cost records
 
-OBS-01 supplies the local recorder. The following commands are planned for OBS-02
-(retrieval) and OBS-03 (CRAG); **`--costs-dir` is not available yet**:
+Both the retrieval and CRAG CLIs support optional cost recording with
+`--costs-dir`. Each command below requires a fresh output directory:
 
 ```bash
 uv run python retrieval/hybrid.py --question "How do I add CORS middleware?" --costs-dir /tmp/retrieval-costs
@@ -135,7 +135,7 @@ an append/flush failure prevents a misleading successful summary.
 No prompts, answers, document content or exception text belong in these records.
 Hidden SDK retries and calls interrupted before a response may be missing; a killed
 process may leave only partial JSONL without a summary. There is no recovery or
-invoice reconciliation. Recording is planned only for single-question Voyage hybrid
+invoice reconciliation. Recording is available only for single-question Voyage hybrid
 CLI runs; HTTP, dense/BGE modes, route-check batches and Opik export remain outside
 this scope. Commands without recording retain their existing behavior.
 

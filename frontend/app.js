@@ -5,6 +5,7 @@ const form = document.getElementById("ask-form");
 const question = document.getElementById("question");
 const ask = document.getElementById("ask");
 const status = document.getElementById("status");
+const elapsed = document.getElementById("elapsed");
 const error = document.getElementById("error");
 const result = document.getElementById("result");
 
@@ -67,9 +68,16 @@ function showResult(body) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   ask.disabled = true;
+  elapsed.textContent = "0";
   status.hidden = false;
   error.hidden = true;
   result.hidden = true;
+  // Seconds since the start, not a tick count: a tab in the background slows the ticks down.
+  // Rounded, so a tick that fires a millisecond early still shows its second.
+  const started = Date.now();
+  const timer = setInterval(() => {
+    elapsed.textContent = Math.round((Date.now() - started) / 1000);
+  }, 1000);
   try {
     const response = await fetch("/query", {
       method: "POST",
@@ -85,6 +93,7 @@ form.addEventListener("submit", async (event) => {
     showError(`Error: ${failure.message}`);
   } finally {
     // Reached on success, error and network failure alike, so the page never stays in "Working…".
+    clearInterval(timer);
     ask.disabled = false;
     status.hidden = true;
   }

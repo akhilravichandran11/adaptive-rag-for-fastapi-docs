@@ -19,6 +19,7 @@ from tavily import TavilyClient
 from crag.decomposer import QueryDecomposer
 from crag.generator import AnswerGenerator
 from crag.grader import DocumentGrader
+from crag.guards import DocumentGuard
 from crag.llm import FALLBACK_MODEL, StructuredLLM
 from crag.orchestrator import CragOrchestrator
 from crag.refinement import KnowledgeRefinement
@@ -208,7 +209,9 @@ def main(argv: list[str] | None = None) -> None:
             retrieve,
             DocumentGrader(pro),
             QueryDecomposer(pro),
-            WebSearch(TavilyClient(api_key=os.environ["TAVILY_API_KEY"]), **recording),
+            DocumentGuard(
+                WebSearch(TavilyClient(api_key=os.environ["TAVILY_API_KEY"]), **recording)
+            ),
             KnowledgeRefinement(light),
             AnswerGenerator(pro),
         )

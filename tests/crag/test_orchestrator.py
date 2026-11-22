@@ -77,7 +77,7 @@ def build(log: list, results: dict[str, list[Document]], **replies) -> CragOrche
         "web_search": {"documents": []},
         "refinement": {
             "refined_context": [],
-            "internal_kept": 0,
+            "documentation_kept": 0,
             "reretrieval_kept": 0,
             "web_kept": 0,
             "model": "refine-model",
@@ -139,14 +139,14 @@ def test_correct_generates_from_the_relevant_documents():
     assert result.sources == [
         {
             "rank": 1,
-            "origin": "internal",
+            "origin": "documentation",
             "source": "docs/a.md",
             "content": "chunk a",
             "score": 0.9,
         },
         {
             "rank": 2,
-            "origin": "internal",
+            "origin": "documentation",
             "source": "docs/b.md",
             "content": "chunk b",
             "score": 0.4,
@@ -175,7 +175,7 @@ def test_ambiguous_decomposes_reretrieves_searches_refines_and_generates_in_orde
         web_search={"documents": web_documents},
         refinement={
             "refined_context": refined,
-            "internal_kept": 1,
+            "documentation_kept": 1,
             "reretrieval_kept": 1,
             "web_kept": 1,
             "model": "refine-model",
@@ -215,7 +215,11 @@ def test_ambiguous_decomposes_reretrieves_searches_refines_and_generates_in_orde
 
     assert result.route == "ambiguous"
     assert result.missing_aspects == ["types"]
-    assert [source["origin"] for source in result.sources] == ["internal", "internal", "web"]
+    assert [source["origin"] for source in result.sources] == [
+        "documentation",
+        "documentation",
+        "web",
+    ]
     assert result.sources[2]["source"] == "https://example.com/one"
     assert step_names(result) == [
         "retrieve",
@@ -232,7 +236,7 @@ def test_ambiguous_decomposes_reretrieves_searches_refines_and_generates_in_orde
         "reretrieved": 2,
         "web": 1,
         "refined": 3,
-        "internal_kept": 1,
+        "documentation_kept": 1,
         "reretrieval_kept": 1,
         "web_kept": 1,
     }
@@ -258,7 +262,7 @@ def test_ambiguous_skips_the_part_with_no_decomposed_queries(
         decomposer={"vector_queries": vector_queries, "web_queries": web_queries, "model": "m"},
         refinement={
             "refined_context": retrieved,
-            "internal_kept": 1,
+            "documentation_kept": 1,
             "reretrieval_kept": 0,
             "web_kept": 0,
             "model": "m",
@@ -300,7 +304,7 @@ def test_incorrect_searches_the_web_with_the_question_and_refines_web_only():
         web_search={"documents": web_documents},
         refinement={
             "refined_context": refined,
-            "internal_kept": 0,
+            "documentation_kept": 0,
             "reretrieval_kept": 0,
             "web_kept": 1,
             "model": "refine-model",
@@ -431,7 +435,7 @@ def test_the_ambiguous_result_converts_to_json():
         web_search={"documents": [web("one")]},
         refinement={
             "refined_context": [retrieved[0], web("one")],
-            "internal_kept": 1,
+            "documentation_kept": 1,
             "reretrieval_kept": 0,
             "web_kept": 1,
             "model": "m",
@@ -464,7 +468,7 @@ def test_an_adapter_exception_propagates(failing, decision):
         "web_search": {"documents": [web("one")]},
         "refinement": {
             "refined_context": retrieved,
-            "internal_kept": 1,
+            "documentation_kept": 1,
             "reretrieval_kept": 0,
             "web_kept": 0,
             "model": "m",
@@ -510,7 +514,7 @@ def test_a_reretrieval_exception_propagates():
             log,
             {
                 "refined_context": retrieved,
-                "internal_kept": 1,
+                "documentation_kept": 1,
                 "reretrieval_kept": 0,
                 "web_kept": 0,
                 "model": "m",

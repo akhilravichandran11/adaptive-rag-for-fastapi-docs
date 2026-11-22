@@ -47,6 +47,7 @@ set yet.
 | [C012](#c012-crag-adapters-are-required-constructor-arguments-the-caller-builds-them-once-at-startup) | CRAG adapters are required constructor arguments; the caller builds them once at startup | CRG-07 | accepted |
 | [C013](#c013-a-run-of-hundreds-of-paid-calls-writes-its-settings-first-and-may-be-resumed-into-its-own-folder) | A run of hundreds of paid calls writes its settings first and may be resumed into its own folder | PRT-17 | accepted |
 | [C014](#c014-one-run-bound-callback-records-completed-provider-calls) | One run-bound callback records completed provider calls | OBS-01 | accepted |
+| [C015](#c015-a-fake-for-an-sdk-client-subclasses-the-real-client-and-answers-only-its-execute) | A fake for an SDK client subclasses the real client and answers only its `execute` | CRG-37 | accepted |
 
 ---
 
@@ -534,3 +535,19 @@ components (rejected by D8 and D9).
 **Blast radius.** `observability/costs.py`, its tests, and the later Voyage/CRAG integrations in OBS-02/03. Those integrations remain pending.
 
 **Alternatives.** Recorder class, global active run, ContextVar, registry and exporter interface; each adds machinery unnecessary for one CLI run. A total measured only after pipeline success loses earlier calls on failure.
+
+## C015: A fake for an SDK client subclasses the real client and answers only its `execute`
+
+**Status:** accepted · **Introduced:** 2026-11-22, CRG-37 · **Where:** `tests/backend/test_cache.py` (`FakeUpstash`)
+
+**The convention, stated.** When the code under test calls an SDK client whose methods all go through one transport method (Upstash's `Redis.execute(command)`), the fake subclasses the real client. It calls the real constructor with dummy settings, which must open no connection, and overrides only that method. It records each command, answers from in-memory state, and passes the reply through the SDK's own formatter. It raises for any command it does not answer, and its docstring says what it stands in for. Duck-typed fakes, such as `FakeLLM` in `tests/crag/test_generator.py`, stay the default for every client without a single transport method.
+
+**Why.** The SDK then builds every command and formats every reply. A wrong keyword, a skipped SDK guard (`delete()` with no keys) or a misread reply shape fails in the test, not on the first live call. A duck-typed fake with the same method names accepts any arguments.
+
+**What it replaces.** Nothing for this client. Elsewhere fakes are plain classes with the adapter's method names, which stays right where a client has no single transport method.
+
+**Cost.** The fake depends on the SDK's command lists and imports `upstash_redis.format.cast_response`, which is not public API, so an SDK upgrade can break the test without any change in behaviour. The reply shapes it returns are written by hand. Calls that bypass `execute` (`pipeline()`, `multi()`, `close()`) are not covered; the per-module network guard fails any test that reaches them. The dispatch is about 50 lines.
+
+**Blast radius.** Test-only: `tests/backend/test_cache.py`, and CRG-38's tests if they need the cache.
+
+**Alternatives.** A duck-typed fake, which cannot catch a wrong keyword. Canned HTTP replies under `httpx`, which tie the test to the REST wire format and its base64 encoding.

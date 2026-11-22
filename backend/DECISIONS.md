@@ -9,6 +9,79 @@ explained in [`crag/DECISIONS.md`](../crag/DECISIONS.md) where they belong to CR
 
 ---
 
+## 2026-11-22 — A semantic answer cache on Upstash, off when it cannot start (D53)
+
+**Decision.** `backend/app/cache.py` keeps answers in a free Upstash Redis database, through
+Upstash's Python SDK (`upstash-redis`, in `pyproject.toml`) over HTTPS.
+`SemanticCache(client)` takes its client from the caller.
+
+- `ensure_index()` creates the search index `answers` over the hashes under `cache:`, with
+  one `HYBRID` field, `question`. `EXISTSOK` makes a restart leave an existing index alone.
+- `store(question, response)` writes `cache:<sha256 of the question>` with the question and
+  the response as JSON, and a 24-hour expiry (`EXPIRY_SECONDS`).
+- `lookup(question)` asks for the single nearest question by meaning (`$ann`, limit 1). It
+  returns the stored response and the score when the score is at least `THRESHOLD = 0.94`.
+  Otherwise it returns `None` beside the nearest score, or `None` with no score when nothing
+  is stored.
+- `open_cache(url, token, client_factory)` returns `None` and logs "cache off" at INFO
+  unless `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are both set. It returns
+  `None` with one WARNING naming the fix when creating the index gets no reply
+  (`httpx.TransportError`). That is the only place a cache error is caught: once a cache is
+  returned, an error in a lookup or a store raises.
+- `scripts/clear_cache.py` deletes every `cache:` key with `SCAN` and `DEL` and logs how
+  many it deleted. It keeps the index, which drops deleted keys by itself. It is run by hand
+  after a pipeline change that changes answers.
+- `.env.example` lists both settings empty, so the cache is off by default.
+  `backend/app/main.py` does not call the cache yet.
+
+**Why semantic.** A cache keyed by meaning also catches exact repeats. An exact-match cache
+misses every paraphrase, such as "How can I enable CORS in FastAPI?" against "How do I add
+CORS middleware in FastAPI?". Keeping both would only save an embedding call on an exact
+repeat, and Upstash makes that call anyway.
+
+**Why Upstash, with its own embeddings.** The app runs on a laptop and in cloud sessions
+that cannot reach it, which ruled out a local Redis in Docker. Upstash's free tier (250 MB,
+500K commands a month) is larger than Redis Cloud's, and it works over HTTPS. Upstash embeds
+a `HYBRID` field itself (OpenAI text-embedding-3, included in the price), so the app makes
+no embedding call. The costs:
+- The index uses Upstash-only `SEARCH.*` commands, because Upstash rejects RediSearch's
+  `FT.*`. The cache does not move to another Redis unchanged.
+- Upstash sends every stored and every asked question to OpenAI. That is acceptable for
+  questions about FastAPI's documentation.
+- The threshold had to be set from scratch.
+
+**Why 0.94.** `$ann` scores run from 0 to 1, higher is closer, and Upstash applies no
+threshold of its own. A probe on a free database on 2026-11-21 gave two points:
+- "How can I enable CORS in FastAPI?" scored 0.953 against "How do I add CORS middleware in
+  FastAPI?", which must hit.
+- "How do I use Depends?" scored 0.891 against "How do I use Depends with yield?", a
+  different question that must not hit.
+Unrelated pairs scored about 0.55. 0.94 sits between the two points.
+
+**Why 24 hours.** A day keeps repeat questions within a session or a demo cheap, and it caps
+how long a stale answer or a wrong hit can be served when nobody runs the clear script.
+
+**Why an unreachable database turns the cache off.** Upstash may archive or delete a free
+database after quiet weeks. Refusing to start would turn that into an app that will not run,
+and treating every error as a miss would hide a broken cache for good. So the check runs
+once, at startup. If the database cannot be reached, the app logs one WARNING ("make a new
+database or unset UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN") and runs without the
+cache. An error once the cache is on raises, as every other adapter's does (S005). An error
+reply at startup, such as a wrong token, means the database was reached, so it raises too.
+
+**Known limitation.**
+- The threshold rests on two pairs. A paraphrase that scores 0.93 misses, and a different
+  question that scores 0.95 is served a wrong answer for up to a day. Each lookup returns
+  its score, so recorded scores can recalibrate it.
+- The `$ann` query shape and `EXISTSOK` come from the SDK and have not yet run against a
+  live database.
+- A store is two commands. If `EXPIRE` fails after `HSET`, the request raises and the key
+  keeps no expiry until the clear script runs.
+- The SDK's HTTP client has no timeout and retries once after 3 seconds, so an unreachable
+  database delays startup by at least that.
+
+---
+
 ## 2026-10-26 — The frontend is one static page served by the same app (D6)
 
 **Decision.** The page is `frontend/index.html` and one script, `frontend/app.js`: plain

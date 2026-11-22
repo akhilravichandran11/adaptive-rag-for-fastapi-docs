@@ -122,7 +122,7 @@ class KnowledgeRefinement:
         distinct_models = list(dict.fromkeys(models))
         return {
             "refined_context": [*relevant_documents, *kept_chunks, *kept_pages],
-            "internal_kept": len(relevant_documents),
+            "documentation_kept": len(relevant_documents),
             "reretrieval_kept": len(kept_chunks),
             "web_kept": len(kept_pages),
             "model": ", ".join(distinct_models) if distinct_models else None,

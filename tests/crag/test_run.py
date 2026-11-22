@@ -331,7 +331,7 @@ def test_main_on_the_dense_path_shares_the_pro_llm_and_reads_fallbacks(
     assert (light.primary, light.fallback) == ("test-gemini_light_model", light_fallback)
     assert pro.client is light.client
     assert pro.client.api_key == "test-google_api_key"
-    assert crag.web_search.client.api_key == "test-tavily_api_key"
+    assert crag.web_search.web_search.client.api_key == "test-tavily_api_key"
 
 
 def test_main_answers_through_the_hybrid_pipeline_by_default(
@@ -387,7 +387,12 @@ def test_recorded_cli_opens_cost_file_before_building_and_shares_one_recorder(
     [pipeline] = FakeHybridPipeline.built
     [crag] = FakeOrchestrator.built
     record = pipeline.kwargs["record"]
-    assert crag.grader.llm.record is crag.refinement.llm.record is crag.web_search.record is record
+    assert (
+        crag.grader.llm.record
+        is crag.refinement.llm.record
+        is crag.web_search.web_search.record
+        is record
+    )
     assert json.loads((directory / "summary.json").read_text())["run_failed"] is False
 
 

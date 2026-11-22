@@ -43,7 +43,7 @@ RESULT = CragResult(
     sources=[
         {
             "rank": 1,
-            "origin": "internal",
+            "origin": "documentation",
             "source": "docs/en/docs/tutorial/query-params.md",
             "content": "Query parameters ...",
             "score": 0.91,
@@ -376,7 +376,7 @@ def test_startup_builds_one_orchestrator_on_hybrid_retrieval(startup: dict[str, 
     assert crag.grader.llm.fallback == main.FALLBACK_MODEL
     assert crag.generator.llm is crag.grader.llm
     assert crag.refinement.llm.primary == "test-gemini_light_model"
-    assert crag.web_search.client == ("tavily", "test-tavily_api_key")
+    assert crag.web_search.web_search.client == ("tavily", "test-tavily_api_key")
 
     assert crag.retrieve("Query params?", 10) == []
     assert startup["retrieve"] == [(PIPELINE, "Query params?", 10)]

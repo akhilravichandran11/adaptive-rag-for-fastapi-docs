@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coordinating Lead"
+  short_description: "Coordinate capability work across owner chats"
+  default_prompt: "Use $coordinating-lead for this capability: reconcile current records and chat handoffs, then give me changes, conflicts, and my next action with its chat and prompt."

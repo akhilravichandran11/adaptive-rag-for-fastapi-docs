@@ -3,6 +3,8 @@ from importlib import metadata
 
 from data_curation.pipeline_v2.schemas import AnalysisRecipe
 
+DISCLOSURE = "\n\n[Pipeline disclosure: only a prefix of the original document is supplied. The remainder was omitted to fit the saved input budget. Assess only the supplied excerpt.]\n"
+
 PROMPT = """You analyze documentation for a FastAPI documentation assistant.
 
 Return exactly one JSON object matching the supplied response schema.

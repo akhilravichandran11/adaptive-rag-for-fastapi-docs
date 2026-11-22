@@ -14,7 +14,7 @@ from openai.types.responses import Response
 from pydantic import ValidationError
 
 from data_curation.pipeline_v2.artifacts import artifact_bytes, snapshot_hashes
-from data_curation.pipeline_v2.recipe import build_analysis_recipe
+from data_curation.pipeline_v2.recipe import DISCLOSURE, build_analysis_recipe
 from data_curation.pipeline_v2.schemas import (
     ERROR_MESSAGES,
     RETRY_CODES,
@@ -63,9 +63,6 @@ def _read_run(run_dir):
         "source_inventory": hashlib.sha256(inventory_bytes).hexdigest(),
     }
     return run, inventory, hashes
-
-
-DISCLOSURE = "\n\n[Pipeline disclosure: only a prefix of the original document is supplied. The remainder was omitted to fit the saved input budget. Assess only the supplied excerpt.]\n"
 
 
 def _compact(value):

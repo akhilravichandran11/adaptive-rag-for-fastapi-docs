@@ -28,6 +28,7 @@ from backend.app.telemetry import crag_telemetry
 from crag.decomposer import QueryDecomposer
 from crag.generator import AnswerGenerator
 from crag.grader import DocumentGrader
+from crag.guards import DocumentGuard
 from crag.llm import FALLBACK_MODEL, StructuredLLM
 from crag.orchestrator import CragOrchestrator, utc_now_iso
 from crag.refinement import KnowledgeRefinement
@@ -74,7 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[dict]:
         lambda query, top_k: hybrid.retrieve(pipeline, query, top_k),
         DocumentGrader(pro),
         QueryDecomposer(pro),
-        WebSearch(TavilyClient(api_key=os.environ["TAVILY_API_KEY"])),
+        DocumentGuard(WebSearch(TavilyClient(api_key=os.environ["TAVILY_API_KEY"]))),
         KnowledgeRefinement(light),
         AnswerGenerator(pro),
     )

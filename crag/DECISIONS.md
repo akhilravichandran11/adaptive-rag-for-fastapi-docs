@@ -10,6 +10,60 @@ each one is explained here.
 
 ---
 
+## 2026-11-22 — Web pages pass a document guard before any prompt sees them (D41, D47)
+
+**Decision.** `crag/guards.py`'s `DocumentGuard` wraps the web search.
+`DocumentGuard(web_search).run(queries)` calls `web_search.run(queries=queries)` and returns
+`{"documents": [...]}`, the shape of `WebSearch.run`, so the orchestrator cannot tell them
+apart. `crag/run.py` (`main`) and `backend/app/main.py` (`lifespan`) pass
+`DocumentGuard(WebSearch(...))` where they passed `WebSearch(...)`. For each page, in the
+order the search returned them:
+
+- **Always:** in the page's text and its title, a `<` that starts an excerpt tag (`<excerpt`
+  or `</excerpt` as a whole word, in any case, with whitespace or a common invisible
+  character, such as a zero-width space, word joiner, soft hyphen or direction mark, allowed
+  around the `/`) becomes `&lt;`, so a person still reads the word but the page cannot open
+  or close an excerpt in the generator's prompt. Code such as `<excerpts>` or
+  `n <excerpt_len` stays as written; `a < excerpt` gains `&lt;`, which reads the same.
+- **On a match:** a page whose title or text contains a phrase from `OVERRIDE_PHRASES`
+  (case-insensitive, with whitespace collapsed so a phrase wrapped across lines still
+  matches) is dropped, with one WARNING naming its url and the phrase. The title counts
+  because the page writes it and refinement's prompt shows it.
+
+Kept pages are new Documents with the cleaned content, a copy of the meta whose title is
+cleaned the same way (a page without one stays without one), and the same score; the
+Documents the search returned never change. The step trace is unchanged: the
+WARNING in the run's log is the record. Tests: `tests/crag/test_guards.py`.
+
+**Why a wrapper, not escaping in the generator.** Refinement reads every page before the
+generator does and copies passages word for word, so escaping in the generator would leave
+refinement reading raw pages, and would change how every documentation chunk is printed.
+The wrapper keeps the adapter shape ([C012](../docs/conventions.md)): the orchestrator,
+refinement and the generator do not change, wiring it is one argument at each front door,
+and its tests need only a fake web search.
+
+**Why drop, not flag.** A flagged page would still reach refinement and the generator, and
+every later step would have to read and respect the flag. Dropping costs one web source on
+a route that usually has several, and the WARNING keeps it visible.
+
+**Why indexed chunks are not wrapped.** They are the FastAPI documentation, first-party text
+this project chose to index. A free check found none of the phrases, and no excerpt tag, in
+the 1,137 chunks of the `markdown_ast` run, so wrapping them would add a step to every
+route for no finding.
+
+**Known limitation.** A phrase list catches only those wordings. A page that paraphrases,
+translates or misspells an override passes, so the pipeline is not injection-proof; the
+generator's prompt, which calls excerpts data, stays the second line of defence. The list
+is narrow because a match drops the whole page: each phrase names instructions explicitly,
+and none is as broad as "you are now". A fullwidth less-than sign (U+FF1C), look-alike
+letters, a zero-width character inside the word `excerpt`, and rarer invisible characters
+in a gap or right after the word (variation selectors, tag characters, Hangul fillers, bidi
+controls) are not caught. Refinement's
+light model copies web passages again before the generator sees them, so the `&lt;` holds
+only while that model copies it literally.
+
+---
+
 ## 2026-10-26 — CRAG is plain Python around adapters passed in (D1, D2, D4, D8, D9, D10)
 
 **Decision.** `crag/` sits at the top level, beside `retrieval/`. Imports point one way:
@@ -202,6 +256,8 @@ hide it. Treating excerpts as data means an instruction inside a web page is not
 followed. The layout follows the baseline's prompt (the 2026-10-17 entry in
 [`retrieval/DECISIONS.md`](../retrieval/DECISIONS.md)).
 
-**Known limitation.** The text is not escaped, so an excerpt containing `</excerpt>`
-could close its tag early. Web pages make this more likely than the docs alone; it is
-left for the security guards, which the first cut does not build.
+**Known limitation.** The generator does not escape the text, so an excerpt containing
+`</excerpt>` could close its tag early. Web pages make this more likely than the docs alone,
+so since 2026-11-22 the document guard neutralises excerpt tags in every web page before
+refinement or the generator sees it (the 2026-11-22 entry above); documentation chunks are
+printed as they are.

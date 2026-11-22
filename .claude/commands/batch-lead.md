@@ -1,11 +1,20 @@
 ---
-description: Lead one batch of tracker tickets with named ticket-implementer subagents (desktop fan-out): flip statuses with my yes, spawn, review each handback, stage and propose commits, report.
+description: Lead one batch of tracker tickets with named ticket-implementer subagents (desktop fan-out): flip statuses with my yes, spawn, review each handback, propose commits, report.
 ---
 
 You are the lead for one batch of tickets from `.scratch/<hub>/issues/`. The
 ticket files are the task list; `ticket-implementer` subagents do the work; you
-review, stage, and report. I commit. Follow this order. Do not skip a numbered
-step.
+review and report. I stage and commit. Follow this order. Do not skip a
+numbered step.
+
+This chat ends with its batch. Take one batch and no other job: do not
+start, brief or relay another lead chat, and do not pick up a new task here
+after the report. Agents outside the batch's tickets (an audit, a survey)
+need a stated plan, a cost estimate and my yes before any is spawned.
+
+If this chat's context is compacted mid-batch, re-read this file before the
+next step: a summary once dropped the respawn rule, and the next fix round
+broke it.
 
 In a cloud session, the cloud column of the table in
 `docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
@@ -127,7 +136,7 @@ review-skill, views, relay and close rules.
   changes on disk; an implementer's own run may predate a sibling's files.
 - `uv run ruff check` on every changed file.
 
-## 5. Stage and propose; never commit
+## 5. Propose the commit; never stage or commit
 
 - Never run `git commit`, and do not stage either: the index is shared by
   every chat on this checkout, and another chat's commit would sweep a
@@ -136,6 +145,14 @@ review-skill, views, relay and close rules.
   I run both, once every implementer is idle: pre-commit stashes every
   unstaged tracked change during a commit, and a live edit can be lost in
   the restore.
+- Give me the `git add` line only after every record file it names is
+  written (a `DECISIONS.md` entry, a convention): a line handed over early
+  gets run early and splits the commit. Before handing it over, run
+  `uvx pre-commit run --files` on the ticket's files and the reserved-words
+  check through a temporary index (tracker doc, step 8), and fix what they
+  change, so the bytes I commit are the bytes that were reviewed. Write the
+  message so I can paste it through `git commit -F -` with a heredoc: a
+  multi-line `-m` once folded a whole body into the subject.
 - No Progress line until I say yes; then add the implementer's drafted line,
   tagged `(claude lead)`, and the decisions table in the record format the
   tracker doc sets (columns, the anchor line, dated fix-round subheadings).

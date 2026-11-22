@@ -110,6 +110,8 @@ ternary, a merged `with`) is flagged, not applied.
 
 ## Never
 
+- **Signal a process you did not start in this turn** (`kill`, `pkill`): other
+  agents share your session and its parent process.
 - **Add a construct,** even where a style guide would suggest one: a class,
   `@dataclass`, `Protocol` or ABC, `TypeVar`, decorator, context-manager class,
   custom exception, registry or factory, settings class, cache, or type alias.

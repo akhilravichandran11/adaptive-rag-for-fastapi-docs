@@ -87,6 +87,9 @@ ticket, workspace, and owned files. If any are missing, stop and report them.
 - Run `scripts/chunk_size_report.py --include-semantic`, the semantic
   chunker, or anything that calls Voyage, Gemini, OpenAI or OpenRouter.
 - Weaken, skip or delete an existing assertion to make a test pass.
+- Signal a process you did not start in this turn (`kill`, `pkill`): other
+  agents share your session and its parent process, so a matching name or
+  parent proves nothing.
 - Ask a question you can answer by reading the ticket, the plan it links, or
   the code. If you must stop, stop with the report, not a question.
 

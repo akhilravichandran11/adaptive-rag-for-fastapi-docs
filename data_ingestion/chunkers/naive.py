@@ -1,15 +1,6 @@
 """
-Fixed-size word chunkers: the size sweep the chunking study is measured against.
-
-Three strategies that differ only in how much text they put in a chunk — 200,
-400, and 800 words, each overlapping its neighbour by an eighth of its size.
-They cut wherever the word count runs out, with no regard for headings, code
-fences, or sentence ends, which is the point: they are the baseline the
-structure-aware strategies have to beat, and the middle one (``naive_medium``)
-is the study's reference variant.
-
-Each size is written here rather than read from the environment, so a variant
-that was indexed as ``naive_small`` means the same thing in every run.
+Fixed-size word chunkers. They cut wherever the word count runs out, ignoring headings,
+code fences and sentence ends: the baseline the structure-aware strategies have to beat.
 
     uv run python -m data_ingestion.chunkers.naive    # demo, from the project root
 """
@@ -42,8 +33,6 @@ NAIVE_SIZES = {
 
 @component
 class NaiveChunker:
-    """Splits into fixed-size word chunks; ``strategy`` picks the size from ``NAIVE_SIZES``."""
-
     def __init__(self, strategy: str) -> None:
         size, overlap = NAIVE_SIZES[strategy]
         self.strategy = strategy  # Haystack serializes a component from its init arguments
@@ -57,7 +46,6 @@ class NaiveChunker:
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Chunk every document and return the chunks with the shared chunk fields."""
         return {"documents": split_documents(documents, self._splitter, self.settings)}
 
 

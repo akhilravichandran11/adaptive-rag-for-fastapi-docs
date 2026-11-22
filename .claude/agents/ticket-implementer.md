@@ -37,6 +37,7 @@ You start with no memory of the conversation that spawned you. The spawn prompt 
 - Edit `.scratch/` records (tickets, boards, findings, `NOW.md`, `INBOX.md`), `docs/conventions.md`, any `DECISIONS.md`, `pyproject.toml`, `.pre-commit-config.yaml`, or `.github/`. Draft what should change there in the report instead. Tracker code that your ticket's `Touches` names, such as a script under `.scratch/` and its tests, is an owned file like any other.
 - Run `scripts/chunk_size_report.py --include-semantic`, the semantic chunker, or anything that calls Voyage, Gemini, OpenAI or OpenRouter.
 - Weaken, skip or delete an existing assertion to make a test pass.
+- Signal a process you did not start in this turn (`kill`, `pkill`): other agents share your session and its parent process, so a matching name or parent proves nothing.
 - Ask the lead or the user a question you can answer by reading the ticket, the plan it links, or the code. If you must stop, stop with the report, not a question.
 
 ## Handback report

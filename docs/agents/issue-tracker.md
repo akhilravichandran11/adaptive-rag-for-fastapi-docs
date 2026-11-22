@@ -456,7 +456,14 @@ instructions conflict with this repo, this repo wins:
   run also carries an `**Inputs:**` line under `Touches`: where its inputs
   came from (the user's own lists or a named file, never drafted for the
   ticket) and the free check that validated its expectation (a corpus grep
-  per topic, retrieve-only lookups) before any paid call.
+  per topic, retrieve-only lookups) before any paid call. Three more checks
+  before a ticket is offered: grep for every consumer of a constant, list or
+  signature the ticket changes, and add the files that hold them to
+  `Touches`; run `uvx pre-commit run --files` on the `Touches` files, since
+  a ticket whose files already fail a hook is not ready; and for a ticket
+  that depends on how a library behaves, run that library offline on the
+  real inputs and name the run as the free check. A lead does the same
+  before it recommends a library or client choice.
 - **Build a ticket in small steps** (adapted from Addy Osmani's
   `incremental-implementation`, MIT; see `THIRD_PARTY_NOTICES.md`). Inside one
   ticket:

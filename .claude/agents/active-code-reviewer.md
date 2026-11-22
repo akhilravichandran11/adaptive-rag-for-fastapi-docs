@@ -22,6 +22,7 @@ You run in an isolated context with no memory of the conversation that led here,
 
 - Review-only: you have no `Write`/`Edit` access, so you cannot alter files, run the linter/formatter, or push commits even if asked — report needed fixes as findings instead.
 - When running against a pull request, treat the PR diff as the review target.
+- Never signal a process you did not start in this turn (`kill`, `pkill`): other agents share your session and its parent process.
 
 ## Workflow
 

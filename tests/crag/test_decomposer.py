@@ -4,12 +4,14 @@ The fake copies ``StructuredLLM.ask``'s contract: it validates the reply against
 is given, returns ``(parsed, model)``, and raises what it is scripted to raise.
 """
 
+import logging
 import socket
 
 import pytest
 from haystack import Document
 from pydantic import BaseModel
 
+from crag import decomposer
 from crag.decomposer import QueryDecomposer
 
 QUESTION = "How do I return a custom status code and set a cookie?"
@@ -106,6 +108,52 @@ def test_reply_with_more_analyses_than_aspects_is_kept_as_is() -> None:
 
     assert result["vector_queries"] == ["q1", "q2"]
     assert result["web_queries"] == ["w1", "w2"]
+
+
+def logged(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.name == decomposer.__name__]
+
+
+@pytest.mark.parametrize("blank", ["", "  "], ids=["empty", "spaces"])
+def test_blank_queries_are_dropped_per_list_and_counted_in_one_line(
+    caplog: pytest.LogCaptureFixture, blank: str
+) -> None:
+    llm = FakeLLM(
+        {
+            "analyses": [
+                analysis("status code", blank, "fastapi status_code"),
+                analysis("cookie", "set a cookie on the response", blank),
+                analysis("body", blank, "fastapi request body"),
+                analysis("headers", "add a response header", "fastapi response headers"),
+            ]
+        }
+    )
+
+    with caplog.at_level(logging.INFO, logger=decomposer.__name__):
+        result = QueryDecomposer(llm).run(
+            query=QUESTION,
+            missing_aspects=["status code", "cookie", "body", "headers"],
+            relevant_documents=[],
+        )
+
+    assert result == {
+        "vector_queries": ["set a cookie on the response", "add a response header"],
+        "web_queries": ["fastapi status_code", "fastapi request body", "fastapi response headers"],
+        "model": MODEL,
+    }
+    summary, drop_line = logged(caplog)
+    assert "4 analyses" in summary
+    assert drop_line == "decompose: dropped 2 blank vector queries and 1 blank web queries"
+
+
+def test_no_blank_query_logs_no_drop_line(caplog: pytest.LogCaptureFixture) -> None:
+    llm = FakeLLM({"analyses": [analysis("a", "q1", "w1"), analysis("b", "q2", "w2")]})
+
+    with caplog.at_level(logging.INFO, logger=decomposer.__name__):
+        QueryDecomposer(llm).run(query=QUESTION, missing_aspects=["a", "b"], relevant_documents=[])
+
+    assert len(logged(caplog)) == 1
+    assert "dropped" not in logged(caplog)[0]
 
 
 def test_prompt_holds_question_aspects_and_relevant_chunks() -> None:

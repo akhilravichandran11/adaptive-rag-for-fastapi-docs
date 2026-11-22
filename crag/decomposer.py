@@ -81,8 +81,20 @@ class QueryDecomposer:
             len(reply.analyses),
             model,
         )
-        return {
-            "vector_queries": [analysis.vector_query for analysis in reply.analyses],
-            "web_queries": [analysis.web_query for analysis in reply.analyses],
-            "model": model,
-        }
+        # A blank vector query would make hybrid's BM25 raise and end the whole run, and a blank
+        # web query searches for nothing.
+        vector_queries = [
+            analysis.vector_query for analysis in reply.analyses if analysis.vector_query.strip()
+        ]
+        web_queries = [
+            analysis.web_query for analysis in reply.analyses if analysis.web_query.strip()
+        ]
+        dropped_vector = len(reply.analyses) - len(vector_queries)
+        dropped_web = len(reply.analyses) - len(web_queries)
+        if dropped_vector or dropped_web:
+            logger.info(
+                "decompose: dropped %d blank vector queries and %d blank web queries",
+                dropped_vector,
+                dropped_web,
+            )
+        return {"vector_queries": vector_queries, "web_queries": web_queries, "model": model}

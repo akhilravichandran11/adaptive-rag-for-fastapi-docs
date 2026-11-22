@@ -1,30 +1,10 @@
 """
-Recursive chunker: 2,000-character chunks cut at the most natural boundary available.
-
-The separator list is tried in order — paragraph breaks first, then line breaks,
-then sentence ends, then single spaces. A piece that still exceeds 2,000
-characters is handed to the next separator down, so the cut lands on a paragraph
-break where one is close enough and falls back to a smaller boundary only where
-it has to. Chunks overlap by 200 characters.
-
-Design note — why there is no heading separator. Trying headings first, ahead of
-paragraphs, is the obvious thing to want here. Haystack's
-``RecursiveDocumentSplitter`` appends a matched separator to the end of the
-*preceding* chunk, where LangChain's recursive splitter keeps it at the start of
-the following one, and its separators are matched literally, not as patterns. A
-``"\\n#"`` separator therefore ends one chunk on a stray ``#`` and starts the
-next on a heading that has lost a level — on this corpus that happened at 359 of
-688 chunk boundaries, and ``##`` then survives in neither chunk. Paragraph
-breaks are the next boundary down and cost nothing, so they lead the list here;
-splitting on the document's own headings is the job of the ``markdown_ast``
-strategy, which is built for it.
-
-Sentence ends come from NLTK's ``punkt_tab`` tokenizer, read from the project's
-own model cache (see :mod:`data_ingestion.chunkers.sentence`).
+Recursive chunker: each cut lands on a paragraph break where one is close enough and falls
+back to a smaller boundary only where it has to.
 
     uv run python -m data_ingestion.chunkers.recursive    # demo, from the project root
 
-Run ``scripts/download_models.py`` once beforehand to fill the cache.
+Run ``scripts/download_models.py`` once beforehand to fill the model cache.
 """
 
 import logging
@@ -46,15 +26,14 @@ logger = logging.getLogger(__name__)
 
 RECURSIVE = ChunkSettings(strategy="recursive", size=2_000, overlap=200, unit=CHAR_UNIT)
 
-# Tried in order, coarsest boundary first. "sentence" is the tokenizer, not a
-# literal string; the others are matched literally.
+# Tried in order, coarsest first; "sentence" is NLTK's tokenizer, the rest match literally.
+# No "\n#": Haystack keeps a matched separator at the end of the earlier chunk, so 359 chunks
+# on this corpus would end on a stray "#". Headings are the markdown_ast strategy's job.
 RECURSIVE_SEPARATORS = ["\n\n", "\n", "sentence", " "]
 
 
 @component
 class RecursiveChunker:
-    """Splits into 2,000-character chunks overlapping by 200, cutting at the best boundary."""
-
     def __init__(self) -> None:
         self.settings = RECURSIVE
         # The "sentence" separator reaches for the same NLTK tokenizer the
@@ -65,7 +44,7 @@ class RecursiveChunker:
             split_length=self.settings.size,
             split_overlap=self.settings.overlap,
             split_unit=CHAR_UNIT,
-            separators=list(RECURSIVE_SEPARATORS),
+            separators=RECURSIVE_SEPARATORS,
         )
 
     def warm_up(self) -> None:
@@ -74,7 +53,6 @@ class RecursiveChunker:
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Chunk every document and return the chunks with the shared chunk fields."""
         return {"documents": split_documents(documents, self._splitter, self.settings)}
 
 

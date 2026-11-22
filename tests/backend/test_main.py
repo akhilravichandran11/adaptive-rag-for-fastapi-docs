@@ -43,7 +43,7 @@ RESULT = CragResult(
     sources=[
         {
             "rank": 1,
-            "origin": "internal",
+            "origin": "documentation",
             "source": "docs/en/docs/tutorial/query-params.md",
             "content": "Query parameters ...",
             "score": 0.91,

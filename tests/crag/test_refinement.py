@@ -143,7 +143,7 @@ def test_relevant_chunks_pass_through_as_the_same_objects_with_no_call():
     assert [doc.meta for doc in relevant] == meta_before
     assert result == {
         "refined_context": relevant,
-        "internal_kept": 2,
+        "documentation_kept": 2,
         "reretrieval_kept": 0,
         "web_kept": 0,
         "model": None,
@@ -305,11 +305,11 @@ def test_context_order_is_relevant_then_reretrieved_then_web_in_input_order():
     assert [doc.meta["url"] for doc in context[2:]] == [url("one"), url("three")]
     web_completed = [key for key in llm.completed if key != REGRADE_KEY]
     assert web_completed.index(url("three")) < web_completed.index(url("one"))
-    assert result["internal_kept"] == 1
+    assert result["documentation_kept"] == 1
     assert result["reretrieval_kept"] == 1
     assert result["web_kept"] == 2
     assert len(context) == sum(
-        result[key] for key in ("internal_kept", "reretrieval_kept", "web_kept")
+        result[key] for key in ("documentation_kept", "reretrieval_kept", "web_kept")
     )
 
 

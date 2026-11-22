@@ -57,12 +57,12 @@ def sources_of(documents: list[Document]) -> list[dict[str, Any]]:
     sources = []
     for rank, doc in enumerate(documents, start=1):
         # Indexed chunks carry a "url" too (metadata.attach_metadata); only they have source_path.
-        is_internal = "source_path" in doc.meta
+        is_documentation = "source_path" in doc.meta
         sources.append(
             {
                 "rank": rank,
-                "origin": "internal" if is_internal else "web",
-                "source": doc.meta["source_path"] if is_internal else doc.meta["url"],
+                "origin": "documentation" if is_documentation else "web",
+                "source": doc.meta["source_path"] if is_documentation else doc.meta["url"],
                 "content": doc.content,
                 "score": doc.score,
             }
@@ -197,7 +197,7 @@ class CragOrchestrator:
                 "reretrieved": len(reretrieved),
                 "web": len(web_documents),
                 "refined": len(refined["refined_context"]),
-                "internal_kept": refined["internal_kept"],
+                "documentation_kept": refined["documentation_kept"],
                 "reretrieval_kept": refined["reretrieval_kept"],
                 "web_kept": refined["web_kept"],
             },

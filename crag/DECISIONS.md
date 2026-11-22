@@ -50,7 +50,7 @@ evaluation, this is where its fields are listed:
 | `question` | The question as asked |
 | `route` | `correct`, `ambiguous`, `incorrect` or `no_documents` |
 | `answer` | The generated answer, or `FALLBACK_ANSWER` |
-| `sources` | One dict per excerpt the answer was given: `rank` (from 1, the number the answer cites), `origin` (`internal` or `web`), `source` (the docs path or the url), `content` and `score` |
+| `sources` | One dict per excerpt the answer was given: `rank` (from 1, the number the answer cites), `origin` (`documentation` or `web`; D25 renamed `internal`), `source` (the docs path or the url), `content` and `score` |
 | `missing_aspects` | The aspects the grader found not covered; always empty on `incorrect` and `no_documents` |
 | `steps` | One record per step that ran, in order |
 

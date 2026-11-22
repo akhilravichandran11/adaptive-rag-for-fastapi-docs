@@ -33,7 +33,6 @@ from data_ingestion.chunkers.base import (
     CHAR_UNIT,
     SENTENCE_UNIT,
     WORD_UNIT,
-    Chunker,
     ChunkSettings,
     build_chunks,
     check_source_paths,
@@ -46,7 +45,6 @@ __all__ = [
     "STRATEGIES",
     "WORD_UNIT",
     "ChunkSettings",
-    "Chunker",
     "build_chunks",
     "check_source_paths",
     "get_chunker",
@@ -73,8 +71,11 @@ def strategy_names() -> list[str]:
     return list(STRATEGIES)
 
 
-def get_chunker(name: str) -> Chunker:
+def get_chunker(name: str):
     """Build the chunker called ``name``, importing only that strategy's module.
+
+    Every chunker has its :class:`ChunkSettings` as ``settings``, a ``warm_up()``
+    and a ``run(documents)``.
 
     Raises ``ValueError`` naming the unknown strategy and listing the known ones,
     so a typo in a ``--strategy`` argument fails with something readable.

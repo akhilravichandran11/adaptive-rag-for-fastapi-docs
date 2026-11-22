@@ -8,6 +8,10 @@ description: Coordinate a user-requested batch of approved repository tickets in
 Lead the named tickets using the repository tracker as the shared task list.
 This is a Codex workflow, independent of Claude's commands and Agent Teams.
 
+In a cloud session, the cloud column of the table in
+`docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
+review-skill, views, relay and close rules.
+
 ## Responsibilities and authority
 
 - The user approves scope changes, tracker transitions, and durable progress
@@ -37,9 +41,14 @@ For each ticket:
 4. Show any required status, blocker, or owner corrections and obtain approval
    before saving them: record edits that touch more than one file or add one
    go through the proposal page (tracker doc, "Record edits go on a proposal
-   page") and need page approval followed by yes in chat. Re-read the ticket's Status immediately before writing
+   page") and need page approval followed by yes in chat. A claim or close
+   made with `ticket.py` is the exception: its output without `--write` and
+   the user's yes in chat are enough. Re-read the ticket's Status immediately before writing
    the claim, then record the approved in-progress assignment before the
-   worker edits files.
+   worker edits files. Make the claim with
+   `python3 .scratch/ticket.py claim <ID> --owner "codex, <chat>"`: show its
+   output, then rerun it with `--write` after the user's yes; it also saves
+   the owned files' starting state as the ticket's baseline.
 5. Confirm the path per step 7 of docs/agents/issue-tracker.md: a batch needs
    two or more ready tickets with disjoint Touches and no paid step, or one
    ticket with a Budget of two hours or more or a new module. Anything else
@@ -119,7 +128,7 @@ for every path. After the worker's checks pass, spawn the
 active-code-simplifier with the ticket path, the starting commit and the
 changed production Python files only (never tests; without an explicit scope
 it falls back to checkout-wide changes), and wait for its handback before
-reviewing the resulting files. Skip it for a fix round under about 50 lines.
+reviewing the resulting files. It runs once, on the first build; a fix round does not get it again.
 Report its Split list (each new step and its one-line job) to the user
 verbatim; step names are a design call. Then apply step 8's tier by this
 ticket's Python diff size, including its exceptions: a docs-only ticket gets
@@ -139,6 +148,12 @@ docs/simplification-conventions.md and
 .scratch/code-simplification/questions.md, whose open-question list bans
 constructs a smell-based review may suggest. Spec: the ticket file. The
 active-code-reviewer runs for runtime bugs on every tier that reviews.
+
+After the simplifier's handback, paste the output of
+`python3 .scratch/ticket.py packet <ID>` into the prompt of every reviewer
+that runs. It gives a reviewer that did not write the code the ticket's
+contract, the edits already in the files when the ticket started, and the
+change since its starting commit.
 
 Check each finding against docs/conventions.md,
 docs/simplification-conventions.md and the open-question list first, then
@@ -170,7 +185,8 @@ Passing fixtures does not establish live-corpus, model, or retrieval quality.
 
 After verification, present the proposed ticket/board transitions and the
 worker's Decisions and Progress for approval: through the proposal page when
-they touch more than one file or add one, then yes in chat. The first
+they touch more than one file or add one, then yes in chat (a claim or close
+made with `ticket.py` needs only the yes in chat). The first
 Progress line names the path and the reason (step 7) alongside what changed,
 what was verified and what is next. Every "Noticed, not touched" item gets a
 proposed disposition in the same approval: a finding, an INBOX line, or
@@ -184,10 +200,13 @@ columns and anchor line, a `### <date> fix round` subheading per round, and
 the worker's drafted `DECISIONS.md entries` into the package file. For
 uncommitted changes the anchor is "Reviewed working tree based on <sha>,
 recorded <date>"; use "Line numbers as of <commit>" only if that commit
-contains the changes. On the user's "committed" yes, set the status line to
-`done (YYYY-MM-DD; committed in <sha>)` and swap the anchor; a bare `done` is
-a defect. Then update every ticket whose Blocked by names it, with the user's
-yes, and regenerate the views with `python3 .scratch/now.py`.
+contains the changes. On the user's "committed" yes, run
+`python3 .scratch/ticket.py close <ID> --sha <sha>`, show its output, and
+rerun it with `--write` after the user's yes: it sets the status line to
+`done (YYYY-MM-DD; committed in <sha>)`, swaps the anchor and moves the board
+row; a bare `done` is a defect. Then update every ticket whose Blocked by
+names it (the script lists them), with the user's yes, and regenerate the
+views with `python3 .scratch/now.py`.
 
 Never run `git commit`, and do not stage either: the index is shared by every
 chat on this checkout, another chat's commit would sweep a staged file in, and

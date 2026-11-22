@@ -8,10 +8,11 @@ import json
 import logging
 from pathlib import Path
 
-from config import APPLICATION_NAME, DOCUMENTATION_NAME, DOMAIN_NAME
 from dotenv import load_dotenv
-from openai_llm_utils import chat_structured
-from pipeline import (
+
+from data_curation.config import APPLICATION_NAME, DOCUMENTATION_NAME, DOMAIN_NAME
+from data_curation.openai_llm_utils import chat_structured
+from data_curation.pipeline import (
     CONTENT_ANALYSIS_FILE,
     FINAL_LEARNING_TAXONOMY_FILE,
     IMPLEMENTATION_ROADMAP_FILE,
@@ -19,14 +20,13 @@ from pipeline import (
     SYNTHESIS_PLAN_FILE,
     resolve_run_dir,
 )
-from schemas import DraftSynthesisPlan, LearningTaxonomy, SynthesisPlan
+from data_curation.schemas import DraftSynthesisPlan, LearningTaxonomy, SynthesisPlan
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = PROJECT_ROOT / "data/fastapi/normalized/github-docs/v1/manifest.json"
 APPROVED_DATASET_FILES = {
     "01_foundations": (

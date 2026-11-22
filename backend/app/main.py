@@ -54,7 +54,7 @@ REQUIRED_SETTINGS = (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[dict]:
-    # Same wiring as crag/run.py's main, on purpose while Q09 (factory functions) is open.
+    # Same wiring as crag/run.py's main. Why: backend/DECISIONS.md, 2026-10-26 (copied wiring).
     load_dotenv(PROJECT_ROOT / ".env")
     missing = [name for name in REQUIRED_SETTINGS if not os.getenv(name)]
     if missing:

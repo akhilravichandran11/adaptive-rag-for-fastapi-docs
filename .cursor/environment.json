@@ -1,0 +1,6 @@
+{
+  "repositoryDependencies": [
+    "github.com/akhilravichandran11/adaptive-rag-for-fastapi-docs-scratch"
+  ],
+  "install": "bash scripts/session_setup.sh"
+}

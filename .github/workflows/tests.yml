@@ -1,0 +1,38 @@
+name: Tests
+
+# Runs the offline test suite on every push and pull request. The tests never
+# reach a paid API (C006 in docs/conventions.md), so the job uses no secrets.
+# Tests that need the git-ignored corpus or curation runs skip themselves here.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        # setup-uv publishes no major-version tag, so it is pinned to a release.
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          # The floor in requires-python, so CI checks the README's "3.11+".
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      # The BGE tokenizer and NLTK punkt_tab (free, about 16 MB); without them
+      # the tokenizer and sentence-splitting tests skip.
+      - name: Download the local model files
+        run: uv run python scripts/download_models.py
+
+      - name: Run tests
+        run: uv run pytest

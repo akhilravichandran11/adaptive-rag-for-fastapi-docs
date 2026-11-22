@@ -43,7 +43,6 @@ collection ends partial.
 import argparse
 import json
 import logging
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -53,38 +52,34 @@ from haystack import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.chunk_snapshot import (  # noqa: E402  (needs the path set above)
-    check_same_corpus,
-    read_chunks,
-)
-from data_ingestion.chunkers import STRATEGIES  # noqa: E402
-from data_ingestion.embedders import (  # noqa: E402
+from data_ingestion.chunk_snapshot import check_same_corpus, read_chunks
+from data_ingestion.chunkers import STRATEGIES
+from data_ingestion.embedders import (
     build_document_embedder,
     cached_tokenizer_path,
     count_tokens,
     truncation_stats,
 )
-from data_ingestion.metadata import MANIFEST_PATH  # noqa: E402
-from data_ingestion.pipeline import (  # noqa: E402
+from data_ingestion.metadata import MANIFEST_PATH
+from data_ingestion.pipeline import (
     INDEX_REPORT_FILE,
     RUN_META_FILE,
     resolve_run_dir,
     resolve_run_id,
 )
-from data_ingestion.qdrant_store import (  # noqa: E402
+from data_ingestion.qdrant_store import (
     build_document_store,
     collection_exists,
     load_settings,
 )
-from data_ingestion.variants import (  # noqa: E402
+from data_ingestion.variants import (
     DEFAULT_PREFIX,
     Variant,
     check_prefix,
     select_variants,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 

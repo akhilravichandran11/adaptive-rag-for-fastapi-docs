@@ -13,6 +13,7 @@ how to run it.
 | Get record or doc edits approved | a proposal page in Plannotator's gate, then "yes" in chat | the proposal-page builder |
 | Get code reviewed | inline comments on the diff, a visual recap, or a diff review | `crit`, `visual-recap`, `plannotator review` |
 | Plan | an interactive plan with diagrams and open questions | `visual-plan` |
+| Any of these, in a cloud session | the pull request conversation and line comments, or "Review in Linear" | none; see [`cloud-sessions.md`](cloud-sessions.md) |
 
 ## Codex execution
 

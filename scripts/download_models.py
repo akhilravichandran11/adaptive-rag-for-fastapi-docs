@@ -22,25 +22,22 @@ Environment (optional; read from the shell or the project .env):
 import argparse
 import hashlib
 import logging
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import nltk
 from dotenv import load_dotenv
+from huggingface_hub import hf_hub_download, try_to_load_from_cache
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.embedders import (  # noqa: E402  (needs the path set above)
-    EMBEDDERS,
-    EmbedderSpec,
-)
-from data_ingestion.model_cache import (  # noqa: E402
+from data_ingestion.embedders import EMBEDDERS, EmbedderSpec
+from data_ingestion.model_cache import (
     FASTEMBED_ENV_VAR,
     NLTK_ENV_VAR,
     fastembed_cache_dir,
     register_nltk_data_dir,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +80,6 @@ def tokenizer_status(spec: EmbedderSpec, cache_dir: Path) -> ModelStatus:
     A file whose sha256 differs from the pin counts as missing: its token counts
     would not be the ones the study recorded.
     """
-    from huggingface_hub import try_to_load_from_cache
-
     source = spec.tokenizer
     if source is None:
         raise ValueError(f"Embedder {spec.name!r} names no tokenizer source")
@@ -107,8 +102,6 @@ def tokenizer_status(spec: EmbedderSpec, cache_dir: Path) -> ModelStatus:
 
 def nltk_status(package: str, data_dir: Path) -> ModelStatus:
     """Look for an NLTK package in ``data_dir`` only, ignoring NLTK's other search folders."""
-    import nltk
-
     resource = NLTK_RESOURCES[package]
     status = ModelStatus(kind="nltk", name=package, location=data_dir / resource)
     try:
@@ -130,8 +123,6 @@ def download_tokenizer(spec: EmbedderSpec, cache_dir: Path, *, force: bool = Fal
     ``force`` fetches the file again even if one is cached, for a cached copy whose
     hash does not match the pin; otherwise the cached copy would be returned as is.
     """
-    from huggingface_hub import hf_hub_download
-
     source = spec.tokenizer
     if source is None:
         raise ValueError(f"Embedder {spec.name!r} names no tokenizer source")
@@ -153,8 +144,6 @@ def download_tokenizer(spec: EmbedderSpec, cache_dir: Path, *, force: bool = Fal
 
 def download_nltk(package: str, data_dir: Path) -> None:
     """Download an NLTK package into ``data_dir``."""
-    import nltk
-
     data_dir.mkdir(parents=True, exist_ok=True)
     if not nltk.download(package, download_dir=str(data_dir), quiet=True, raise_on_error=True):
         raise RuntimeError(f"NLTK reported a failed download for '{package}'")

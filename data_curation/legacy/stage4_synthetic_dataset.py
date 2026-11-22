@@ -10,21 +10,21 @@ import re
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai_llm_utils import chat
-from pipeline import (
+from tqdm import tqdm
+
+from data_curation.openai_llm_utils import chat
+from data_curation.pipeline import (
     CONTENT_ANALYSIS_FILE,
     DATASET_GENERATION_LOG_FILE,
     SYNTHESIS_PLAN_FILE,
     resolve_run_dir,
 )
-from tqdm import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Load environment variables
 load_dotenv(PROJECT_ROOT / ".env")

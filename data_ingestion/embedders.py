@@ -12,6 +12,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from huggingface_hub import try_to_load_from_cache
+from tokenizers import Tokenizer
+
 from data_ingestion.model_cache import fastembed_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -164,8 +167,6 @@ def cached_tokenizer_path(name: str) -> Path | None:
             f"Embedder {spec.name!r} runs on {spec.backend} but names no tokenizer source"
         )
 
-    from huggingface_hub import try_to_load_from_cache
-
     path = try_to_load_from_cache(
         repo_id=spec.tokenizer.repo,
         filename=spec.tokenizer.filename,
@@ -182,8 +183,6 @@ def _local_tokenizer(spec: EmbedderSpec):
             f"{spec.model}'s tokenizer is not in the model cache ({fastembed_cache_dir()}). "
             "Run 'uv run python scripts/download_models.py' from the project root first."
         )
-    from tokenizers import Tokenizer
-
     tokenizer = Tokenizer.from_file(str(path))
     # The text's true length is what the report needs, not the window the model
     # would see, so neither truncation nor padding is enabled here.

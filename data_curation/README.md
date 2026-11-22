@@ -1,24 +1,27 @@
 # LLM-assisted data curation
 
-This directory holds an LLM-assisted curation pipeline for the FastAPI
-documentation. It analyzes the normalized documents, selects the ones that meet
-its criteria, extracts knowledge domains, plans a learning taxonomy, and
-generates candidate learning documents. Every output is a candidate for human
-review, not a verified result.
+Stage 1's saved analysis supplies the quality metadata used by
+ingestion. It remains at `outputs/<run-id>/content_analysis.json`; ingestion
+requires an explicit run ID, currently `20260925_032632`. Every existing output
+stays in place, including the retired guide artifacts in that run.
 
-> Status: deferred. The first metadata and quality pass was a learning exercise;
-> a revised approach will follow once retrieval and evaluation are in place. Its
-> first piece, a validated offline source inventory, is in `pipeline_v2/`. See
-> [ROADMAP.md](../ROADMAP.md).
+Stages 2 to 4, which generated candidate learning guides, are retired under
+`legacy/`. Their source and regression tests remain available. Stage 0 stays
+here to preserve the Stage 1 command and historical workflows; Stage 5's
+evaluation-question generator and the shared modules also stay here.
+
+The revised curation approach is being planned. Its validated offline source
+inventory already exists in `pipeline_v2/`; further analysis and ingestion
+wiring are not implemented. See [ROADMAP.md](../ROADMAP.md).
 
 ## Stages
 
 | Stage | What it does | Main outputs |
 |---|---|---|
 | 1 | Scores each normalized document with structured LLM analysis | `content_analysis.json`, `analysis_report.json` |
-| 2 | Selects qualifying documents, extracts knowledge domains, and builds an initial taxonomy | `knowledge_domains.json`, `learning_taxonomy.json` |
-| 3 | Produces the final taxonomy and a synthesis plan, then derives a roadmap from them | `learning_taxonomy_final.json`, `synthesis_plan.json`, `implementation_roadmap.json` |
-| 4 | Generates candidate learning documents from the synthesis plan | `synthetic_dataset/`, `dataset_generation_log.json` |
+| 2 (retired: `legacy/stage2_knowledge_domains.py`) | Selects qualifying documents, extracts knowledge domains, and builds an initial taxonomy | `knowledge_domains.json`, `learning_taxonomy.json` |
+| 3 (retired: `legacy/stage3_learning_taxonomy_final.py`) | Produces the final taxonomy and a synthesis plan, then derives a roadmap from them | `learning_taxonomy_final.json`, `synthesis_plan.json`, `implementation_roadmap.json` |
+| 4 (retired: `legacy/stage4_synthetic_dataset.py`) | Generates candidate learning documents from the synthesis plan | `synthetic_dataset/`, `dataset_generation_log.json` |
 
 LLM calls do the semantic work (scoring, extraction, planning, generation).
 Plain Python handles run isolation, artifact names, aggregation, and the
@@ -43,7 +46,12 @@ The stages call the OpenAI API, which costs money. Set `OPENAI_API_KEY` in
 ```bash
 # Analyze five documents with stage 1 only (a cheap smoke test)
 uv run python data_curation/stage0_run_pipeline.py --limit 5 --only 1
+```
 
+These commands run the retired guide workflow and are kept for reference.
+Generated guides are unverified candidates for human review.
+
+```bash
 # Run stages 1 to 4 in a fresh run directory
 uv run python data_curation/stage0_run_pipeline.py
 

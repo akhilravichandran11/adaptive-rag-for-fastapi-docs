@@ -51,11 +51,19 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   it, and name it in your final report. A ticket may not reach `done` while a
   convention it introduced is still `proposed`. Matching existing style needs no
   entry; this is only for style the repo has not set yet.
-- **Tests are written but not tracked:** `/tests/` is git-ignored on purpose
-  while the maintainer is still settling on a testing approach. Keep writing and
-  running them — ticket acceptance criteria still require `uv run pytest` to
-  pass — but do not propose adding them to git, do not treat their absence from
-  `git status` as a problem to fix, and do not edit `.gitignore` to include them.
+- **Tests are tracked and CI runs them:** `tests/` is committed, except
+  `tests/experiments/`, which stays git-ignored with `experiments/`. The `Tests`
+  workflow ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)) runs
+  `uv run pytest` on every push and pull request with no secrets, since the tests
+  never reach a paid API (C006). A test that needs a git-ignored local file, such
+  as the corpus under `data/` or a curation run, skips itself with a reason, so
+  the suite passes on a fresh checkout too. Ticket acceptance criteria still
+  require `uv run pytest` to pass locally.
+- **Cloud sessions:** in a cloud session (Claude Code on the web, Cursor or
+  Codex cloud agents), read
+  [`docs/agents/cloud-sessions.md`](docs/agents/cloud-sessions.md) before your
+  first commit or `.scratch/` edit: it holds the commit and scratch rules that
+  replace the local ones there.
 - **Commit-only requests:** planning, staging, or committing existing changes
   does not trigger `code-review`, `active-code-reviewer`, or
   `active-code-simplifier`. Invoke them for such a request only when the user

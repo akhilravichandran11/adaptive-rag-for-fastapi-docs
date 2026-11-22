@@ -70,6 +70,26 @@ def sources_of(documents: list[Document]) -> list[dict[str, Any]]:
     return sources
 
 
+def _fallback(
+    question: str,
+    route: str,
+    missing: list[str],
+    steps: list[dict[str, Any]],
+    start_stage: Callable[[str], str],
+) -> CragResult:
+    started = start_stage("fallback")
+    record_step(steps, "fallback", started, {"documents": 0})
+    logger.warning("no documents to answer from, route %s", route)
+    return CragResult(
+        question=question,
+        route=route,
+        answer=FALLBACK_ANSWER,
+        sources=[],
+        missing_aspects=missing,
+        steps=steps,
+    )
+
+
 class CragOrchestrator:
     def __init__(
         self,
@@ -99,7 +119,7 @@ class CragOrchestrator:
         documents = self.retrieve(question, RETRIEVE_TOP_K)
         record_step(steps, "retrieve", started, {"documents": len(documents)})
         if not documents:
-            return self._fallback(question, NO_DOCUMENTS_ROUTE, [], steps, start_stage)
+            return _fallback(question, NO_DOCUMENTS_ROUTE, [], steps, start_stage)
 
         started = start_stage("grade")
         graded = self.grader.run(query=question, documents=documents)
@@ -124,7 +144,7 @@ class CragOrchestrator:
             raise ValueError(f"grade: unknown decision {route!r} for question {question!r}")
 
         if not context:
-            return self._fallback(question, route, missing, steps, start_stage)
+            return _fallback(question, route, missing, steps, start_stage)
         return self._generate(question, route, context, missing, steps, start_stage)
 
     def _ambiguous(
@@ -151,24 +171,7 @@ class CragOrchestrator:
             decomposed["model"],
         )
 
-        reretrieved = []
-        if vector_queries:
-            started = start_stage("reretrieve")
-            held_ids = {doc.id for doc in documents}
-            retrieved = 0
-            for query in vector_queries:
-                new_documents = self.retrieve(query, RETRIEVE_TOP_K)
-                retrieved += len(new_documents)
-                for doc in new_documents:
-                    if doc.id not in held_ids:
-                        held_ids.add(doc.id)
-                        reretrieved.append(doc)
-            record_step(
-                steps,
-                "reretrieve",
-                started,
-                {"queries": len(vector_queries), "retrieved": retrieved, "new": len(reretrieved)},
-            )
+        reretrieved = self._reretrieve(vector_queries, documents, steps, start_stage)
 
         web_documents = []
         if web_queries:
@@ -201,6 +204,34 @@ class CragOrchestrator:
             refined["model"],
         )
         return refined["refined_context"]
+
+    def _reretrieve(
+        self,
+        queries: list[str],
+        documents: list[Document],
+        steps: list[dict[str, Any]],
+        start_stage: Callable[[str], str],
+    ) -> list[Document]:
+        if not queries:
+            return []
+        started = start_stage("reretrieve")
+        held_ids = {doc.id for doc in documents}
+        reretrieved = []
+        retrieved = 0
+        for query in queries:
+            new_documents = self.retrieve(query, RETRIEVE_TOP_K)
+            retrieved += len(new_documents)
+            for doc in new_documents:
+                if doc.id not in held_ids:
+                    held_ids.add(doc.id)
+                    reretrieved.append(doc)
+        record_step(
+            steps,
+            "reretrieve",
+            started,
+            {"queries": len(queries), "retrieved": retrieved, "new": len(reretrieved)},
+        )
+        return reretrieved
 
     def _incorrect(
         self, question: str, steps: list[dict[str, Any]], start_stage: Callable[[str], str]
@@ -251,26 +282,6 @@ class CragOrchestrator:
             route=route,
             answer=generated["answer"],
             sources=sources,
-            missing_aspects=missing,
-            steps=steps,
-        )
-
-    def _fallback(
-        self,
-        question: str,
-        route: str,
-        missing: list[str],
-        steps: list[dict[str, Any]],
-        start_stage: Callable[[str], str],
-    ) -> CragResult:
-        started = start_stage("fallback")
-        record_step(steps, "fallback", started, {"documents": 0})
-        logger.warning("no documents to answer from, route %s", route)
-        return CragResult(
-            question=question,
-            route=route,
-            answer=FALLBACK_ANSWER,
-            sources=[],
             missing_aspects=missing,
             steps=steps,
         )

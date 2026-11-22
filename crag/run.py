@@ -8,7 +8,6 @@ import dataclasses
 import json
 import logging
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -17,19 +16,18 @@ from google import genai
 from haystack import Document
 from tavily import TavilyClient
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
+from crag.decomposer import QueryDecomposer
+from crag.generator import AnswerGenerator
+from crag.grader import DocumentGrader
+from crag.llm import FALLBACK_MODEL, StructuredLLM
+from crag.orchestrator import CragOrchestrator
+from crag.refinement import KnowledgeRefinement
+from crag.web_search import WebSearch
+from data_ingestion.variants import select_variants
+from retrieval import hybrid
+from retrieval.baseline_rag import build_rag_pipeline
 
-from crag.decomposer import QueryDecomposer  # noqa: E402  (needs the path set above)
-from crag.generator import AnswerGenerator  # noqa: E402
-from crag.grader import DocumentGrader  # noqa: E402
-from crag.llm import FALLBACK_MODEL, StructuredLLM  # noqa: E402
-from crag.orchestrator import CragOrchestrator  # noqa: E402
-from crag.refinement import KnowledgeRefinement  # noqa: E402
-from crag.web_search import WebSearch  # noqa: E402
-from data_ingestion.variants import select_variants  # noqa: E402
-from retrieval import hybrid  # noqa: E402
-from retrieval.baseline_rag import build_rag_pipeline  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 
@@ -171,22 +169,17 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.retriever == "hybrid":
             pipeline = hybrid.build_hybrid_pipeline(variant)
-
-            def retrieve(query: str, top_k: int) -> list[Document]:
-                return hybrid.retrieve(pipeline, query, top_k)
-
         else:
             pipeline = build_rag_pipeline(variant, retrieve_only=True)
-
-            def retrieve(query: str, top_k: int) -> list[Document]:
-                outputs = pipeline.run(
-                    {"query_embedder": {"text": query}, "retriever": {"top_k": top_k}}
-                )
-                return outputs["retriever"]["documents"]
-
     except ValueError as exc:  # a missing collection or chunk run, or missing Qdrant config
         logger.error("%s", exc)
         raise SystemExit(1) from None
+
+    def retrieve(query: str, top_k: int) -> list[Document]:
+        if args.retriever == "hybrid":
+            return hybrid.retrieve(pipeline, query, top_k)
+        outputs = pipeline.run({"query_embedder": {"text": query}, "retriever": {"top_k": top_k}})
+        return outputs["retriever"]["documents"]
 
     client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
     pro = StructuredLLM(client, primary=os.environ["GEMINI_MODEL"], fallback=pro_fallback)

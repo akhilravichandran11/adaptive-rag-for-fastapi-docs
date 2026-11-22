@@ -15,16 +15,12 @@ override. A run attaches to the collection and keeps its data; only an explicit
 
 import argparse
 import logging
-import sys
 import uuid
-from pathlib import Path
 
+from haystack.dataclasses import Document
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.qdrant_store import (  # noqa: E402  (needs the path set above)
+from data_ingestion.qdrant_store import (
     build_document_store,
     collection_exists,
     load_settings,
@@ -41,8 +37,6 @@ def smoke_test(store: QdrantDocumentStore) -> int:
     Writes one probe document, checks the count rose by one, deletes the probe by
     id, and checks the count is back where it started. Returns that count.
     """
-    from haystack.dataclasses import Document
-
     collection = store.index
     start = store.count_documents()
     logger.info("Documents currently in collection: %d", start)

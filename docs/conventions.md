@@ -46,6 +46,7 @@ set yet.
 | [C011](#c011-a-module-may-carry-a-guarded-command-line-and-still-be-imported-by-a-stage) | A module may carry a guarded command line and still be imported by a stage | PRT-11 | accepted |
 | [C012](#c012-crag-adapters-are-required-constructor-arguments-the-caller-builds-them-once-at-startup) | CRAG adapters are required constructor arguments; the caller builds them once at startup | CRG-07 | accepted |
 | [C013](#c013-a-run-of-hundreds-of-paid-calls-writes-its-settings-first-and-may-be-resumed-into-its-own-folder) | A run of hundreds of paid calls writes its settings first and may be resumed into its own folder | PRT-17 | accepted |
+| [C014](#c014-one-run-bound-callback-records-completed-provider-calls) | One run-bound callback records completed provider calls | OBS-01 | accepted |
 
 ---
 
@@ -145,13 +146,13 @@ desync.
 **What it replaces.** A stateful fence-tracking parser.
 
 **Cost, stated plainly.** The parser counts a `#` comment inside a code fence as a
-heading. Tests assert on that deliberately (`test_loading.py:174`, `:248`). Anyone
+heading. Tests assert on that deliberately (`test_loading.py:66`, `:250`). Anyone
 reading those assertions cold will think they are wrong.
 
 **Blast radius.** `tests/data_ingestion/test_loading.py` only. Generalizes to any future
 structure-preservation test.
 
-**Scope.** Test-only, and `/tests/` is not tracked — this affects no published code.
+**Scope.** Test-only; it affects no code outside `tests/`.
 
 **Alternatives.** Parse with `markdown_it` (a real parser, but pins test outcomes to a
 third-party renderer's version); fix the corpus upstream (that is F007's open
@@ -194,7 +195,7 @@ built because nothing needed it yet.
 
 ## C005: Model source IDs are separate from persisted source paths
 
-**Status:** accepted · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/stage3_learning_taxonomy_final.py`
+**Status:** accepted · **Introduced:** 2026-09-23, Ticket 14 · **Where:** `data_curation/schemas.py`, `data_curation/legacy/stage3_learning_taxonomy_final.py`
 
 **What.** Stage 3 has a dedicated model-facing draft schema with ordered
 `source_ids`. The persisted `DatasetFile` and `SynthesisPlan` schemas continue
@@ -219,7 +220,7 @@ stay aligned. Deterministic identity does not make semantic selection
 deterministic. Schema validation cannot establish catalog membership.
 
 **Blast radius.** `data_curation/schemas.py`,
-`data_curation/stage3_learning_taxonomy_final.py`, and
+`data_curation/legacy/stage3_learning_taxonomy_final.py`, and
 `tests/data_curation/test_stage3_source_identity.py`. No Stage 4 change is required.
 
 **Alternatives.** Exact-path enums still ask the model to return authoritative
@@ -230,7 +231,7 @@ policy. Fuzzy path correction and automatic retries are outside this design.
 
 ## C006: Tests never make a paid API call
 
-**Status:** accepted (user, 2026-09-29) · **Introduced:** 2026-09-20, IDX-04 · **Where:** `tests/data_ingestion/test_embedders.py:50-59`; copied (non-autouse, plus client patches) in `tests/data_curation/test_stage3_source_identity.py:144-146`
+**Status:** accepted (user, 2026-09-29) · **Introduced:** 2026-09-20, IDX-04 · **Where:** `tests/data_ingestion/test_embedders.py:50-59`; copied (non-autouse, plus client patches) in `tests/data_curation/test_stage3_source_identity.py:136-140`
 
 **The convention, stated.** No test may reach a paid API: Voyage
 (`api.voyageai.com`), Gemini (`generativelanguage.googleapis.com`), OpenAI
@@ -264,7 +265,7 @@ lazy Voyage clients). A guard turns that claim into something a test run proves.
 exist; `needs_bge` in `test_embedders.py` uses a filesystem probe for that reason.
 The paid-host list lives here, so a new paid provider has to be added to it.
 
-**Blast radius.** Test-only, and `/tests/` is not tracked. Modules whose code cannot
+**Blast radius.** Test-only. Modules whose code cannot
 reach a paid API (`test_loading.py`, `test_chunkers.py`, `test_model_cache.py`) need
 no guard.
 
@@ -425,20 +426,18 @@ the chunker modules keep demo `__main__` blocks that take no arguments, and
 `data_collection/collect_referenced_code.py` has a `main()` while
 `data_collection/pinned_snapshot/collect.py` imports it.
 
-**Cost.** The module carries the `sys.path` line a script needs (Q08 is open), so
-importing it also puts the project root on `sys.path`: the import-time, process-wide
-side effect C004 rules out, harmless here because any importer has that root on its
-path already. Its command line is one more thing an importer loads and never runs.
+**Cost.** Its command line is one more thing an importer loads and never runs. The
+`sys.path` line it used to carry, an import-time side effect C004 rules out, went with
+S014.
 
-**Blast radius.** `retrieval/baseline_rag.py` (`parse_args`, `main`, the `sys.path`
-line) and its `main` tests; step 6 is to import `build_rag_pipeline` and `ask`.
+**Blast radius.** `retrieval/baseline_rag.py` (`parse_args`, `main`) and its `main`
+tests; step 6 is to import `build_rag_pipeline` and `ask`.
 Rejecting it means moving `parse_args` and `main` into a separate script beside the
 module, which imports both functions.
 
 **Alternatives.** A separate thin script (two files for one step, and a script that
 is not a stage but looks like one); no command line, asking questions only through
-step 6 or a REPL (no quick way to try one question against one variant); running it
-as `python -m retrieval.baseline_rag` (waits on Q08).
+step 6 or a REPL (no quick way to try one question against one variant).
 
 ---
 
@@ -519,3 +518,19 @@ components (rejected by D8 and D9).
 - No resume: pays again for a killed run.
 - Resuming into a new folder that reads the old one: two files to score as one run.
 - Writing settings last, as C009 does: a killed run would leave nothing to resume from.
+
+---
+
+## C014: One run-bound callback records completed provider calls
+
+**Status:** accepted · **Introduced:** 2026-11-22, OBS-01 · **Where:** `observability/costs.py` (`create_recorder`)
+
+**The convention, stated.** A CLI creates one fresh cost directory before dispatch and receives `record` and `finish` callbacks. Providers call `record` once per completed observable SDK response or error, before parsing business output. The CLI calls `finish(run_failed=...)` in its `finally` path after its workers have joined. One lock serializes each append and flush; accounting I/O errors propagate without provider retries. Records contain only provider/operation/model/outcome, selected numeric usage, estimated USD and a fixed unknown-cost reason.
+
+**Why.** Completed-call records preserve paid work across later failures, while null USD distinguishes missing accounting from measured zero.
+
+**What it replaces.** No existing cross-provider cost recorder; per-call usage was discarded.
+
+**Blast radius.** `observability/costs.py`, its tests, and the later Voyage/CRAG integrations in OBS-02/03. Those integrations remain pending.
+
+**Alternatives.** Recorder class, global active run, ContextVar, registry and exporter interface; each adds machinery unnecessary for one CLI run. A total measured only after pipeline success loses earlier calls on failure.

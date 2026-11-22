@@ -42,19 +42,19 @@ STAGES = [
     },
     {
         "n": 2,
-        "module": "stage2_knowledge_domains",
+        "module": "data_curation.legacy.stage2_knowledge_domains",
         "output": LEARNING_TAXONOMY_FILE,
         "kwargs": lambda a: {},
     },
     {
         "n": 3,
-        "module": "stage3_learning_taxonomy_final",
+        "module": "data_curation.legacy.stage3_learning_taxonomy_final",
         "output": IMPLEMENTATION_ROADMAP_FILE,
         "kwargs": lambda a: {},
     },
     {
         "n": 4,
-        "module": "stage4_synthetic_dataset",
+        "module": "data_curation.legacy.stage4_synthetic_dataset",
         "output": DATASET_GENERATION_LOG_FILE,
         "kwargs": lambda a: {},
     },

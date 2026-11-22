@@ -1,52 +1,30 @@
 """
-Shared chunk fields for every chunking strategy in the FastAPI Q&A RAG project.
-
-The chunking study compares seven strategies on the same corpus, so the chunks
-they produce have to be described the same way whatever splitter made them. Each
-strategy declares its identity and its sizes in a :class:`ChunkSettings`, and
-lets the helpers here turn split texts into documents:
-
-    strategy        the strategy name, as listed in ``chunkers.STRATEGIES``
-    chunk_index     0-based position within the parent document
-    chunk_count     how many chunks that parent produced
-    source_path     the parent's source path, carried through unchanged
-    chunk_size      the split length the strategy used
-    chunk_overlap   the overlap the strategy used
-    chunk_unit      what those two are counted in ("word", "sentence", "char")
-
-Everything the parent carried in ``meta`` is copied onto each of its chunks; the
-bookkeeping a Haystack splitter adds (``source_id``, ``split_id``,
-``split_idx_start``, ``_split_overlap``, ``page_number``, ``parent_id``) is
-dropped, so the seven strategies are directly comparable and a chunk's metadata
-does not depend on which splitter produced it. Indexing derives deterministic
-point ids from ``strategy`` + ``source_path`` + ``chunk_index``, which is why
-:func:`split_documents` feeds the splitter one parent at a time: the index is
-then a position inside that parent and never shifts because a neighbouring
-document changed.
+Shared chunk fields, so every strategy the study compares describes its chunks
+the same way whatever splitter made them.
 """
 
 import logging
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from haystack import Document
 
 logger = logging.getLogger(__name__)
 
-# What ``chunk_size``/``chunk_overlap`` are counted in.
 WORD_UNIT = "word"
 SENTENCE_UNIT = "sentence"
 CHAR_UNIT = "char"
 
-# Written by a Haystack splitter, not by us: internal to one splitter and
-# meaningless (or absent) for the others, so it never reaches a chunk.
+# Only a parent that is itself a splitter's output carries these, and they describe
+# that earlier split. A new split's own meta is never copied onto a chunk, only its text.
 _SPLITTER_META_KEYS = frozenset(
     {"source_id", "parent_id", "split_id", "split_idx_start", "_split_overlap", "page_number"}
 )
 
 
-@dataclass(frozen=True)
+@dataclass
 class ChunkSettings:
     """How one strategy splits, recorded on every chunk it produces.
 
@@ -61,37 +39,11 @@ class ChunkSettings:
     unit: str
 
 
-class Splitter(Protocol):
-    """The part of a Haystack splitter component the helpers here rely on.
-
-    Both Haystack splitters warm themselves up on their first ``run``, so
-    :func:`split_documents` only ever calls ``run``.
-    """
-
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]: ...
-
-
-class Chunker(Protocol):
-    """What every strategy in this package offers its caller.
-
-    ``get_chunker`` returns this, so a chunker fetched by name has a known shape
-    without the package importing any strategy module.
-    """
-
-    settings: ChunkSettings
-
-    def warm_up(self) -> None: ...
-
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]: ...
-
-
 def source_path_of(document: Document) -> str | None:
-    """The parent's source path, or ``None`` when it has not been given one.
+    """``source_path`` from corpus metadata, else ``file_path``.
 
-    Corpus metadata sets ``source_path``; a document read straight off disk by
-    ``TextFileToDocument`` only has ``file_path`` (Haystack 3.0 records the file
-    name there, not the path it was read from), so fall back to that to keep the
-    demos and a bare loader usable before metadata is attached.
+    A document read by ``TextFileToDocument`` has only ``file_path`` (the file name, in
+    Haystack 3) until metadata is attached.
     """
     for key in ("source_path", "file_path"):
         value = document.meta.get(key)
@@ -107,27 +59,20 @@ def build_chunks(
     *,
     per_chunk_meta: Sequence[Mapping[str, Any]] | None = None,
 ) -> list[Document]:
-    """Turn one parent's split texts into chunk documents carrying the shared fields.
+    """Turn one parent's split texts into chunks carrying the shared fields.
 
-    Strategies that do their own splitting (rather than handing a Haystack
-    splitter to :func:`split_documents`) call this directly, and may pass
-    ``per_chunk_meta`` to add a field of their own to each chunk — a heading
-    path, for instance. Those extras are merged last, so a strategy can also
-    override a carried-over parent field on purpose.
-
-    Chunks are rebuilt as new documents rather than edited in place: Haystack
-    derives a document's id from its content and metadata when it is created, so
-    a chunk that was mutated afterwards would carry an id computed from the
-    splitter's metadata instead of its own.
+    ``per_chunk_meta`` adds a strategy's own field to each chunk, such as a heading path.
+    Each chunk is a new ``Document``, not an edited split: Haystack fixes the id from the
+    content and meta at creation, so an edited split would keep the splitter's id.
     """
+    source_path = source_path_of(parent)
     if per_chunk_meta is not None and len(per_chunk_meta) != len(texts):
         raise ValueError(
             f"per_chunk_meta has {len(per_chunk_meta)} entries for {len(texts)} chunks of "
-            f"{source_path_of(parent) or parent.id}"
+            f"{source_path or parent.id}"
         )
 
     carried = {key: value for key, value in parent.meta.items() if key not in _SPLITTER_META_KEYS}
-    source_path = source_path_of(parent)
     chunk_count = len(texts)
 
     chunks: list[Document] = []
@@ -149,37 +94,21 @@ def build_chunks(
 
 
 def check_source_paths(documents: Sequence[Document], strategy: str) -> None:
-    """Refuse a batch whose documents cannot be told apart by their source path.
+    """Refuse two documents with the same source path.
 
-    Indexing builds a chunk's point id from ``strategy`` + ``source_path`` +
-    ``chunk_index``, so two documents sharing a source path would produce two
-    chunks with the same id and the second would overwrite the first — a whole
-    document quietly missing from a collection. Two documents with no source
-    path at all collide the same way, but that is a warning rather than an
-    error: a document built in memory (a demo, a test, an ad-hoc run) has no
-    path to carry, and only indexing needs one.
-
-    Raises ``ValueError`` naming the repeated path. Strategies that split for
-    themselves call this before :func:`build_chunks`; :func:`split_documents`
-    already does.
+    Indexing keys a chunk's point by its source path and ``chunk_index`` (``point_key``
+    in stage 3), so the second document's chunks would overwrite the first's. A missing
+    path only warns: a document built in memory has none, and only indexing needs one.
     """
-    seen: set[str] = set()
-    repeated: list[str] = []
-    missing = 0
-    for document in documents:
-        path = source_path_of(document)
-        if path is None:
-            missing += 1
-        elif path in seen:
-            repeated.append(path)
-        else:
-            seen.add(path)
-
+    paths = [source_path_of(document) for document in documents]
+    counts = Counter(path for path in paths if path is not None)
+    repeated = sorted(path for path, count in counts.items() if count > 1)
     if repeated:
         raise ValueError(
             f"{strategy}: two documents share a source path, so their chunks would collide: "
-            f"{', '.join(sorted(set(repeated)))}"
+            f"{', '.join(repeated)}"
         )
+    missing = paths.count(None)
     if missing:
         logger.warning(
             "%s: %d document(s) have neither source_path nor file_path; their chunks "
@@ -191,18 +120,14 @@ def check_source_paths(documents: Sequence[Document], strategy: str) -> None:
 
 def split_documents(
     documents: list[Document],
-    splitter: Splitter,
+    splitter,
     settings: ChunkSettings,
 ) -> list[Document]:
-    """Split every document with ``splitter`` and stamp the shared chunk fields.
+    """Split each document with a Haystack ``splitter`` and stamp the shared chunk fields.
 
-    The splitter sees one parent per call, so the chunks that come back are that
-    parent's, in order: their ``chunk_index`` runs 0…n-1 with no gaps and does
-    not depend on how many documents were passed in.
-
-    A document with no content is skipped with a warning, the same way for every
-    strategy — left to the splitters, one raises on ``content=None`` and another
-    treats it as empty.
+    One parent per ``run`` call, so ``chunk_index`` is a position inside that parent and
+    never shifts when a neighbour changes; ``run`` also warms the splitter up. An empty
+    document is skipped here because, left to them, the splitters disagree on ``None``.
     """
     if not isinstance(documents, list):
         raise TypeError(f"Expected a list of Documents, got {type(documents).__name__}")
@@ -219,13 +144,9 @@ def split_documents(
         # A chunk of nothing but whitespace carries no meaning and would still
         # cost an embedding, so drop it before the indices are handed out.
         texts = [chunk.content for chunk in split if chunk.content and chunk.content.strip()]
-        if len(texts) < len(split):
-            logger.info(
-                "%s: dropped %d blank chunk(s) from %s",
-                settings.strategy,
-                len(split) - len(texts),
-                name,
-            )
+        dropped = len(split) - len(texts)
+        if dropped:
+            logger.info("%s: dropped %d blank chunk(s) from %s", settings.strategy, dropped, name)
         if not texts:
             logger.warning("%s produced no chunks for %s", settings.strategy, name)
             continue
@@ -302,13 +223,10 @@ the query string.
 
 
 def demo_document() -> Document:
-    """One small markdown document with headings, paragraphs, and a code fence."""
     return Document(content=DEMO_MARKDOWN, meta={"source_path": "demo/query-parameters.md"})
 
 
-def log_chunk_summary(chunks: Sequence[Document], *, log: logging.Logger | None = None) -> None:
-    """Log one line per chunk: its index, its length, and how it starts."""
-    log = log or logger
+def log_chunk_summary(chunks: Sequence[Document], log: logging.Logger) -> None:
     for chunk in chunks:
         content = chunk.content or ""
         preview = " ".join(content.split())[:70]

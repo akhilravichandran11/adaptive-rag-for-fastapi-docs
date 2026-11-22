@@ -1,12 +1,12 @@
 """
 Hybrid retrieval: BM25 matches exact words (API names) that dense search can rank low, and
-Voyage reranks the fused lists. CRAG imports ``build_hybrid_pipeline`` and ``retrieve`` (C011).
+Voyage reranks the fused lists. Other modules import ``build_hybrid_pipeline`` and
+``retrieve`` (C011).
 """
 
 import argparse
 import logging
 import os
-import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -19,28 +19,27 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.rankers.voyage import VoyageRanker
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # lets the script run by path from any directory
-
-from data_ingestion.chunk_snapshot import read_chunks  # noqa: E402  (needs the path set above)
-from data_ingestion.chunkers import STRATEGIES  # noqa: E402
-from data_ingestion.embedders import (  # noqa: E402
+from data_ingestion.chunk_snapshot import read_chunks
+from data_ingestion.chunkers import STRATEGIES
+from data_ingestion.embedders import (
     EMBEDDERS,
     build_query_embedder,
     cached_tokenizer_path,
 )
-from data_ingestion.pipeline import resolve_run_dir  # noqa: E402
-from data_ingestion.qdrant_store import (  # noqa: E402
+from data_ingestion.pipeline import resolve_run_dir
+from data_ingestion.qdrant_store import (
     build_document_store,
     collection_exists,
     load_settings,
 )
-from data_ingestion.variants import (  # noqa: E402
+from data_ingestion.variants import (
     DEFAULT_PREFIX,
     Variant,
     check_prefix,
     select_variants,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +59,7 @@ def build_hybrid_pipeline(
 ) -> Pipeline:
     """Build the BM25 + dense pipeline for ``variant``; makes one free Qdrant call, no paid one.
 
-    Raises ``ValueError`` for missing config, chunk file or collection, which ``main`` exits 1 on.
+    Raises ``ValueError`` for missing config, chunk file or collection.
     """
     settings = load_settings(
         collection_override=variant.collection(prefix),

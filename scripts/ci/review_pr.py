@@ -20,6 +20,7 @@ Optional:
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -143,9 +144,9 @@ def main() -> int:
     notices = []
     if len(diff) > MAX_DIFF_CHARS:
         notices.append(
-            f"> **Incomplete coverage:** Only the first {MAX_DIFF_CHARS:,} "
-            f"of {len(diff):,} diff characters were sent for review. "
-            "Later changes were not reviewed."
+            f"> **Partial review · {MAX_DIFF_CHARS / len(diff):.1%} of the diff**\n"
+            f"> The model received the first {MAX_DIFF_CHARS:,} "
+            f"of {len(diff):,} diff characters."
         )
     if choice.finish_reason == "length":
         notices.append(
@@ -153,11 +154,30 @@ def main() -> int:
             "The review below may end before all findings are reported."
         )
 
-    header = f"### \U0001f916 Automated code review (`{MODEL}`)\n\n"
-    header += f"PR head: `{head_sha}` | [Workflow run]({run_url})\n\n"
+    header = "### Automated code review\n\n"
     if notices:
         header += "\n\n".join(notices) + "\n\n"
-    post_comment(pr_number, header + review)
+    fence = ""
+    for line in review.splitlines():
+        match = re.fullmatch(r"( {0,3})(`{3,}|~{3,})(.*)", line)
+        if not match:
+            continue
+        indent, marker, trailing = match.groups()
+        if not fence:
+            if marker.startswith("~") or "`" not in trailing:
+                fence = marker
+                fence_indent = indent
+        elif marker[0] == fence[0] and len(marker) >= len(fence) and not trailing.strip():
+            fence = ""
+    if fence:
+        review += f"\n{fence_indent}{fence}"
+    repository_url = run_url.split("/actions/runs/", 1)[0]
+    footer = (
+        f"\n\n---\n\n`{MODEL}` · "
+        f"[`{head_sha[:7]}`]({repository_url}/commit/{head_sha}) · "
+        f"[Workflow run]({run_url})"
+    )
+    post_comment(pr_number, header + review + footer)
     print("Posted review comment.")
     return 0
 

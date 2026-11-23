@@ -11,7 +11,7 @@ detail for commits, `.scratch/` and Linear.
 |---|---|---|
 | Where the work lands | the main checkout, which other chats share along with its git index | the session's own branch (`claude/…`, `codex/…`, `cursor/…`) and a draft pull request on each repository |
 | Commits and staging | agents never stage or commit; the lead hands the user the `git add` line and the message | the agent commits and pushes to its branch early and often; `main` changes only through a pull request the user merges |
-| Claiming a ticket | `ticket.py claim` after the user's yes | move the Linear issue to In Progress, then `ticket.py claim --write` on the scratch branch |
+| Claiming a ticket | `ticket.py claim` after the user's yes | move the Linear issue to In Progress, then `ticket.py claim --write` on the scratch branch before your first code commit, since `claim` takes the ticket's Start from the code checkout's `HEAD` |
 | Approving record edits | the proposal page, then yes in chat; a `ticket.py` flip needs only the yes | the draft pull request on the scratch repository is the approval |
 | Step 8 reviews | `code-review` and `tdd` are user-level skills on the Mac, not in the repo | those two skills are not installed. When step 8 calls for a Spec review, the lead runs it as one spawned subagent that is given the ticket; a Standards review, which runs only when the user asks for it, is also given `docs/conventions.md`, `docs/simplification-conventions.md` and the open-question list. Neither uses the tool's built-in review of the same name. Tests are written first, by hand |
 | Showing work to the user | the visual tools ([`visual-tools.md`](visual-tools.md)) | the pull request conversation and line comments, or "Review in Linear" |
@@ -50,6 +50,14 @@ from its own path, so it runs from any directory. It stops at once in the main
 checkout, the only one with a real `.scratch` folder, and is safe to run
 again. A step that fails prints a `session_setup:` line saying what to rerun.
 
+In the cloud, the environment's network settings must allow the package
+managers (PyPI), `github.com` (the pre-commit hooks),
+`raw.githubusercontent.com` (NLTK's sentence data) and `huggingface.co` (the
+tokenizer). Without the models, the tests that need them skip and the suite
+still passes, so also run `uv run python scripts/download_models.py --check`.
+uv picks Python 3.13 in the cloud, as it does on the Mac; CI runs 3.11, the
+floor in `pyproject.toml`, so only CI shows that the code runs on 3.11.
+
 | Session | What runs the script |
 |---|---|
 | Claude with one repository, cloud or worktree | the SessionStart hook in `.claude/settings.json` |
@@ -72,16 +80,22 @@ again. A step that fails prints a `session_setup:` line saying what to rerun.
 
 Commit and push to the branch your tool created (`claude/…`, `cursor/…`,
 `codex/…`), then open a draft pull request with the Linear issue ID in its
-title. `main` changes only through a pull request the user merges. If your
-tool cannot push or open the pull request itself, say so in your final
-message. The local no-commit rule in `CLAUDE.md` exists because local chats
-share one git index; a cloud session has its own. Claude's cloud harness
-pushes the session branch whenever it reaches a stopping point, and no
-setting turns that off; that fits the rule above, so let it push.
+title. That ID is the only issue reference outside `.scratch/`: commit
+messages, pull request text, Linear comments and tracked files carry no
+tracker ticket ID. A commit message ends at its body, with no
+`Co-Authored-By` line, even when your tool's own guidance asks for one.
+`main` changes only through a pull request the user merges. If your tool
+cannot push or open the pull request itself, say so in your final message.
+The local no-commit rule in `CLAUDE.md` exists because local chats share one
+git index; a cloud session has its own. Claude's cloud harness pushes the
+session branch whenever it reaches a stopping point, and no setting turns
+that off; that fits the rule above, so let it push.
 
 ## Scratch in the cloud
 
-1. Update the clone before reading it: `git -C .scratch pull --ff-only`. If
+1. Update the clone before reading it:
+   `git -C .scratch pull --ff-only origin main`. The clone can start on a
+   session branch with no upstream, where a bare `git pull` fails. If
    `.scratch` is missing, work from the Linear issue and say so in the pull
    request.
 2. Make scratch edits on a branch with the same name as your code branch, push

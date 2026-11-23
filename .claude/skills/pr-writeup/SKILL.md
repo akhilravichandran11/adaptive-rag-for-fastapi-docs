@@ -55,7 +55,7 @@ The Evidence and Merge Danger sections are adapted from Matt Pocock's `pr` skill
 
 **Linear reference**: when the branch's work has a Linear issue, end the body with one `Refs DEF-N` line per issue, above any attribution line. Write `Refs`, never `Fixes` or `Closes`: the PR links to the issue without changing its status, and the maintainer closes issues by hand. Leave the line out when no issue applies.
 
-If your current environment has a standard AI-attribution convention for commits or PR descriptions (for example `Co-Authored-By: Warp <agent@warp.dev>` in Warp), append it as the last line of the body. Omit it if no such convention applies.
+A commit message ends at its body, with no AI-attribution line such as `Co-Authored-By`. If your current environment has a standard AI-attribution convention for PR descriptions, append it as the last line of the PR body. Omit it if no such convention applies.
 
 ## Reporting
 

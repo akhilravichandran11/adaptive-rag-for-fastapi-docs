@@ -40,14 +40,12 @@ _HEADING_ANCHOR_RE = re.compile(r"\s*\{\s*#[^}]*\}\s*$")
 
 
 def _heading_path(section: Document) -> list[str]:
-    """The headings above a section and its own, without anchors."""
     headings = [*section.meta.get("parent_headers", []), section.meta.get("header") or ""]
     names = [_HEADING_ANCHOR_RE.sub("", heading).strip() for heading in headings]
     return [name for name in names if name]
 
 
 def _can_join(short: str, other: str) -> bool:
-    """True when ``short`` is under MIN_SECTION and the two still fit in one chunk, unsplit."""
     return len(short) < MIN_SECTION and len(short) + len(other) <= MAX_SECTION
 
 
@@ -60,7 +58,6 @@ def _join(first: tuple[list[str], str], second: tuple[list[str], str]) -> tuple[
 def _join_short_sections(
     sections: list[tuple[list[str], str]],
 ) -> list[tuple[list[str], str]]:
-    """Join a short section to the next one; a short last one joins the one before."""
     joined: list[tuple[list[str], str]] = []
     for section in sections:
         if joined and _can_join(joined[-1][1], section[1]):
@@ -74,7 +71,6 @@ def _join_short_sections(
 
 
 def _is_paragraph(block: str) -> bool:
-    """True when a block is not a heading and does not end on a code block."""
     lines = block.strip().splitlines()
     return not lines[0].startswith("#") and not _FENCE_RE.match(lines[-1])
 
@@ -100,11 +96,10 @@ def _blocks(text: str) -> list[str]:
     return [block for block in blocks if block]
 
 
-def _pack(blocks: list[str], limit: int) -> list[str]:
-    """Fill pieces with whole blocks in order, starting a new piece before one would overflow."""
+def _pack(blocks: list[str]) -> list[str]:
     pieces: list[str] = []
     for block in blocks:
-        if pieces and len(pieces[-1]) + len(block) <= limit:
+        if pieces and len(pieces[-1]) + len(block) <= MAX_SECTION:
             pieces[-1] += block
         else:
             pieces.append(block)
@@ -113,8 +108,6 @@ def _pack(blocks: list[str], limit: int) -> list[str]:
 
 @component
 class MarkdownSectionsChunker:
-    """One chunk per heading section: short ones joined, long ones cut between paragraphs."""
-
     def __init__(self) -> None:
         self.settings = MARKDOWN_SECTIONS
         self._header_splitter = MarkdownHeaderSplitter(keep_headers=True)
@@ -143,8 +136,7 @@ class MarkdownSectionsChunker:
             heading_paths: list[dict[str, str]] = []
             for path, text in _join_short_sections(sections):
                 breadcrumb = " > ".join(path)
-                pieces = _pack(_blocks(text), MAX_SECTION) if len(text) > MAX_SECTION else [text]
-                for piece in pieces:
+                for piece in _pack(_blocks(text)):
                     if not piece.strip():
                         continue
                     texts.append(piece)

@@ -74,17 +74,21 @@ Serialize dependency tickets: spawn B only after A's handback is reviewed.
 
 - Read the full handback. Confirm Status, Files, Verification counts. Spot-check
   two `file:line` cites against the files.
-- After verification passes: run `active-code-simplifier` on that ticket's
-  **production** Python only (not `tests/`), naming the handback `Start` sha —
+- After verification passes: count the ticket's size as tracker step 8
+  defines it (production Python only, never `tests/`). At about 50 lines or
+  more, and never on a simplification ticket, run `active-code-simplifier` on
+  that ticket's **production** Python, naming the handback `Start` sha —
   if that agent exists in this harness; else note skipped.
-- Then reviews (read-only; may run in parallel):
-  - Spec/standards: `code-review` skill / bug-review against ticket +
-    `docs/conventions.md` + `docs/simplification-conventions.md` + open questions
-  - Bugs: `active-code-reviewer` Task on the same files
+- Then reviews per tracker step 8 (read-only; may run in parallel):
+  - Spec: one subagent against the ticket and the decisions it cites, only
+    at about 200 lines or more or when the ticket changes a model prompt. No
+    standards review unless the user asks for it by name.
+  - Bugs: your own read of the diff, then the `active-code-reviewer` Task on
+    the same files, on every ticket that changes Python
 - Fix nothing in source/tests yourself. Resume or re-prompt the **same worker**
   with **all** in-scope findings in one message. Two fix rounds max; then stop
   and ask the user.
-- Progress line names the review tier from tracker step 8 (diff size).
+- Progress line names the size and the reviews that ran (tracker step 8).
 - `Proposed convention` / `Noticed, not touched` / `Awaiting ruling` → questions
   for the user, not silent edits.
 

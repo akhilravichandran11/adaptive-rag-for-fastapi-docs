@@ -70,28 +70,39 @@ review-skill, views, relay and close rules.
   that `Verification` shows actual counts. Spot-check two `file:line`
   references against the files: a handback once cited line 343 of a 262-line
   file.
-- Once the handback's verification passes, spawn `active-code-simplifier` on
-  that ticket's Python files with the handback's `Start` sha, and wait for it,
-  as step 8 of `docs/agents/issue-tracker.md` says. Then run the reviews on
-  the simplified files. Name only production files for it: it refuses
+- Once the handback's verification passes, count the ticket's size as step 8
+  of `docs/agents/issue-tracker.md` defines it: production Python only, never
+  tests. Take it from `git diff --numstat <Start>` on the ticket's files plus
+  the line counts of its new untracked files, and state it with the ticket's
+  report. At about 50 lines or more, and never on a simplification ticket,
+  spawn `active-code-simplifier` on that ticket's Python files with the
+  handback's `Start` sha, and wait for it. Then run the reviews on the
+  simplified files. Name only production files for it: it refuses
   `tests/` by its own rules even when a prompt names a test file.
   Its Split list (each new step and its job) comes to me verbatim with the
   ticket's report; step names are a design call.
-- Once the simplifier is done, run `python3 .scratch/ticket.py packet <ID>`
-  and paste its output into the prompt of every reviewer that runs
-  (`code-review`, `active-code-reviewer`): a reviewer that did not write the
+- Once the simplifier is done or skipped, run
+  `python3 .scratch/ticket.py packet <ID>` and paste its output into the
+  prompt of every reviewer that runs (the Spec review,
+  `active-code-reviewer`): a reviewer that did not write the
   code needs the contract, the edits that were there before the ticket, and
   the change. When the packet runs past about 300 lines, save it to a file
   in your scratchpad, paste its contract and baseline, and give each
   reviewer the file's path for the diff.
-- Run `code-review` with the handback's `Start` sha as the fixed point.
-  Nothing is committed, so its default `<Start>...HEAD` diff is empty: tell
-  it to review `git diff <Start>` and to read every untracked file in full.
-  Name its standards sources: `docs/conventions.md`,
-  `docs/simplification-conventions.md` and
+- When step 8 calls for a Spec review (about 200 lines or more, or a changed
+  model prompt), spawn one subagent for it with the handback's `Start` sha as
+  the fixed point. Nothing is committed, so a `<Start>...HEAD` diff is empty:
+  tell it to review `git diff <Start>` and to read every untracked file in
+  full. Its source is the ticket file and the decisions the ticket cites. It
+  answers "is this what the ticket asked for" and, for a prompt, "do the
+  prompt's rules agree with each other and with those decisions". Do not
+  invoke `code-review` as it ships: that also runs the Standards half, which
+  runs only when I ask for it by name. When I do, name its standards
+  sources: `docs/conventions.md`, `docs/simplification-conventions.md` and
   `.scratch/code-simplification/questions.md` (its smell baseline suggests
-  constructs the open-question list bans). Spec: the ticket file. It answers
-  "is this what the ticket and our rules asked for"; then run the
+  constructs the open-question list bans).
+- On every ticket that changes Python, read the diff yourself against the
+  ticket and those standards sources, then run the
   `active-code-reviewer` agent on the same files for runtime bugs. Fix
   nothing yourself
   for a bug: resume the implementer by name with the findings. A resumed
@@ -105,14 +116,17 @@ review-skill, views, relay and close rules.
   in `.scratch/code-simplification/questions.md` and the ticket's Seams: a
   fix that contradicts an accepted convention, or adds a construct the open
   list bans, costs a whole round.
-- Review depth is step 8's tier rule in `docs/agents/issue-tracker.md`: the
-  size of the Python diff picks the tier, `code-review` runs at most once per
-  ticket on the first build, and the Progress line names the tier. The
-  reasons are cost: `code-review` is four to six times a bug review and finds
-  spec gaps and style, not bugs (one 3-line ticket cost 110k; another, 6 lines
-  of Python plus 135 of markup, cost 113k for no must-fix).
-  `code-review` and `active-code-reviewer` may run in parallel: both only
-  read.
+- Review depth is step 8 of `docs/agents/issue-tracker.md`: production
+  Python alone sets the size, the Spec review runs at most once per ticket
+  on the first build, and the Progress line names the size and the reviews
+  that ran. The reasons are cost and yield. Across ten batches the bug
+  reviewer found every High and Medium bug and the Standards half found
+  none; the Spec half earned its cost on tickets of 200 lines or more and on
+  one prompt change. One batch that counted test lines sent a 137-line
+  change to the largest review: 564k tokens for minor findings.
+  The Spec review and `active-code-reviewer` may run in parallel: both only
+  read. A fix round that changes a model prompt's text is a behaviour
+  change and gets the bug reviewer again.
 - Resume versus respawn. A resumed implementer reloads its whole transcript,
   so each fix round costs more than the last (one ticket: a 226k build, then
   328k to 410k per resume). Resume for the first fix round. For a later round, or

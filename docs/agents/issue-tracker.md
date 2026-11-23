@@ -268,8 +268,8 @@ and proposes fixes for records git has outrun.
   The status line reads `done (YYYY-MM-DD; committed in <sha>)`, written on
   the user's "committed" yes; a bare `done` is a record defect.
   A ticket's Verification names the reviews as "reviews per step 8 for a diff
-  of this size", never as a list of agents; the Progress line records which
-  tier ran.
+  of this size", never as a list of agents; the Progress line records the
+  size and the reviews that ran.
 
 Only the user sets `deferred` or `wont-do`; an agent may propose either.
 
@@ -357,21 +357,28 @@ within one ticket's scope and request user approval before expanding it. Mark th
 8. Review the change. This step is the one rule for every path: a single
    `/implement` chat, a `/batch-lead` implementer, and Codex. Tickets point
    here instead of listing reviews.
-   - If Python changed, run `active-code-simplifier` on the changed files
-     with the starting commit, before any review. It runs once, on the
-     first build; a fix round does not get it again.
-   - Then by the size of the Python diff: under about 50 lines, read the diff
-     yourself against the ticket and the standards sources, then run the
-     `active-code-reviewer` agent; under about 200, run `code-review` with
-     both axes in one subagent, then `active-code-reviewer`; above that, run
-     `code-review` as it ships, then `active-code-reviewer`. Markup, JSON and
-     docs do not count toward the size; a docs-only ticket gets no reviews.
+   - The size is the production Python the ticket changed: lines added plus
+     lines removed in `.py` files outside `tests/`. Test files, markup, JSON
+     and docs do not count; a docs-only ticket gets no reviews.
+   - At about 50 lines or more, run `active-code-simplifier` on the changed
+     production files with the starting commit, before any review. It runs
+     once, on the first build; a fix round does not get it again, and a
+     ticket whose job is simplification never gets it.
+   - At about 200 lines or more, or when the ticket adds or changes the text
+     of a model prompt at any size, run a Spec review: one subagent that
+     checks the change against the ticket and the decisions it cites. The
+     Standards half of `code-review` runs only when the user asks for it by
+     name.
+   - On every ticket that changes Python, read the diff yourself against the
+     ticket and the standards sources, then run the `active-code-reviewer`
+     agent.
    - A fix round that changes behaviour or an interface gets
-     `active-code-reviewer` again plus your own read; a rename-only or
-     comment-only round gets your read alone. On a re-review, a finding
-     that needs an input no ticket, board or caller produces today becomes a
-     follow-up finding by default; only a false write or a false record
-     reopens the code. The Progress line names the tier that ran.
+     `active-code-reviewer` again plus your own read; a change to a model
+     prompt's text is a behaviour change. A rename-only or comment-only
+     round gets your read alone. On a re-review, a finding that needs an
+     input no ticket, board or caller produces today becomes a follow-up
+     finding by default; only a false write or a false record reopens the
+     code. The Progress line names the size and the reviews that ran.
    Verify the acceptance criteria, record any convention the work introduced
    in `docs/conventions.md`, update the status, then select the next
    unblocked ticket. `uvx pre-commit run --files` reads the files on disk,
@@ -419,14 +426,16 @@ instructions conflict with this repo, this repo wins:
   ticket on the same yes as the Progress line, and every Noticed item is
   disposed of on that yes: a finding, an INBOX line, or "dropped, because".
 - **Reviews follow step 8.** `implement` runs `code-review` on everything;
-  here the tier in step 8 decides whether `code-review` runs at all, and the
-  `active-code-reviewer` agent required by `AGENTS.md` runs in every tier.
+  here step 8 decides whether its Spec half runs, its Standards half runs
+  only when the user asks for it, and the `active-code-reviewer` agent
+  required by `AGENTS.md` runs on every ticket that changes Python.
 - **`code-review` sees the working tree.** It diffs `<fixed point>...HEAD`,
-  which is empty when nothing is committed. Give it the starting commit as
-  the fixed point, have it review `git diff <start>` and read new untracked
-  files in full, and name `docs/conventions.md`,
+  which is empty when nothing is committed. Give either half the starting
+  commit as the fixed point, and have it review `git diff <start>` and read
+  new untracked files in full. The standards sources, for the Standards
+  half and for your own read, are `docs/conventions.md`,
   `docs/simplification-conventions.md` and
-  `.scratch/code-simplification/questions.md` as its standards sources.
+  `.scratch/code-simplification/questions.md`.
 - **Tests only at the ticket's `Seams`.** These are the pre-agreed seams `tdd`
   asks for. Ask the user before testing at a seam the ticket does not list.
 - **Checks.** This repo has no type checker; where `implement` says to run

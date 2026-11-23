@@ -79,7 +79,10 @@ Instructions for AI coding agents (Codex, Claude Code, etc.) working in this rep
   reviews below, spawn the `active-code-simplifier` custom agent on the Python
   files the task changed, naming the starting commit. It applies basic
   readability rules only and never adds or removes a construct the user rules
-  on. Skip it when no Python changed. It is defined once per tool with the same
+  on. Skip it when no Python changed, when the change is under about 50
+  lines of production Python, and on a ticket whose job is simplification
+  (step 8 of [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)).
+  It is defined once per tool with the same
   instructions: [`.claude/agents/active-code-simplifier.md`](.claude/agents/active-code-simplifier.md)
   for Claude Code and
   [`.codex/agents/active-code-simplifier.toml`](.codex/agents/active-code-simplifier.toml)

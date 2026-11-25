@@ -1,6 +1,8 @@
 import json
 import socket
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import Mock, PropertyMock
 
 import pytest
 from haystack import Document
@@ -42,7 +44,9 @@ def test_embedder_preserves_query_request_output_and_records_usage(monkeypatch, 
     )
     assert built == []
 
+    before_call = datetime.now(UTC)
     result = embedder.run("query")
+    after_call = datetime.now(UTC)
     finish()
 
     assert result == {"embedding": [0.1, 0.2], "meta": {"total_tokens": 7}}
@@ -58,6 +62,12 @@ def test_embedder_preserves_query_request_output_and_records_usage(monkeypatch, 
         }
     ]
     row = json.loads((directory / "calls.jsonl").read_text())
+    assert before_call <= datetime.fromisoformat(row["started_at"])
+    assert (
+        datetime.fromisoformat(row["started_at"])
+        <= datetime.fromisoformat(row["ended_at"])
+        <= after_call
+    )
     assert row == {
         "provider": "voyage",
         "operation": "embedding",
@@ -66,6 +76,8 @@ def test_embedder_preserves_query_request_output_and_records_usage(monkeypatch, 
         "usage": {"total_tokens": 7},
         "usd": 0.00000014,
         "reason": None,
+        "started_at": row["started_at"],
+        "ended_at": row["ended_at"],
     }
 
 
@@ -255,3 +267,64 @@ def test_invalid_input_is_rejected_before_dispatch(operation, monkeypatch):
     with pytest.raises(error):
         component.run(**inputs)
     assert built == []
+
+
+@pytest.mark.parametrize("operation", ["embedding", "rerank"])
+@pytest.mark.parametrize("failed", [False, True])
+def test_call_times_exclude_setup_usage_conversion_and_record_delay(
+    operation, failed, monkeypatch, tmp_path
+):
+    moment = [datetime(2026, 11, 23, 1, tzinfo=UTC)]
+    clock = Mock(wraps=datetime, now=lambda tz: moment[0])
+    monkeypatch.setattr(voyage_usage, "datetime", clock)
+
+    def read_usage():
+        moment[0] = datetime(2026, 11, 23, 4, tzinfo=UTC)
+        return 7
+
+    response = Mock(embeddings=[[0.1]], results=[])
+    type(response).total_tokens = PropertyMock(side_effect=read_usage)
+
+    def invoke(**kwargs):
+        moment[0] = datetime(2026, 11, 23, 3, tzinfo=UTC)
+        if failed:
+            raise RuntimeError("private provider failure")
+        return response
+
+    def client(**kwargs):
+        moment[0] = datetime(2026, 11, 23, 2, tzinfo=UTC)
+        return SimpleNamespace(embed=invoke, rerank=invoke)
+
+    monkeypatch.setattr(voyage_usage, "Client", client)
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+
+    def delayed_record(**row):
+        moment[0] = datetime(2026, 11, 23, 5, tzinfo=UTC)
+        record(**row)
+
+    if operation == "embedding":
+        component = voyage_usage.UsageVoyageTextEmbedder(
+            model="voyage-4-lite", output_dimension=1, record=delayed_record
+        )
+        inputs = {"text": "query"}
+        expected = {"embedding": [0.1], "meta": {"total_tokens": 7}}
+    else:
+        component = voyage_usage.UsageVoyageRanker(
+            model="rerank-2.5", top_k=1, record=delayed_record
+        )
+        inputs = {"query": "query", "documents": [Document(content="document")]}
+        expected = {"documents": []}
+
+    if failed:
+        with pytest.raises(RuntimeError, match="private provider failure"):
+            component.run(**inputs)
+    else:
+        assert component.run(**inputs) == expected
+    finish(run_failed=failed)
+
+    row = json.loads((directory / "calls.jsonl").read_text())
+    assert row["started_at"] == "2026-11-23T02:00:00+00:00"
+    assert row["ended_at"] == "2026-11-23T03:00:00+00:00"
+    assert row["outcome"] == ("error" if failed else "response")
+    assert "private" not in (directory / "calls.jsonl").read_text()

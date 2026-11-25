@@ -6,10 +6,14 @@ fake Tavily client. The fake copies the SDK's keyword call, its always-present `
 
 import json
 import socket
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from tavily.errors import UsageLimitExceededError
 
+from crag import web_search
 from crag.web_search import WebSearch
 from observability.costs import create_recorder
 
@@ -250,3 +254,33 @@ def test_missing_search_usage_is_unknown_and_empty_queries_record_nothing(tmp_pa
     finish()
     row = json.loads((directory / "calls.jsonl").read_text())
     assert row["usd"] is None and row["reason"] == "missing_or_invalid_usage"
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_search_times_end_before_recording_and_document_mapping(failed, monkeypatch, tmp_path):
+    moment = [datetime(2026, 11, 23, 1, tzinfo=UTC)]
+    monkeypatch.setattr(web_search, "datetime", Mock(wraps=datetime, now=lambda tz: moment[0]))
+
+    def search(**kwargs):
+        moment[0] = datetime(2026, 11, 23, 2, tzinfo=UTC)
+        if failed:
+            raise UsageLimitExceededError("private quota")
+        return {"usage": {"credits": 2}}
+
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+
+    def delayed_record(**row):
+        moment[0] = datetime(2026, 11, 23, 3, tzinfo=UTC)
+        record(**row)
+
+    with pytest.raises(UsageLimitExceededError if failed else KeyError):
+        WebSearch(SimpleNamespace(search=search), record=delayed_record).run(["private query"])
+    finish(run_failed=True)
+
+    row = json.loads((directory / "calls.jsonl").read_text())
+    assert row["started_at"] == "2026-11-23T01:00:00+00:00"
+    assert row["ended_at"] == "2026-11-23T02:00:00+00:00"
+    assert row["outcome"] == ("error" if failed else "response")
+    assert row["usd"] == (None if failed else 0.016)
+    assert "private" not in (directory / "calls.jsonl").read_text()

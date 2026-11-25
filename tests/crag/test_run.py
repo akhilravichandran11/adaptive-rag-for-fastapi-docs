@@ -7,6 +7,7 @@ fakes. The real ``.env`` is not loaded. No network (C006, the no-network form).
 import json
 import logging
 import socket
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -439,10 +440,18 @@ def test_cost_file_failures_and_build_failure_finalize_without_dispatch(
 
             monkeypatch.setattr(Path, "write_text", fail_finish)
 
+    before_run = datetime.now(UTC)
     with pytest.raises(SystemExit if failure == "build" else OSError):
         run.main(["--question", "q", "--costs-dir", str(directory)])
     assert isolated == []
     if failure == "build":
         summary = json.loads((directory / "summary.json").read_text())
         assert summary["run_failed"] is True
+        assert summary["terminal_run_failed"] is True
         assert summary["call_count"] == 0
+        assert before_run <= datetime.fromisoformat(summary["started_at"])
+        assert (
+            datetime.fromisoformat(summary["started_at"])
+            <= datetime.fromisoformat(summary["ended_at"])
+            <= datetime.now(UTC)
+        )

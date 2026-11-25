@@ -1,6 +1,6 @@
 import json
 import math
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from threading import Lock
 
@@ -87,6 +87,7 @@ def _price_gemini_usage(operation, model, selected):
 
 
 def create_recorder(directory: str | Path):
+    started_at = datetime.now(UTC).isoformat()
     directory = Path(directory)
     directory.mkdir()
     calls = (directory / "calls.jsonl").open("x", encoding="utf-8")
@@ -98,7 +99,19 @@ def create_recorder(directory: str | Path):
     closed = False
 
     def record(
-        *, provider, operation, model, outcome, usage, service_tier="standard", modality="text"
+        *,
+        provider,
+        operation,
+        model,
+        outcome,
+        usage,
+        service_tier="standard",
+        modality="text",
+        started_at=None,
+        ended_at=None,
+        logical_call_id=None,
+        attempt=None,
+        model_role=None,
     ):
         nonlocal call_count, saw_error, accounting_failed
         if provider not in USAGE_FIELDS or outcome not in ("response", "error"):
@@ -116,6 +129,14 @@ def create_recorder(directory: str | Path):
             usd=usd,
             reason=reason,
         )
+        details = dict(
+            started_at=started_at,
+            ended_at=ended_at,
+            logical_call_id=logical_call_id,
+            attempt=attempt,
+            model_role=model_role,
+        )
+        row.update({key: value for key, value in details.items() if value is not None})
         with lock:
             if closed:
                 raise OSError(f"Cost recorder is closed: {directory}")
@@ -138,6 +159,7 @@ def create_recorder(directory: str | Path):
 
     def finish(*, run_failed=False):
         nonlocal closed
+        ended_at = datetime.now(UTC).isoformat()
         with lock:
             if closed:
                 raise OSError(f"Cost recorder is closed: {directory}")
@@ -152,6 +174,9 @@ def create_recorder(directory: str | Path):
                 known_estimated_usd=sum(p["known_estimated_usd"] for p in providers.values()),
                 unknown_cost_count=unknown,
                 run_failed=run_failed or saw_error,
+                terminal_run_failed=run_failed,
+                started_at=started_at,
+                ended_at=ended_at,
                 all_observed_costs_known=not unknown,
                 pricing_date=PRICING_DATE,
                 pricing_basis=PRICING_BASIS,

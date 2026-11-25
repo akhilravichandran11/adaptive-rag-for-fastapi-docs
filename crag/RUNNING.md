@@ -105,10 +105,27 @@ uv run python crag/run.py --question "How do I add CORS middleware?" --costs-dir
 
 Each path must name a new directory. `calls.jsonl` holds one flushed row per
 completed observable SDK call: provider, operation, model, outcome, selected numeric
-usage, estimated USD and a reason when USD is null. `summary.json` totals known USD
-and unknown-cost counts by provider and overall, flags a failed run, and gives the
-price date, basis and sources. Zero is measured zero; null is unknown. Neither a
-failed run nor a partly priced run establishes a complete bill.
+usage, estimated USD and a reason when USD is null. Each provider row also has
+`started_at` and `ended_at`, ISO UTC times measured around the SDK invocation,
+including an invocation that raises. They exclude response conversion, recording
+delay and later JSON/schema validation. `outcome=response` means the SDK returned;
+it does not mean the returned JSON was valid.
+
+Gemini rows carry one opaque `logical_call_id` per `ask`, an `attempt` number
+starting at 1 and continuing across retries and fallback, and `model_role`
+(`primary` or `fallback`). Concurrent asks have distinct IDs; adjacent rows need
+not belong to the same ask. The model field still names the resolved response
+model, or the requested alias when no resolved model is available.
+
+`summary.json` totals known USD and unknown-cost counts by provider and overall,
+and gives the price date, basis and sources. Its `started_at` and `ended_at` mark
+recorder creation and finalization, including local work and retry waits but
+excluding checks before recorder creation. Even a zero-call failure has this
+interval. `terminal_run_failed` is the CLI's final outcome; `run_failed` is true
+when the run failed or any provider error was observed. A recovered error can
+therefore leave `run_failed=true` and `terminal_run_failed=false`. Zero is measured
+zero; null is unknown. Neither a failed run nor a partly priced run establishes a
+complete bill.
 
 Prices are standard text-request estimates for `voyage-4-lite`, `rerank-2.5`,
 `gemini-3.1-pro-preview` (up to 200,000 prompt tokens), `gemini-3.8-flash` and
@@ -132,8 +149,16 @@ they cannot receive a text/standard price. After workers join, call
 `finish(run_failed=...)` in `finally`. A callback error or summary failure raises;
 an append/flush failure prevents a misleading successful summary.
 
+`record` also accepts optional `started_at`, `ended_at`, `logical_call_id`,
+`attempt` and `model_role` keyword arguments. Supply measured ISO UTC timestamp
+strings at the provider boundary; the recorder does not invent missing times or
+identities. Omitted or null optional values are left out of the row. Direct
+accounting callers can keep omitting them, but their untimed rows cannot describe
+provider latency. Both callbacks still return `None`.
+
 No prompts, answers, document content or exception text belong in these records.
-Hidden SDK retries and calls interrupted before a response may be missing; a killed
+Hidden SDK retries fall within the measured invocation; their separate charges
+and calls interrupted before a response may be missing. A killed
 process may leave only partial JSONL without a summary. There is no recovery or
 invoice reconciliation. Recording is available only for single-question Voyage hybrid
 CLI runs; HTTP, dense/BGE modes, route-check batches and Opik export remain outside

@@ -1,10 +1,9 @@
 """
 Shape rules for chunks, messy copies of documents, and the chunk-size report.
 
-The corpus will change — it may be updated, grow, or gain a lower-quality source —
-so chunking is checked against rules that hold for any input rather than against
-counts measured on today's files. Every chunk a strategy produces is held to five
-**shape rules**, each in the strategy's own unit (``ChunkSettings.unit``):
+Chunks are held to rules that hold for any input, not to counts measured on
+today's corpus, and are counted, never fixed (``data_ingestion/DECISIONS.md``,
+2026-10-08). Sizes are in the strategy's own unit (``ChunkSettings.unit``):
 
     over_max      no chunk longer than the strategy's declared maximum
     under_min     no chunk shorter than its declared minimum, unless it is the
@@ -14,20 +13,6 @@ counts measured on today's files. Every chunk a strategy produces is held to fiv
                   lines at its start or end)
     out_of_order  chunks follow the document's order
     empty         no empty or whitespace-only chunk
-
-Nothing here changes a chunk. :func:`check_chunks` reports what breaks a rule,
-:func:`build_report` counts the breaks per strategy over a whole run, and
-:func:`write_report` saves that **chunk-size report** as JSON under
-``outputs/chunk-size-reports/``. The report also counts two informational flags
-that are never rules — **low-prose chunks** (fewer than half the characters are
-letters or whitespace) and chunks holding an **unbroken run** (more than 200
-characters with no whitespace) — and how much each embedder would truncate.
-
-:func:`make_messy_copies` degrades real documents on purpose (blank lines
-stripped, punctuation removed, an unbroken run injected, documents glued
-together), standing in for a lower-quality source the corpus may gain later.
-
-    uv run python scripts/chunk_size_report.py    # report on the current corpus
 
 Nothing in this module calls an API. Counting sentences needs NLTK's
 ``punkt_tab``, and the report's BGE token counts need BGE's tokenizer, both from
@@ -64,7 +49,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = PROJECT_ROOT / "outputs" / "chunk-size-reports"
 
-# The strategies the shape rules cover (R5): every built strategy. This list is
+# The strategies the shape rules cover: every built strategy. This list is
 # written out rather than read from ``STRATEGIES`` so a strategy is added to the
 # report on purpose.
 SHAPE_STRATEGIES = (
@@ -80,7 +65,6 @@ SHAPE_STRATEGIES = (
 )
 # ``semantic`` finds its boundaries with BGE on OpenRouter: a paid call.
 PAID_STRATEGIES = ("semantic",)
-# Every other strategy runs offline and costs nothing.
 FREE_STRATEGIES = tuple(name for name in SHAPE_STRATEGIES if name not in PAID_STRATEGIES)
 
 # The five shape rules, in the order they are reported.
@@ -91,15 +75,11 @@ OUT_OF_ORDER = "out_of_order"
 EMPTY = "empty"
 SHAPE_RULES = (OVER_MAX, UNDER_MIN, LOST_TEXT, OUT_OF_ORDER, EMPTY)
 
-# Chunk metadata key under which a strategy declares its minimum length, in its
-# own unit. ``semantic`` records it on every chunk; the others declare none.
-MIN_LENGTH_KEY = "min_length"
-
-# Informational thresholds (R15), chosen without looking at the corpus.
+# Informational thresholds, chosen without looking at the corpus.
 DEFAULT_LOW_PROSE_SHARE = 0.5
 DEFAULT_UNBROKEN_RUN = 200
 
-# The four ways a messy copy degrades a document (R8).
+# The four ways a messy copy degrades a document.
 STRIP_BLANK_LINES = "strip_blank_lines"
 REMOVE_PUNCTUATION = "remove_punctuation"
 INJECT_UNBROKEN_RUN = "inject_unbroken_run"
@@ -182,11 +162,7 @@ def _chunk_lengths(parent_text: str, texts: Sequence[str], unit: str, splitter) 
     if unit != SENTENCE_UNIT:
         return [chunk_length(text, unit) if text.strip() else 0 for text in texts]
 
-    starts = (
-        [sentence["start"] for sentence in splitter.split_sentences(parent_text)]
-        if parent_text.strip()
-        else []
-    )
+    starts = [sentence["start"] for sentence in splitter.split_sentences(parent_text)]
     lengths: list[int] = []
     search_from = 0
     for text in texts:
@@ -214,13 +190,11 @@ def _without_whitespace(text: str) -> str:
 def check_chunks(
     parent: Document, chunks: Sequence[Document], settings: ChunkSettings, splitter=None
 ) -> list[RuleBreak]:
-    """Check one parent document's chunks against the five shape rules.
+    """Check one parent document's chunks, in the order the strategy produced them.
 
-    ``chunks`` are that parent's chunks in the order the strategy produced them.
-    Lengths are counted in ``settings.unit`` against ``settings.size``; a minimum
-    is read from the chunks' ``min_length`` metadata where the strategy declares
-    one. Returns every break found, in chunk order with document-level breaks
-    last; an empty list means the chunks keep all five rules.
+    Returns every break: size and empty breaks in chunk order, then order and
+    lost-text breaks in chunk order, the document-level one last. An empty list
+    means the chunks keep all five rules.
 
     Pass ``splitter`` when checking many documents: building one takes about 25 ms.
     """
@@ -243,7 +217,7 @@ def check_chunks(
                     f"{length} {settings.unit}s, declared maximum {settings.size}",
                 )
             )
-        minimum = chunk.meta.get(MIN_LENGTH_KEY)
+        minimum = chunk.meta.get("min_length")
         # A document's only chunk is the whole document: shorter than the minimum
         # is then the document's own length, not a split the strategy made.
         if minimum is not None and non_empty > 1 and length < minimum:
@@ -264,7 +238,7 @@ def _check_coverage(parent_text: str, texts: Sequence[str]) -> list[RuleBreak]:
 
     A chunk the parent does not hold verbatim is placed by its longest run of
     whole lines that the parent does hold (``_text_to_place``), so lines a
-    chunker adds at a chunk's start or end are not reported (R17).
+    chunker adds at a chunk's start or end are not reported.
 
     The chunks keep both rules when each can be placed in the parent at or after
     the previous chunk's start and no later than the end of what is covered so
@@ -394,13 +368,13 @@ def _fits_in_order(source: str, needles: Sequence[str]) -> bool:
                 frames.pop()
                 continue
             upper = covered_end + len(needle)
-        position = source.rfind(needle, previous_start, upper)
         budget -= 1
-        if position == -1 or budget < 0:
+        if budget < 0:
+            return False
+        position = source.rfind(needle, previous_start, upper)
+        if position == -1:
             failed.add((index, previous_start, covered_end))
             frames.pop()
-            if budget < 0:
-                return False
             continue
         frames[-1][3] = position + len(needle) - 1
         frames.append([index + 1, position, max(covered_end, position + len(needle)), None])
@@ -430,7 +404,6 @@ def prose_share(text: str) -> float:
 
 
 def longest_unbroken_run(text: str) -> int:
-    """Length of the longest stretch of ``text`` with no whitespace."""
     return max((len(piece) for piece in text.split()), default=0)
 
 
@@ -447,13 +420,10 @@ def make_messy_copies(
 ) -> list[Document]:
     """Degrade a seeded handful of ``documents`` in each of the ways ``changes`` names.
 
-    ``count`` documents are drawn with ``seed`` (from the documents sorted by
-    source path, so the input order does not matter). Each change except
-    ``glue_documents`` makes one copy per drawn document; ``glue_documents`` makes
-    one document of all of them, joined end to end. Every copy gets a source path
-    of its own (``<path>#messy-<change>``) so the copies can be chunked together
-    without colliding, and records the change under ``messy_change``. The same
-    documents, changes, count and seed always give the same copies.
+    The copies stand in for a lower-quality source the corpus may gain later.
+    They are drawn from the documents sorted by source path, so the input order
+    does not matter, and each copy's source path ends in ``#messy-<change>``, so
+    the copies can be chunked together without colliding.
     """
     changes = list(dict.fromkeys(changes))
     unknown = [change for change in changes if change not in MESSY_CHANGES]
@@ -512,13 +482,7 @@ def make_messy_copies(
 # --- the chunk-size report --------------------------------------------------------
 
 
-def file_sha256(path: Path) -> str:
-    """Hex sha256 of a file's bytes."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def _settings_from_chunk(chunk: Document) -> ChunkSettings:
-    """The settings a chunk records about the strategy that made it."""
     meta = chunk.meta
     return ChunkSettings(
         strategy=meta["strategy"],
@@ -538,20 +502,10 @@ def build_report(
 ) -> dict[str, Any]:
     """Measure every strategy's chunks of ``documents`` against the shape rules.
 
-    ``chunks_by_strategy`` maps a strategy name to the chunks it produced for
-    ``documents``, as the chunker returned them. Chunks are matched to their
-    parent by ``source_path``, so every document needs a distinct one.
-
-    Returns a JSON-ready dict: per strategy, the counts (chunks, over max, under
-    min, empty, documents with lost text, order errors, low-prose, unbroken run,
-    the largest chunk, and truncation per embedder — exact for BGE, an estimate
-    for Voyage); per chunk, its strategy, source path, index, length, the rules
-    it breaks, the two informational flags and its BGE tokens; and every
-    document-level break. A chunk is low-prose when under ``low_prose_share`` of
-    its characters are letters or whitespace, and holds an unbroken run when it
-    has more than ``unbroken_run`` characters without whitespace. With
-    ``manifest_path`` the report records that file's sha256, naming the corpus
-    build it measured.
+    ``chunks_by_strategy`` maps a strategy name to its chunks, as the chunker
+    returned them; each chunk is matched to its parent by ``source_path``.
+    Returns a JSON-ready dict: counts per strategy, one row per chunk, and every
+    document-level break. ``manifest_path``'s sha256 names the corpus build measured.
     """
     if not 0 < low_prose_share <= 1:
         raise ValueError(f"low_prose_share must be in (0, 1], got {low_prose_share}")
@@ -598,20 +552,17 @@ def build_report(
         declared_max = None
 
         for path, parent_chunks in by_parent.items():
-            settings = (
-                _settings_from_chunk(parent_chunks[0])
-                if parent_chunks
-                # No chunks: only the lost-text rule can apply, and it has no unit.
-                else ChunkSettings(strategy=strategy, size=0, overlap=0, unit=CHAR_UNIT)
-            )
             if parent_chunks:
+                settings = _settings_from_chunk(parent_chunks[0])
                 unit, declared_max = settings.unit, settings.size
+            else:
+                # No chunks: only the lost-text rule can apply, and it has no unit.
+                settings = ChunkSettings(strategy=strategy, size=0, overlap=0, unit=CHAR_UNIT)
             breaks = check_chunks(parents[path], parent_chunks, settings, splitter)
-            for rule_break in breaks:
-                counts[rule_break.rule] += 1
             if any(rule_break.rule == LOST_TEXT for rule_break in breaks):
                 documents_with_lost_text += 1
             for rule_break in breaks:
+                counts[rule_break.rule] += 1
                 if rule_break.chunk_index is None:
                     document_rows.append(
                         {
@@ -676,7 +627,8 @@ def build_report(
 
     manifest = None
     if manifest_path is not None:
-        manifest = {"path": str(manifest_path), "sha256": file_sha256(manifest_path)}
+        sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        manifest = {"path": str(manifest_path), "sha256": sha256}
 
     return {
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -710,9 +662,8 @@ def write_report(report: Mapping[str, Any], out_dir: Path = REPORTS_DIR) -> Path
     raise FileExistsError(f"too many reports named {stem} in {out_dir}")
 
 
-def log_report(report: Mapping[str, Any], *, log: logging.Logger | None = None) -> None:
+def log_report(report: Mapping[str, Any], *, log: logging.Logger) -> None:
     """Log the per-strategy counts as a table, one line per strategy."""
-    log = log or logger
     header = (
         f"{'strategy':<17} {'chunks':>6} {'over max':>8} {'under min':>9} {'empty':>5} "
         f"{'lost docs':>9} {'order':>5} {'low-prose':>9} {'unbroken':>8} "

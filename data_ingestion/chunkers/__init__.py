@@ -1,32 +1,13 @@
 """
-The chunking strategies the FastAPI Q&A RAG study compares.
+The chunking strategies the FastAPI Q&A RAG study compares. Each is a Haystack component
+whose ``run(documents)`` returns chunks with ``base.py``'s shared fields, so indexing can swap
+them. A strategy's name is in its Qdrant collections' names and each chunk's ``strategy`` field.
 
-Every strategy is a Haystack component with the same interface — ``run(documents)``
-in, chunk documents carrying the shared fields from :mod:`.base` out — so indexing
-can swap one for another without knowing which it has. :data:`STRATEGIES` lists
-every strategy's name, and that name is what the variant, its Qdrant collection,
-and every chunk's ``strategy`` field are called.
+``get_chunker`` imports a strategy's module only when that strategy is asked for, so a caller
+loads no other strategy's module or model, and each module still runs with ``python -m``.
 
-    from data_ingestion.chunkers import STRATEGIES, get_chunker
-
-    chunker = get_chunker("naive_medium")
-    chunks = chunker.run(documents)["documents"]
-
-``get_chunker`` imports a strategy's module only when that strategy is asked for,
-not when this package is imported: a caller that wants one strategy does not pay
-for loading the models another one needs, and a strategy module stays runnable on
-its own with ``python -m``.
-
-Five strategies split by size (words, sentences, or characters); ``semantic``
-cuts where BGE embeddings say the topic changes; ``markdown_ast`` follows the
-document's own headings and never cuts inside a code fence or a function;
-``markdown_sections`` makes one chunk per heading section and never cuts a code
-block; ``markdown_headers`` is Haystack's own markdown splitter, unextended.
-
-Build indexing pipelines in code rather than loading them from a saved
-dictionary or YAML: a pipeline holding one of these components serializes, but
-Haystack 3.0 will not deserialize a class from a module outside its trusted
-allowlist without being told to trust this package explicitly.
+Build pipelines in code: Haystack will not deserialize a class from a module outside its
+allowlist unless told to trust this package, and nothing here does that at import (C004).
 """
 
 from data_ingestion.chunkers.base import (
@@ -67,19 +48,12 @@ STRATEGIES = (
 
 
 def strategy_names() -> list[str]:
-    """Every strategy name, in the order the study reports them."""
     return list(STRATEGIES)
 
 
 def get_chunker(name: str):
-    """Build the chunker called ``name``, importing only that strategy's module.
-
-    Every chunker has its :class:`ChunkSettings` as ``settings``, a ``warm_up()``
-    and a ``run(documents)``.
-
-    Raises ``ValueError`` naming the unknown strategy and listing the known ones,
-    so a typo in a ``--strategy`` argument fails with something readable.
-    """
+    """Every chunker has its :class:`ChunkSettings` as ``settings``, a ``warm_up()`` and a
+    ``run(documents)``."""
     if name in ("naive_small", "naive_medium", "naive_large"):
         from data_ingestion.chunkers.naive import NaiveChunker
 

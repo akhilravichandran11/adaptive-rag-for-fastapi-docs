@@ -11,16 +11,14 @@ guarantee: Haystack returns a long piece it cannot split further (with a
 warning), skips a merge that would reach 1,000, and never merges the pieces a
 re-split produces, so a chunk can be shorter than 50 or longer than 1,000.
 
-The embedding model only finds the cut points; the chunks never carry its
-vectors. ``semantic__bge`` and ``semantic__voyage`` are built from the same
-chunks, so the boundaries here always come from BGE, whichever embedder later
-indexes them.
+BGE only finds the cut points, and the chunks never carry its vectors: ``semantic__bge``
+and ``semantic__voyage`` index the same chunks (``data_ingestion/DECISIONS.md``, 2026-09-20).
 
 BGE runs on OpenRouter (see :mod:`data_ingestion.openrouter_embeddings`), so
-splitting needs ``OPENROUTER_API_KEY`` and costs a few cents per full corpus.
+splitting needs ``OPENROUTER_API_KEY`` and costs about a cent per full corpus.
 Each sentence group is truncated to BGE's 512 tokens before it is sent, with
 BGE's tokenizer from the project model cache. Sentence boundaries come from
-NLTK's ``punkt_tab`` in the same cache (see :mod:`data_ingestion.chunkers.sentence`).
+NLTK's ``punkt_tab`` in the same cache.
 
     uv run python -m data_ingestion.chunkers.semantic    # demo (a paid call)
 
@@ -28,7 +26,6 @@ Run ``scripts/download_models.py`` once beforehand to fill the cache.
 """
 
 import logging
-from typing import Any
 
 from haystack import Document, component
 from haystack.components.preprocessors import EmbeddingBasedDocumentSplitter
@@ -60,7 +57,7 @@ SEMANTIC = ChunkSettings(strategy="semantic", size=MAX_LENGTH, overlap=0, unit=C
 
 # The splitter settings that are not a size, recorded on every chunk beside the
 # shared fields so a chunk says how its boundaries were found.
-SPLITTER_META: dict[str, Any] = {
+SPLITTER_META = {
     "boundary_embedder": BOUNDARY_EMBEDDER,
     "percentile": PERCENTILE,
     "sentences_per_group": SENTENCES_PER_GROUP,
@@ -70,12 +67,10 @@ SPLITTER_META: dict[str, Any] = {
 
 @component
 class SemanticChunker:
-    """Splits where neighbouring sentence groups drift apart in BGE embedding space."""
-
     def __init__(self) -> None:
         self.settings = SEMANTIC
-        # Before the splitter is built: its sentence tokenizer is looked up on
-        # the NLTK search path as it stands at lookup time.
+        # NLTK 3.10+ reads the project cache only once it is on the search path, so register it
+        # here, before warm_up() or the first run loads punkt_tab; else Haystack downloads its own.
         data_dir = register_nltk_data_dir()
         logger.debug("NLTK data directory registered for semantic splitting: %s", data_dir)
         self._splitter = EmbeddingBasedDocumentSplitter(
@@ -92,11 +87,7 @@ class SemanticChunker:
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Chunk every document and return the chunks with the shared chunk fields.
-
-        Splits one parent at a time, like ``base.split_documents``, but builds
-        the chunks itself so each one can also carry :data:`SPLITTER_META`.
-        """
+        """Like ``base.split_documents``, but each chunk also carries :data:`SPLITTER_META`."""
         if not isinstance(documents, list):
             raise TypeError(f"Expected a list of Documents, got {type(documents).__name__}")
         check_source_paths(documents, self.settings.strategy)
@@ -112,12 +103,10 @@ class SemanticChunker:
 
             split = self._splitter.run([parent])["documents"]
             texts = [chunk.content for chunk in split if chunk.content and chunk.content.strip()]
-            if len(texts) < len(split):
+            dropped = len(split) - len(texts)
+            if dropped:
                 logger.info(
-                    "%s: dropped %d blank chunk(s) from %s",
-                    self.settings.strategy,
-                    len(split) - len(texts),
-                    name,
+                    "%s: dropped %d blank chunk(s) from %s", self.settings.strategy, dropped, name
                 )
             if not texts:
                 logger.warning("%s produced no chunks for %s", self.settings.strategy, name)

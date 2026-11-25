@@ -4,6 +4,7 @@ AMBIGUOUS and INCORRECT routes. The caller builds the client and passes it in (D
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from haystack import Document
@@ -32,6 +33,7 @@ class WebSearch:
         documents = []
         seen_urls = set()
         for query in queries:
+            started_at = datetime.now(UTC).isoformat() if self.record is not None else None
             try:
                 response = self.client.search(
                     query=query,
@@ -42,21 +44,27 @@ class WebSearch:
                 )
             except Exception:
                 if self.record is not None:
+                    ended_at = datetime.now(UTC).isoformat()
                     self.record(
                         provider="tavily",
                         operation="search",
                         model=None,
                         outcome="error",
                         usage=None,
+                        started_at=started_at,
+                        ended_at=ended_at,
                     )
                 raise
             if self.record is not None:
+                ended_at = datetime.now(UTC).isoformat()
                 self.record(
                     provider="tavily",
                     operation="search",
                     model=None,
                     outcome="response",
                     usage=response.get("usage"),
+                    started_at=started_at,
+                    ended_at=ended_at,
                 )
             results = response["results"]
             added = 0

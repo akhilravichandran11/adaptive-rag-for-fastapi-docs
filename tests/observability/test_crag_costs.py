@@ -2,6 +2,7 @@ import json
 import logging
 import socket
 from collections import Counter
+from datetime import UTC, datetime
 from threading import Barrier, get_ident
 from types import SimpleNamespace
 
@@ -52,6 +53,7 @@ def providers(monkeypatch, tmp_path):
         calls=[],
         route="ambiguous",
         retry_first=False,
+        retry_error=False,
         fail_generation=False,
         fail_extraction=False,
         extraction_threads=set(),
@@ -95,6 +97,9 @@ def providers(monkeypatch, tmp_path):
     def generate_content(*, model, contents, config):
         schema = config["response_schema"]
         state.calls.append(("gemini", schema.__name__, model))
+        if schema is RelevanceReply and state.retry_error:
+            state.retry_error = False
+            raise errors.ServerError(503, {"error": {"message": "private retryable error"}})
         if schema is GeneratedAnswer and state.fail_generation:
             raise errors.ClientError(400, {"error": {"message": "private provider error"}})
         if schema is RelevanceReply:
@@ -224,7 +229,9 @@ def test_recorded_crag_routes_use_real_hybrid_and_concurrent_refinement(
 ):
     providers.route = route
     caplog.set_level(logging.INFO, logger=run.__name__)
+    before_run = datetime.now(UTC)
     run.main(["--question", "private question", "--costs-dir", str(providers.directory)])
+    after_run = datetime.now(UTC)
 
     text = (providers.directory / "calls.jsonl").read_text()
     rows = [json.loads(line) for line in text.splitlines()]
@@ -235,14 +242,42 @@ def test_recorded_crag_routes_use_real_hybrid_and_concurrent_refinement(
     assert sum(row["usd"] for row in rows) == pytest.approx(total)
     assert summary["unknown_cost_count"] == 0
     assert summary["run_failed"] is False
+    assert summary["terminal_run_failed"] is False
     assert summary["all_observed_costs_known"] is True
     assert "private" not in text
-    assert all(
-        set(row) == {"provider", "operation", "model", "outcome", "usage", "usd", "reason"}
-        for row in rows
-    )
+    started = datetime.fromisoformat(summary["started_at"])
+    ended = datetime.fromisoformat(summary["ended_at"])
+    assert before_run <= started <= ended <= after_run
+    for row in rows:
+        expected_keys = {
+            "provider",
+            "operation",
+            "model",
+            "outcome",
+            "usage",
+            "usd",
+            "reason",
+            "started_at",
+            "ended_at",
+        }
+        if row["provider"] == "gemini":
+            expected_keys |= {"logical_call_id", "attempt", "model_role"}
+            assert row["attempt"] == 1 and row["model_role"] == "primary"
+        assert set(row) == expected_keys
+        assert (
+            started
+            <= datetime.fromisoformat(row["started_at"])
+            <= datetime.fromisoformat(row["ended_at"])
+            <= ended
+        )
+    gemini_rows = [row for row in rows if row["provider"] == "gemini"]
+    assert len({row["logical_call_id"] for row in gemini_rows}) == counts["gemini"]
     if route != "correct":
         assert len(providers.extraction_threads) == 3
+        extractions = [row for row in gemini_rows if row["model"] == "gemini-3.8-flash"][-3:]
+        assert max(row["started_at"] for row in extractions) <= min(
+            row["ended_at"] for row in extractions
+        )
     result = json.loads(
         next(record.message for record in caplog.records if record.name == run.__name__)
     )
@@ -265,6 +300,33 @@ def test_cli_records_each_invalid_primary_attempt_and_fallback(providers):
     assert summary["known_estimated_usd"] == pytest.approx(0.03460052)
     assert summary["unknown_cost_count"] == 0
     assert summary["run_failed"] is False
+    assert summary["terminal_run_failed"] is False
+    attempts = [row for row in rows if row.get("logical_call_id") == rows[2]["logical_call_id"]]
+    assert [row["attempt"] for row in attempts] == [1, 2, 3, 4]
+    assert [row["model_role"] for row in attempts] == ["primary"] * 3 + ["fallback"]
+    assert all(row["outcome"] == "response" for row in attempts)
+
+
+def test_cli_recovered_provider_error_keeps_aggregate_and_terminal_outcomes_distinct(providers):
+    providers.retry_error = True
+    run.main(["--question", "private question", "--costs-dir", str(providers.directory)])
+
+    text = (providers.directory / "calls.jsonl").read_text()
+    rows = [json.loads(line) for line in text.splitlines()]
+    summary = json.loads((providers.directory / "summary.json").read_text())
+    assert len(rows) == len(providers.calls) == summary["call_count"] == 17
+    assert summary["known_estimated_usd"] == pytest.approx(0.03385042)
+    assert summary["unknown_cost_count"] == 1
+    assert summary["run_failed"] is True
+    assert summary["terminal_run_failed"] is False
+    assert rows[2]["logical_call_id"] == rows[3]["logical_call_id"]
+    assert [row["attempt"] for row in rows[2:4]] == [1, 2]
+    assert [row["outcome"] for row in rows[2:4]] == ["error", "response"]
+    assert all(
+        summary["started_at"] <= row["started_at"] <= row["ended_at"] <= summary["ended_at"]
+        for row in rows
+    )
+    assert "private" not in text
 
 
 @pytest.mark.parametrize("failure, count", [("fail_generation", 16), ("fail_extraction", 15)])
@@ -277,11 +339,16 @@ def test_cli_finalizes_failed_runs_after_refinement_workers_finish(providers, fa
     summary = json.loads((providers.directory / "summary.json").read_text())
     assert summary["call_count"] == len(rows) == len(providers.calls) == count
     assert summary["run_failed"] is True
+    assert summary["terminal_run_failed"] is True
     assert summary["unknown_cost_count"] == 1
     assert summary["all_observed_costs_known"] is False
     assert summary["known_estimated_usd"] == pytest.approx(sum(row["usd"] or 0 for row in rows))
     assert len(providers.extraction_threads) == 3
     assert len([row for row in rows if row["outcome"] == "error"]) == 1
+    assert all(
+        summary["started_at"] <= row["started_at"] <= row["ended_at"] <= summary["ended_at"]
+        for row in rows
+    )
     assert "private" not in text
 
 

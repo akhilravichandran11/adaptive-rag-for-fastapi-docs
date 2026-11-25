@@ -9,6 +9,7 @@ import json
 import logging
 import socket
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -526,7 +527,9 @@ def test_recorded_cli_keeps_results_and_saves_both_costs(recorded_voyage, compar
     ]
     caplog.clear()
 
+    before_run = datetime.now(UTC)
     hybrid.main([*args, "--costs-dir", str(recorded_voyage.directory)])
+    after_run = datetime.now(UTC)
 
     assert [
         record.getMessage() for record in caplog.records if record.name == hybrid.__name__
@@ -545,9 +548,31 @@ def test_recorded_cli_keeps_results_and_saves_both_costs(recorded_voyage, compar
     assert summary["known_estimated_usd"] == pytest.approx(0.00000114)
     assert summary["unknown_cost_count"] == 0
     assert summary["run_failed"] is False
+    assert summary["terminal_run_failed"] is False
     assert summary["all_observed_costs_known"] is True
+    started = datetime.fromisoformat(summary["started_at"])
+    ended = datetime.fromisoformat(summary["ended_at"])
+    assert before_run <= started <= ended <= after_run
     assert all(
-        set(row) == {"provider", "operation", "model", "outcome", "usage", "usd", "reason"}
+        set(row)
+        == {
+            "provider",
+            "operation",
+            "model",
+            "outcome",
+            "usage",
+            "usd",
+            "reason",
+            "started_at",
+            "ended_at",
+        }
+        for row in rows
+    )
+    assert all(
+        started
+        <= datetime.fromisoformat(row["started_at"])
+        <= datetime.fromisoformat(row["ended_at"])
+        <= ended
         for row in rows
     )
 
@@ -616,7 +641,12 @@ def test_rerank_failure_keeps_completed_embedding_and_failed_summary(recorded_vo
     assert summary["known_estimated_usd"] == 0.00000014
     assert summary["unknown_cost_count"] == 1
     assert summary["run_failed"] is True
+    assert summary["terminal_run_failed"] is True
     assert summary["all_observed_costs_known"] is False
+    assert all(
+        summary["started_at"] <= row["started_at"] <= row["ended_at"] <= summary["ended_at"]
+        for row in rows
+    )
 
 
 @pytest.mark.parametrize(
@@ -667,6 +697,7 @@ def test_recording_failures_surface_without_repeating_paid_calls(
         monkeypatch.setattr(Path, "write_text", fail_summary)
         expected_calls = ["embedding", "rerank"]
 
+    before_run = datetime.now(UTC)
     with pytest.raises(expected_error):
         hybrid.main(
             [
@@ -682,4 +713,11 @@ def test_recording_failures_surface_without_repeating_paid_calls(
     if failure in ("build", "record"):
         summary = json.loads((directory / "summary.json").read_text())
         assert summary["run_failed"] is True
+        assert summary["terminal_run_failed"] is True
         assert summary["call_count"] == 0
+        assert before_run <= datetime.fromisoformat(summary["started_at"])
+        assert (
+            datetime.fromisoformat(summary["started_at"])
+            <= datetime.fromisoformat(summary["ended_at"])
+            <= datetime.now(UTC)
+        )

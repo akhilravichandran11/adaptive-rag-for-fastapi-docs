@@ -1,6 +1,7 @@
 import logging
 import os
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any
 
 from haystack import Document, component
@@ -33,6 +34,7 @@ class UsageVoyageTextEmbedder:
         if not isinstance(text, str):
             raise TypeError(f"Voyage query embedding requires a string; got {text!r}")
         self.warm_up()
+        started_at = datetime.now(UTC).isoformat()
         try:
             response = self.client.embed(
                 texts=[text],
@@ -43,20 +45,26 @@ class UsageVoyageTextEmbedder:
                 output_dimension=self.output_dimension,
             )
         except Exception:
+            ended_at = datetime.now(UTC).isoformat()
             self.record(
                 provider="voyage",
                 operation="embedding",
                 model=self.model,
                 outcome="error",
                 usage=None,
+                started_at=started_at,
+                ended_at=ended_at,
             )
             raise
+        ended_at = datetime.now(UTC).isoformat()
         self.record(
             provider="voyage",
             operation="embedding",
             model=self.model,
             outcome="response",
             usage={"total_tokens": response.total_tokens},
+            started_at=started_at,
+            ended_at=ended_at,
         )
         return {
             "embedding": response.embeddings[0],
@@ -94,6 +102,7 @@ class UsageVoyageRanker:
             logger.warning("Voyage reranking truncates %d documents to 1000", len(input_docs))
             input_docs = input_docs[:1000]
         self.warm_up()
+        started_at = datetime.now(UTC).isoformat()
         try:
             response = self.client.rerank(
                 model=self.model,
@@ -102,20 +111,26 @@ class UsageVoyageRanker:
                 top_k=top_k,
             )
         except Exception:
+            ended_at = datetime.now(UTC).isoformat()
             self.record(
                 provider="voyage",
                 operation="rerank",
                 model=self.model,
                 outcome="error",
                 usage=None,
+                started_at=started_at,
+                ended_at=ended_at,
             )
             raise
+        ended_at = datetime.now(UTC).isoformat()
         self.record(
             provider="voyage",
             operation="rerank",
             model=self.model,
             outcome="response",
             usage={"total_tokens": response.total_tokens},
+            started_at=started_at,
+            ended_at=ended_at,
         )
         return {
             "documents": [

@@ -53,8 +53,10 @@ again. A step that fails prints a `session_setup:` line saying what to rerun.
 In the cloud, the environment's network settings must allow the package
 managers (PyPI), `github.com` (the pre-commit hooks),
 `raw.githubusercontent.com` (NLTK's sentence data) and `huggingface.co` (the
-tokenizer). Without the models, the tests that need them skip and the suite
-still passes, so also run `uv run python scripts/download_models.py --check`.
+tokenizer). List each host as written: a `*.` wildcard such as
+`*.huggingface.co` covers only subdomains, not the host itself. Without the
+models, the tests that need them skip and the suite still passes, so also run
+`uv run python scripts/download_models.py --check`.
 uv picks Python 3.13 in the cloud, as it does on the Mac; CI runs 3.11, the
 floor in `pyproject.toml`, so only CI shows that the code runs on 3.11.
 

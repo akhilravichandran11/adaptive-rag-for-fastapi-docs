@@ -1,6 +1,6 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -9,6 +9,25 @@ import pytest
 
 from observability import costs
 from observability.costs import create_recorder
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_empty_run_keeps_recorder_lifecycle_and_terminal_outcome(tmp_path, failed):
+    directory = tmp_path / "run"
+    before_create = datetime.now(UTC)
+    _, finish = create_recorder(directory)
+    after_create = datetime.now(UTC)
+    before_finish = datetime.now(UTC)
+    assert finish(run_failed=failed) is None
+    after_finish = datetime.now(UTC)
+
+    summary = json.loads((directory / "summary.json").read_text())
+    assert before_create <= datetime.fromisoformat(summary["started_at"]) <= after_create
+    assert before_finish <= datetime.fromisoformat(summary["ended_at"]) <= after_finish
+    assert summary["terminal_run_failed"] is failed
+    assert summary["run_failed"] is failed
+    assert summary["call_count"] == 0
+    assert (directory / "calls.jsonl").read_text() == ""
 
 
 def test_completed_call_is_flushed_and_summarized_once(tmp_path):
@@ -40,6 +59,47 @@ def test_completed_call_is_flushed_and_summarized_once(tmp_path):
     assert summary["call_count"] == 1
     assert summary["unknown_cost_count"] == 0
     assert summary["run_failed"] is False
+
+
+def test_supplied_call_times_and_attempts_survive_a_recovered_error(tmp_path):
+    directory = tmp_path / "run"
+    record, finish = create_recorder(directory)
+    for attempt, outcome in enumerate(("error", "response"), start=1):
+        assert (
+            record(
+                provider="gemini",
+                operation="generation",
+                model="gemini-3.1-pro-preview",
+                outcome=outcome,
+                usage=None
+                if outcome == "error"
+                else {"prompt_token_count": 0, "candidates_token_count": 0},
+                started_at=f"2026-11-23T01:00:0{attempt}+00:00",
+                ended_at=f"2026-11-23T01:00:1{attempt}+00:00",
+                logical_call_id="opaque-call-id",
+                attempt=attempt,
+                model_role="primary",
+            )
+            is None
+        )
+    assert finish() is None
+
+    rows = [json.loads(line) for line in (directory / "calls.jsonl").read_text().splitlines()]
+    assert [row["started_at"] for row in rows] == [
+        "2026-11-23T01:00:01+00:00",
+        "2026-11-23T01:00:02+00:00",
+    ]
+    assert [row["ended_at"] for row in rows] == [
+        "2026-11-23T01:00:11+00:00",
+        "2026-11-23T01:00:12+00:00",
+    ]
+    assert [row["attempt"] for row in rows] == [1, 2]
+    assert all(row["logical_call_id"] == "opaque-call-id" for row in rows)
+    assert all(row["model_role"] == "primary" for row in rows)
+    assert [row["usd"] for row in rows] == [None, 0]
+    summary = json.loads((directory / "summary.json").read_text())
+    assert summary["run_failed"] is True
+    assert summary["terminal_run_failed"] is False
 
 
 @pytest.mark.parametrize(

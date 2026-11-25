@@ -7,7 +7,11 @@ The fake client copies the SDK's keyword-only call, ``.text`` and ``.model_versi
 import json
 import logging
 import socket
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from threading import Event
 from types import SimpleNamespace
+from unittest.mock import Mock, PropertyMock
 
 import pytest
 from google.genai import errors, types
@@ -356,3 +360,124 @@ def test_unresolved_model_alias_is_never_priced(metadata, tmp_path):
     assert row["reason"] == (
         "missing_or_invalid_usage" if metadata is None else "unsupported_operation_or_model"
     )
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_call_times_exclude_usage_conversion_recording_and_schema_validation(
+    failed, monkeypatch, tmp_path
+):
+    moment = [datetime(2026, 11, 23, 1, tzinfo=UTC)]
+    monkeypatch.setattr(llm, "datetime", Mock(wraps=datetime, now=lambda tz: moment[0]))
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+
+    def read_usage():
+        moment[0] = datetime(2026, 11, 23, 3, tzinfo=UTC)
+        return SimpleNamespace(prompt_token_count=100, candidates_token_count=10)
+
+    def read_text():
+        moment[0] = datetime(2026, 11, 23, 5, tzinfo=UTC)
+        assert (directory / "calls.jsonl").read_text()
+        return GOOD_REPLY
+
+    response = Mock(model_version="gemini-3.1-pro-preview")
+    type(response).usage_metadata = PropertyMock(side_effect=read_usage)
+    type(response).text = PropertyMock(side_effect=read_text)
+
+    def generate_content(*, model, contents, config):
+        moment[0] = datetime(2026, 11, 23, 2, tzinfo=UTC)
+        if failed:
+            raise ValueError("private provider failure")
+        return response
+
+    def delayed_record(**row):
+        moment[0] = datetime(2026, 11, 23, 4, tzinfo=UTC)
+        record(**row)
+
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    model = llm.StructuredLLM(client, primary=PRIMARY, record=delayed_record)
+    if failed:
+        with pytest.raises(ValueError, match="private provider failure"):
+            model.ask("private prompt", Grade)
+    else:
+        assert model.ask("private prompt", Grade) == (
+            Grade(verdict="yes", score=0.9),
+            "gemini-3.1-pro-preview",
+        )
+    finish(run_failed=failed)
+
+    row = json.loads((directory / "calls.jsonl").read_text())
+    assert row["started_at"] == "2026-11-23T01:00:00+00:00"
+    assert row["ended_at"] == "2026-11-23T02:00:00+00:00"
+    assert row["outcome"] == ("error" if failed else "response")
+    assert "private" not in (directory / "calls.jsonl").read_text()
+
+
+def test_interleaved_asks_keep_distinct_ids_and_sequential_primary_fallback_attempts(tmp_path):
+    first_recorded, second_recorded = Event(), Event()
+    scripts = {
+        "slow": [
+            rate_limit(),
+            server_error(),
+            usage_reply("not json"),
+            server_error(),
+            usage_reply(GOOD_REPLY, "gemini-3.5-flash-lite"),
+        ],
+        "fast": [usage_reply(GOOD_REPLY)],
+    }
+    dispatched = []
+
+    def generate_content(*, model, contents, config):
+        if contents == "fast":
+            assert first_recorded.wait(timeout=3)
+        elif len(scripts[contents]) == 4:
+            assert second_recorded.wait(timeout=3)
+        dispatched.append((contents, model))
+        result = scripts[contents].pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    directory = tmp_path / "costs"
+    record, finish = create_recorder(directory)
+    recorded = []
+
+    def record_and_release(**row):
+        record(**row)
+        recorded.append(row)
+        if len(recorded) == 1:
+            first_recorded.set()
+        elif len(recorded) == 2:
+            second_recorded.set()
+
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    model = llm.StructuredLLM(client, primary=PRIMARY, fallback=FALLBACK, record=record_and_release)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        slow = pool.submit(model.ask, "slow", Grade)
+        fast = pool.submit(model.ask, "fast", Grade)
+        assert fast.result() == (Grade(verdict="yes", score=0.9), "gemini-3.1-pro-preview")
+        assert slow.result() == (Grade(verdict="yes", score=0.9), "gemini-3.5-flash-lite")
+    finish()
+
+    rows = [json.loads(line) for line in (directory / "calls.jsonl").read_text().splitlines()]
+    assert len(rows) == len(dispatched) == 6
+    assert rows[0]["logical_call_id"] != rows[1]["logical_call_id"]
+    assert all(row["logical_call_id"] for row in rows)
+    slow_rows = [rows[0], *rows[2:]]
+    assert len({row["logical_call_id"] for row in slow_rows}) == 1
+    assert [row["attempt"] for row in slow_rows] == [1, 2, 3, 4, 5]
+    assert [row["model_role"] for row in slow_rows] == ["primary"] * 3 + ["fallback"] * 2
+    assert [row["outcome"] for row in slow_rows] == [
+        "error",
+        "error",
+        "response",
+        "error",
+        "response",
+    ]
+    assert rows[1]["attempt"] == 1 and rows[1]["model_role"] == "primary"
+    assert [model for prompt, model in dispatched if prompt == "slow"] == [PRIMARY] * 3 + [
+        FALLBACK
+    ] * 2
+    summary = json.loads((directory / "summary.json").read_text())
+    assert summary["run_failed"] is True
+    assert summary["terminal_run_failed"] is False

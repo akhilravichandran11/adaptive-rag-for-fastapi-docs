@@ -536,6 +536,50 @@ components (rejected by D8 and D9).
 
 **Alternatives.** Recorder class, global active run, ContextVar, registry and exporter interface; each adds machinery unnecessary for one CLI run. A total measured only after pipeline success loses earlier calls on failure.
 
+### Extension: measured timing and per-ask correlation
+
+**Status:** accepted · **Proposed:** 2026-11-23, OBS-04 · **Accepted:** 2026-11-25, owner ruling in the OBS-04 chat · **Where:** `observability/costs.py`, `retrieval/voyage_usage.py`, `crag/llm.py`, `crag/web_search.py`
+
+**The convention, stated.** Extend the accepted accounting fields with optional
+`started_at` and `ended_at` ISO UTC timestamps measured immediately around each
+observable SDK invocation, including exceptions. Capture them before usage
+conversion, recorder delay and JSON/schema validation. A response outcome means
+the SDK returned, not that its JSON passed validation.
+
+Each recorded Gemini `ask` supplies one opaque `logical_call_id`, an `attempt`
+ordinal starting at 1 and continuing across primary/fallback retries, and
+`model_role` equal to `primary` or `fallback`. State belongs to that ask and is
+carried through its retry path, never stored on the shared LLM instance.
+
+The summary adds recorder creation/finalization timestamps and
+`terminal_run_failed` from the existing `finish` argument. Preserve
+`run_failed = terminal failure OR observed provider error`. Empty failed runs
+retain their recorder interval.
+
+Missing or null optional row fields are omitted, never invented. Existing direct
+accounting callers remain valid; both callbacks still return `None`. Preserve
+the accepted pricing, unknown/zero distinction, privacy, pre-parse recording,
+locking and accounting-I/O behavior. Opik export remains pending.
+
+**Why.** Measured boundaries and ask identity make concurrent retries interpretable;
+the terminal flag distinguishes recovery from a failed CLI run.
+
+**What it replaces.** Extends untimed rows and the aggregate-only failure flag.
+The original accounting contract remains accepted.
+
+**Blast radius.** The four modules above, their recorder/provider tests,
+`tests/observability/test_crag_costs.py`, `tests/retrieval/test_hybrid.py`,
+`tests/crag/test_run.py`, and the cost-record section of `crag/RUNNING.md`.
+
+**Alternatives.** Recorder-time timestamps include append delay; child-derived root
+times omit local work and empty runs; shared attempt state mixes concurrent asks.
+No additional callback, recorder class, registry or ContextVar is needed.
+
+**Scope update, 2026-11-23.** OBS-02 and OBS-03 are complete. The original
+C014 blast-radius paragraph above retains their pending status from the OBS-01
+proposal history; it is not the current implementation status.
+
+
 ## C015: A fake for an SDK client subclasses the real client and answers only its `execute`
 
 **Status:** accepted · **Introduced:** 2026-11-22, CRG-37 · **Where:** `tests/backend/test_cache.py` (`FakeUpstash`)

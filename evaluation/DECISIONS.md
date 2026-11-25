@@ -6,6 +6,24 @@ the harness grows; the newest sit at the top.
 
 ---
 
+## 2026-11-20 — The golden set: reference chunks by identity, in `evaluation/golden.json`, picked on a blind sheet
+
+**Decision.** Fifteen questions make the golden set: hw-01 to hw-10, and syn-23, syn-20, syn-13, syn-24 and syn-26, picked as hard cases (`GOLDEN_IDS` in `evaluation/golden_set.py`). Each entry has an edited reference answer, 1 to 5 reference chunks and a short rationale. They are saved in `evaluation/golden.json` and read through `ReferenceChunk`, `GoldenEntry` and `GoldenSet` in `evaluation/schemas.py`.
+
+**Identity within one index run (E20).** A reference chunk is identified by `(source_path, strategy, chunk_index)` within the golden set's `index_run`. Dense and hybrid read the same collection from the same build, so identity is exact, free, and the same on every run, with no threshold to tune. Hybrid's BM25-only hits carry no `meta.index_run`, but they come from the chunk run the collection was indexed from (`retrieval/hybrid.py --chunks-run`), so their identities name the same chunks. Each reference also stores its text, so a similarity scorer can match it later. That scorer is added when a system with another chunking, or with web chunks, is scored. Embedding similarity with a threshold and fuzzy text matching were rejected for now: they solve a problem neither system has.
+
+**The shape (E21).** An entry holds 1 to 5 reference chunks, in no order. A minimum of 3 would force a marginal chunk that P@k then counts as relevant, and nothing reads an order. An entry names its question by `question_id` only, so the question text has one copy. The file sits in `evaluation/`, not in `evaluation/questions/`, because `retrieval_metrics.py` reads every `*.json` in that folder through `EvalQuestion` by default, and a golden file there would break its default run.
+
+**The blind sheet, and `--build` as the word-for-word copy (E22).** `uv run python evaluation/golden_set.py RESULTS.jsonl ...` writes one page per question to a new, git-ignored `evaluation/outputs/golden_sheet_<UTC time>/`, with a `key.json`. Each page holds the question, the current answer, and the union of both runs' chunks, numbered in a shuffle seeded with the question id. Each chunk shows only its `source_path` and text: no system and no rank, so the picks cannot follow the system that wins. `--build SHEET_DIR` maps each page's `pick:` numbers through the key and validates the result. It then writes `golden.json`, copying the edited answer word for word, with only its surrounding blank lines trimmed. An unknown or repeated pick, or a page that fails validation, stops it with nothing written. It stays a command, not an agent copying 15 answers by hand, because a hand copy can change words without anyone noticing.
+
+**What stops the sheet.** Lines for the golden ids from more than one `index_run`; a golden id with no line or no chunks; one identity with two texts; a golden id in no question file; a sheet folder that already exists. Exit 1 names the file or the id.
+
+**Cost.** Identity matching covers only systems built on this index run. Scoring any other build needs the similarity scorer first.
+
+Files: `evaluation/golden_set.py`, `evaluation/schemas.py`.
+
+---
+
 ## 2026-11-14 — Results file: one line per question and system, and the only `*.jsonl` in its run folder
 
 **Decision.** `evaluation/generate_results.py` asks every evaluation question of every selected strategy × embedder collection. It saves each result as one line of `evaluation/outputs/<run_id>/results.jsonl`. A line is the record that `ask` in `retrieval/baseline_rag.py` returns: the question, the collection, `top_k`, the ranked chunks with their metadata, the answer and its token `usage`. `system` (`baseline__<strategy>__<embedder>`) and `question_id` are put in front. Questions are asked question first: question 1 of every system, then question 2. Beside the file sits `run_meta.json`, which holds the run's settings and what each attempt saw. Nothing else in the folder ends in `.jsonl`.

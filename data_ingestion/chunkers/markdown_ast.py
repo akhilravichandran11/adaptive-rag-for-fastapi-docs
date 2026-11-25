@@ -14,22 +14,18 @@ methods; any other code block stays whole. Haystack does both kinds of parsing �
 Design notes
 
 Rule 1 — headings first, path in metadata only. Text under one heading is usually
-one idea. The path stays out of the chunk text because all seven strategies are
-compared on the same text.
+one idea. The path stays out of the chunk text because every strategy is compared
+on the same text.
 
 Rule 2 — Python is split by its syntax tree. A reader copies a whole function, so
 half of one is no use: ``PythonCodeSplitter`` cuts only between top-level
-statements and between a class's methods (later pieces repeat the class line). It
-aims at 2,000 characters and can run past them, short of twice that. A snippet
-that does not parse on its own is kept whole.
+statements and between a class's methods (later pieces repeat the class line).
 
 Rule 3 — other code blocks are never split: a shell session or a JSON body cut in
 two leaves two wrong halves.
 
-Rule 4 — long sections are cut between paragraphs, at 2,000 characters like the
-``recursive`` strategy, but a fenced block is one unit. Splitters that cut at
-blank lines cut code too: ``recursive`` leaves 198 of its 602 chunks with an
-unclosed fence on this corpus.
+Rule 4 — long sections are cut between paragraphs, but a fenced block is one unit.
+Splitters that cut at blank lines cut code too (data_ingestion/DECISIONS.md, 2026-11-16).
 
 Rule 5 — no token target: Voyage is the primary embedder, and BGE truncating a
 long chunk is reported, not designed around.
@@ -87,7 +83,6 @@ def _blocks(section: str) -> list[_Block]:
         last = blocks[-1] if blocks else None
         opening = _FENCE_RE.match(line)
         if last is not None and last.open:
-            # Inside a code block until the same fence closes it.
             last.text += line
             last.open = line.rstrip() != last.fence
         elif opening:
@@ -103,15 +98,13 @@ def _blocks(section: str) -> list[_Block]:
 
 
 def _paragraph_goes_on(block: _Block) -> bool:
-    """True when ``block`` is a paragraph not yet ended by a blank line."""
     return block.fence is None and bool(block.text.splitlines()[-1].strip())
 
 
-def _pack(units: list[str], limit: int) -> list[str]:
-    """Fill pieces with whole units in order, starting a new piece before one would overflow."""
+def _pack(units: list[str]) -> list[str]:
     pieces: list[str] = []
     for unit in units:
-        if pieces and len(pieces[-1]) + len(unit) <= limit:
+        if pieces and len(pieces[-1]) + len(unit) <= SPLIT_THRESHOLD:
             pieces[-1] += unit
         else:
             pieces.append(unit)
@@ -119,14 +112,12 @@ def _pack(units: list[str], limit: int) -> list[str]:
 
 
 def _heading_path(section: Document) -> str:
-    """The headings above a section and its own, without anchors; "" with no heading."""
     headings = [*section.meta.get("parent_headers", []), section.meta.get("header") or ""]
     names = [_HEADING_ANCHOR_RE.sub("", heading).strip() for heading in headings]
     return " > ".join(name for name in names if name)
 
 
 def _kept_whole(text: str, what: str, where: str) -> None:
-    """Log a block left over 2,000 characters because splitting it would break it."""
     logger.info(
         "%s: kept a %d-character %s whole in %s",
         MARKDOWN_AST.strategy,
@@ -138,8 +129,6 @@ def _kept_whole(text: str, what: str, where: str) -> None:
 
 @component
 class MarkdownAstChunker:
-    """Splits at headings, then between paragraphs past 2,000 characters, never through code."""
-
     def __init__(self) -> None:
         self.settings = MARKDOWN_AST
         # Every heading level starts a section, and its line stays in the text.
@@ -191,7 +180,6 @@ class MarkdownAstChunker:
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Chunk every document and return the chunks with the shared fields and a heading path."""
         if not isinstance(documents, list):
             raise TypeError(f"Expected a list of Documents, got {type(documents).__name__}")
         check_source_paths(documents, self.settings.strategy)
@@ -207,19 +195,13 @@ class MarkdownAstChunker:
             heading_paths: list[dict[str, str]] = []
             for section in self._header_splitter.run([parent])["documents"]:
                 path = _heading_path(section)
+                where = f"{name} ({path})" if path else name
                 content = section.content or ""
-                pieces = [content]
-                if len(content) > SPLIT_THRESHOLD:
-                    where = f"{name} ({path})" if path else name
-                    units = [u for b in _blocks(content) for u in self._block_units(b, where)]
-                    pieces = _pack(units, SPLIT_THRESHOLD)
-                for piece in pieces:
+                units = [u for b in _blocks(content) for u in self._block_units(b, where)]
+                for piece in _pack(units):
                     if piece.strip():
                         texts.append(piece)
                         heading_paths.append({"heading_path": path})
-            if not texts:
-                logger.warning("%s produced no chunks for %s", self.settings.strategy, name)
-                continue
             chunks.extend(build_chunks(parent, texts, self.settings, per_chunk_meta=heading_paths))
         return {"documents": chunks}
 

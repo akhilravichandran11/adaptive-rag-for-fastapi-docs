@@ -8,6 +8,16 @@ description: Coordinate a user-requested batch of approved repository tickets in
 Lead the named tickets using the repository tracker as the shared task list.
 This is a Codex workflow, independent of Claude's commands and Agent Teams.
 
+This chat ends with its batch. Take one batch and no other job: do not start,
+brief or relay another lead chat, and do not pick up a new task here after the
+report. Spawn only the roles this file names: ticket-implementer,
+active-code-simplifier, a Spec reviewer and active-code-reviewer. Spawn no
+coordinator and no agent whose job is to relay or supervise other agents; one
+review coordinator cost more than the three reviewers it managed. Any other
+agent (an audit, a survey) needs a stated plan, a cost estimate and the
+user's yes first. If this chat's context is compacted mid-batch, re-read this
+file before the next step.
+
 In a cloud session, the cloud column of the table in
 `docs/agents/cloud-sessions.md` replaces this file's claim, commit, approval,
 review-skill, views, relay and close rules.
@@ -96,6 +106,12 @@ Each assignment includes:
 Use the existing model settings unless the user requests an override.
 Stay within the available concurrency limit.
 
+Start every worker with `fork_turns="none"`: implementers, the simplifier and
+reviewers alike. The default copies this lead's whole conversation into the
+worker, so a reviewer re-reads hundreds of thousands of tokens for a few tool
+calls and inherits the lead's opinion of the code it is meant to judge. A
+worker then knows only what its assignment says, so make each one complete.
+
 Record the returned agent ID or canonical task name. Use `followup_task` on
 the existing worker for the first fix round (`send_message` delivers
 information during ongoing work but does not start an idle worker's next
@@ -124,32 +140,43 @@ Inspect the actual files against the starting state and approved ticket.
 Read complete untracked and ignored files; an ordinary Git diff omits them.
 
 Reviews follow step 8 of docs/agents/issue-tracker.md, the one review rule
-for every path. After the worker's checks pass, spawn the
+for every path. After the worker's checks pass, count the ticket's size as
+step 8 defines it: lines added plus removed in production Python, never
+tests, from this ticket's changes only
+(`git diff --numstat <start> -- <ticket-owned paths>` plus the line counts of
+its new untracked files). State the size in the report.
+
+At about 50 lines or more, and never on a simplification ticket, spawn the
 active-code-simplifier with the ticket path, the starting commit and the
 changed production Python files only (never tests; without an explicit scope
 it falls back to checkout-wide changes), and wait for its handback before
-reviewing the resulting files. It runs once, on the first build; a fix round does not get it again.
-Report its Split list (each new step and its one-line job) to the user
-verbatim; step names are a design call. Then apply step 8's tier by this
-ticket's Python diff size, including its exceptions: a docs-only ticket gets
-no reviews; a fix round that changes behaviour or an interface gets the
-active-code-reviewer plus the lead's read, a rename-only or comment-only
-round the lead's read alone. The Progress line names the tier that ran.
+reviewing the resulting files. It runs once, on the first build; a fix round
+does not get it again. Report its Split list (each new step and its one-line
+job) to the user verbatim; step names are a design call.
 
-When the tier calls for the standards/spec review (the code-review skill where
-available), the fixed point is the handback's starting commit. Nothing is
-committed, so a <start>...HEAD diff is empty: review
-`git diff <start> -- <ticket-owned paths>` and the ticket's new untracked or
-ignored files in full against the standards and the ticket, disclosing that
-method. The checkout is shared, so an unscoped diff pulls in sibling tickets
-and pre-existing edits; separate those with the recorded starting state and
-compute the tier from this ticket's changes only. Standards sources: docs/conventions.md,
+On every ticket that changes Python, read the diff yourself against the
+ticket and the standards sources, then run the active-code-reviewer for
+runtime bugs. At about 200 lines or more, or when the ticket adds or changes
+the text of a model prompt, also run a Spec review: one reviewer that checks
+the change against the ticket and the decisions it cites and, for a prompt,
+whether its rules agree with each other. The standards half of the
+code-review skill runs only when the user asks for it by name. A docs-only
+ticket gets no reviews. A fix round that changes behaviour, an interface or
+a model prompt's text gets the active-code-reviewer plus the lead's read; a
+rename-only or comment-only round the lead's read alone. The Progress line
+names the size and the reviews that ran.
+
+Nothing is committed, so a <start>...HEAD diff is empty: every reviewer
+reviews `git diff <start> -- <ticket-owned paths>` and the ticket's new
+untracked or ignored files in full, disclosing that method. The checkout is
+shared, so an unscoped diff pulls in sibling tickets and pre-existing edits;
+separate those with the recorded starting state. Standards sources, for the
+lead's read and for a standards review: docs/conventions.md,
 docs/simplification-conventions.md and
 .scratch/code-simplification/questions.md, whose open-question list bans
-constructs a smell-based review may suggest. Spec: the ticket file. The
-active-code-reviewer runs for runtime bugs on every tier that reviews.
+constructs a smell-based review may suggest. Spec: the ticket file.
 
-After the simplifier's handback, paste the output of
+After the simplifier's handback, or once it is skipped, paste the output of
 `python3 .scratch/ticket.py packet <ID>` into the prompt of every reviewer
 that runs. It gives a reviewer that did not write the code the ticket's
 contract, the edits already in the files when the ticket started, and the
@@ -192,7 +219,9 @@ what was verified and what is next. Every "Noticed, not touched" item gets a
 proposed disposition in the same approval: a finding, an INBOX line, or
 "dropped, because". Record them only after the user says yes, and apply the
 approved dispositions on that yes. A worker handback alone never closes a
-ticket.
+ticket. A convention in `docs/conventions.md`, a `DECISIONS.md` entry and a
+note written into another ticket are record edits too: they wait for the
+same approval.
 
 On the yes, write the records in the format the tracker doc sets: the
 Progress line tagged `(codex lead)`, the decisions table verbatim with its
@@ -212,23 +241,35 @@ Never run `git commit`, and do not stage either: the index is shared by every
 chat on this checkout, another chat's commit would sweep a staged file in, and
 pre-commit stashes every unstaged tracked change during a commit. When a
 ticket's reviews are clean, give the user the exact `git add <paths>` line
-and one Conventional Commit message with a scope; the user runs both once
-every worker is idle. Before recommending a commit, check that other agents
-or chats writing the same checkout are idle.
+and one Conventional Commit message with a scope, without being asked; never
+ask to stage instead. Three steps come first. Write every record file the
+line names (a `DECISIONS.md` entry, a convention): a line handed over early
+gets run early and splits the commit. Run `uvx pre-commit run --files` on the
+ticket's files and the reserved-words check through a temporary index
+(tracker doc, step 8), and fix what they change, so the bytes committed are
+the bytes that were reviewed. Write the message so the user can paste it
+through `git commit -F -` with a heredoc. The user runs both once every
+worker is idle. Before recommending a commit, check that other agents or
+chats writing the same checkout are idle.
 
 ## 6. Report and hand off
 
 Report each ticket in the implementer's handback headings and order,
 keeping its decisions table and drafted records verbatim, and add:
 
-- The lead's review results per tier, and the canonical tracker status next
-  to the worker's status.
+- The lead's review results, with the ticket's size and which reviews ran,
+  and the canonical tracker status next to the worker's status.
 - Fresh combined verification, separately from worker-reported evidence: the
   suite count with and without other chats' files in the checkout.
 - A consolidated list of every decision the user still owes across the batch.
 - A run log, one row per worker or reviewer run: ticket, role, agent
-  identity, build/fix/review round, outcome. State once that per-agent token
-  usage and cost are not available through this runtime.
+  identity, build/fix/review round, outcome and tokens. The collaboration
+  tools do not report usage, but each thread's rollout file does: under
+  `~/.codex/sessions/`, the `rollout-*.jsonl` whose first line names the
+  thread id (a worker's also names this lead as `parent_thread_id`). Its last
+  `token_count` event holds the thread's `total_token_usage`. Report the
+  total and the cached-input part separately, and name any row you could not
+  read.
 
 Combine questions for the user into one numbered list with recommendations.
 Send reports where the "Process notes and the handback" row of the table in

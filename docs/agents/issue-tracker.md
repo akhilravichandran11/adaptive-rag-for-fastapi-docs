@@ -372,6 +372,12 @@ within one ticket's scope and request user approval before expanding it. Mark th
    - On every ticket that changes Python, read the diff yourself against the
      ticket and the standards sources, then run the `active-code-reviewer`
      agent.
+   - Give every reviewer that runs, on every path and in every round, the
+     output of `python3 .scratch/ticket.py packet <ID>`: the ticket's
+     contract, the edits that were in its files before the work began, and
+     the change since. A reviewer that did not write the code has nothing
+     else to judge the change against. The starting state is saved by
+     `ticket.py claim`, so claim the ticket with it before the first edit.
    - A fix round that changes behaviour or an interface gets
      `active-code-reviewer` again plus your own read; a change to a model
      prompt's text is a behaviour change. A rename-only or comment-only
@@ -442,8 +448,10 @@ instructions conflict with this repo, this repo wins:
   typechecking, run `uv run ruff check` instead. Acceptance still requires
   `uv run pytest` to pass.
 - **The board rules still apply.** Claim the ticket in **Doing** before
-  starting, modify only files in its `Touches`, and mark it **Done** only as
-  described under Issue status.
+  starting, with `python3 .scratch/ticket.py claim <ID>`: a hand edit flips
+  the status but saves no starting state, and the reviewers' packet in step 8
+  needs it. Modify only files in the ticket's `Touches`, and mark it **Done**
+  only as described under Issue status.
 - **Record edits go on a proposal page.** When edits to findings, plans,
   tickets or boards touch more than one file or add one, show them as a
   proposal page before anything is written; see
